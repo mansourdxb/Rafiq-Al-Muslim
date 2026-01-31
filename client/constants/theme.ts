@@ -1,32 +1,54 @@
 import { Platform } from "react-native";
 
-const tintColorLight = "#007AFF";
-const tintColorDark = "#0A84FF";
-
 export const Colors = {
   light: {
-    text: "#11181C",
+    text: "#2C3E50",
+    textSecondary: "#6C757D",
     buttonText: "#FFFFFF",
-    tabIconDefault: "#687076",
-    tabIconSelected: tintColorLight,
-    link: "#007AFF",
-    backgroundRoot: "#FFFFFF", // Elevation 0
-    backgroundDefault: "#F2F2F2", // Elevation 1
-    backgroundSecondary: "#E6E6E6", // Elevation 2
-    backgroundTertiary: "#D9D9D9", // Elevation 3
+    tabIconDefault: "#6C757D",
+    tabIconSelected: "#5B7C99",
+    link: "#5B7C99",
+    primary: "#5B7C99",
+    accent: "#8B6F9D",
+    success: "#4CAF50",
+    error: "#EF5350",
+    backgroundRoot: "#F8F9FA",
+    backgroundDefault: "#FFFFFF",
+    backgroundSecondary: "#F0F2F5",
+    backgroundTertiary: "#E8EAED",
+    surface: "#FFFFFF",
+    border: "#E0E0E0",
+    progressBackground: "rgba(91, 124, 153, 0.15)",
   },
   dark: {
-    text: "#ECEDEE",
+    text: "#E8EAED",
+    textSecondary: "#9CA3AF",
     buttonText: "#FFFFFF",
-    tabIconDefault: "#9BA1A6",
-    tabIconSelected: tintColorDark,
-    link: "#0A84FF",
-    backgroundRoot: "#1F2123", // Elevation 0
-    backgroundDefault: "#2A2C2E", // Elevation 1
-    backgroundSecondary: "#353739", // Elevation 2
-    backgroundTertiary: "#404244", // Elevation 3
+    tabIconDefault: "#9CA3AF",
+    tabIconSelected: "#7BA3C4",
+    link: "#7BA3C4",
+    primary: "#7BA3C4",
+    accent: "#A68BB8",
+    success: "#66BB6A",
+    error: "#EF5350",
+    backgroundRoot: "#1A1D23",
+    backgroundDefault: "#25282E",
+    backgroundSecondary: "#2E3138",
+    backgroundTertiary: "#3A3E45",
+    surface: "#25282E",
+    border: "#3A3E45",
+    progressBackground: "rgba(123, 163, 196, 0.2)",
   },
 };
+
+export const PresetColors = [
+  "#5B7C99",
+  "#8B6F9D",
+  "#4CAF50",
+  "#FF9800",
+  "#E91E63",
+  "#00BCD4",
+];
 
 export const Spacing = {
   xs: 4,
@@ -38,6 +60,7 @@ export const Spacing = {
   "3xl": 32,
   "4xl": 40,
   "5xl": 48,
+  "6xl": 64,
   inputHeight: 48,
   buttonHeight: 52,
 };
@@ -45,7 +68,7 @@ export const Spacing = {
 export const BorderRadius = {
   xs: 8,
   sm: 12,
-  md: 18,
+  md: 16,
   lg: 24,
   xl: 30,
   "2xl": 40,
@@ -54,24 +77,29 @@ export const BorderRadius = {
 };
 
 export const Typography = {
-  h1: {
-    fontSize: 32,
-    lineHeight: 40,
+  counter: {
+    fontSize: 120,
+    lineHeight: 130,
     fontWeight: "700" as const,
   },
-  h2: {
+  h1: {
     fontSize: 28,
     lineHeight: 36,
-    fontWeight: "700" as const,
+    fontWeight: "600" as const,
+  },
+  h2: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "600" as const,
   },
   h3: {
-    fontSize: 24,
-    lineHeight: 32,
+    fontSize: 18,
+    lineHeight: 24,
     fontWeight: "600" as const,
   },
   h4: {
-    fontSize: 20,
-    lineHeight: 28,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: "600" as const,
   },
   body: {
@@ -84,6 +112,11 @@ export const Typography = {
     lineHeight: 20,
     fontWeight: "400" as const,
   },
+  caption: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "400" as const,
+  },
   link: {
     fontSize: 16,
     lineHeight: 24,
@@ -91,15 +124,35 @@ export const Typography = {
   },
 };
 
+export const Shadows = {
+  small: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  medium: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  large: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+};
+
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: "system-ui",
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: "ui-serif",
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: "ui-rounded",
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: "ui-monospace",
   },
   default: {
