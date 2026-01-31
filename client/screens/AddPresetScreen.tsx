@@ -3,12 +3,14 @@ import { View, StyleSheet, TextInput, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import { Spacing, BorderRadius, PresetColors } from "@/constants/theme";
+import { Spacing, BorderRadius, PresetColors, Shadows } from "@/constants/theme";
 
 const TARGET_OPTIONS = [33, 99, 100, 1000];
 
@@ -53,17 +55,17 @@ export default function AddPresetScreen() {
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       contentContainerStyle={{
         paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: insets.bottom + Spacing.xl,
-        paddingHorizontal: Spacing.lg,
+        paddingBottom: insets.bottom + Spacing["2xl"],
+        paddingHorizontal: Spacing.xl,
       }}
     >
-      <View style={styles.section}>
+      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.section}>
         <ThemedText style={[styles.label, { color: theme.text }]}>Name</ThemedText>
         <TextInput
           style={[
             styles.input,
             {
-              backgroundColor: theme.surface,
+              backgroundColor: theme.surfaceElevated,
               color: theme.text,
               borderColor: theme.border,
             },
@@ -71,12 +73,12 @@ export default function AddPresetScreen() {
           value={name}
           onChangeText={setName}
           placeholder="Enter preset name"
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={theme.textMuted}
           autoCapitalize="words"
         />
-      </View>
+      </Animated.View>
 
-      <View style={styles.section}>
+      <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.section}>
         <ThemedText style={[styles.label, { color: theme.text }]}>
           Arabic Name (Optional)
         </ThemedText>
@@ -84,7 +86,7 @@ export default function AddPresetScreen() {
           style={[
             styles.input,
             {
-              backgroundColor: theme.surface,
+              backgroundColor: theme.surfaceElevated,
               color: theme.text,
               borderColor: theme.border,
               textAlign: "right",
@@ -93,23 +95,27 @@ export default function AddPresetScreen() {
           value={arabicName}
           onChangeText={setArabicName}
           placeholder="أدخل الاسم بالعربية"
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={theme.textMuted}
         />
-      </View>
+      </Animated.View>
 
-      <View style={styles.section}>
+      <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
         <ThemedText style={[styles.label, { color: theme.text }]}>Target</ThemedText>
         <View style={styles.targetGrid}>
           {TARGET_OPTIONS.map((option) => (
             <Pressable
               key={option}
-              style={[
+              style={({ pressed }) => [
                 styles.targetOption,
-                { backgroundColor: theme.surface, borderColor: theme.border },
-                !showCustomTarget && target === option && {
-                  borderColor: theme.primary,
-                  backgroundColor: theme.progressBackground,
+                { 
+                  backgroundColor: !showCustomTarget && target === option 
+                    ? `${theme.primary}12` 
+                    : theme.surfaceElevated,
+                  borderColor: !showCustomTarget && target === option 
+                    ? theme.primary 
+                    : theme.border,
                 },
+                pressed && { opacity: 0.8 },
               ]}
               onPress={() => handleTargetSelect(option)}
             >
@@ -124,24 +130,23 @@ export default function AddPresetScreen() {
             </Pressable>
           ))}
           <Pressable
-            style={[
+            style={({ pressed }) => [
               styles.targetOption,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-              showCustomTarget && {
-                borderColor: theme.primary,
-                backgroundColor: theme.progressBackground,
+              { 
+                backgroundColor: showCustomTarget 
+                  ? `${theme.primary}12` 
+                  : theme.surfaceElevated,
+                borderColor: showCustomTarget ? theme.primary : theme.border,
               },
+              pressed && { opacity: 0.8 },
             ]}
             onPress={() => handleTargetSelect("custom")}
           >
-            <ThemedText
-              style={[
-                styles.targetText,
-                { color: showCustomTarget ? theme.primary : theme.text },
-              ]}
-            >
-              Custom
-            </ThemedText>
+            <Feather 
+              name="edit-2" 
+              size={16} 
+              color={showCustomTarget ? theme.primary : theme.textSecondary} 
+            />
           </Pressable>
         </View>
         {showCustomTarget ? (
@@ -149,7 +154,7 @@ export default function AddPresetScreen() {
             style={[
               styles.input,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: theme.surfaceElevated,
                 color: theme.text,
                 borderColor: theme.border,
                 marginTop: Spacing.md,
@@ -158,13 +163,14 @@ export default function AddPresetScreen() {
             value={customTarget}
             onChangeText={setCustomTarget}
             placeholder="Enter target number"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.textMuted}
             keyboardType="number-pad"
+            autoFocus
           />
         ) : null}
-      </View>
+      </Animated.View>
 
-      <View style={styles.section}>
+      <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.section}>
         <ThemedText style={[styles.label, { color: theme.text }]}>Color</ThemedText>
         <View style={styles.colorGrid}>
           {PresetColors.map((c) => (
@@ -173,19 +179,23 @@ export default function AddPresetScreen() {
               style={[
                 styles.colorOption,
                 { backgroundColor: c },
-                color === c && styles.colorSelected,
+                color === c && [styles.colorSelected, Shadows.colored(c)],
               ]}
               onPress={() => setColor(c)}
-            />
+            >
+              {color === c ? (
+                <Feather name="check" size={20} color="#FFFFFF" />
+              ) : null}
+            </Pressable>
           ))}
         </View>
-      </View>
+      </Animated.View>
 
-      <View style={styles.buttonContainer}>
+      <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.buttonContainer}>
         <Button onPress={handleSave} disabled={!isValid}>
           Save Preset
         </Button>
-      </View>
+      </Animated.View>
     </KeyboardAwareScrollViewCompat>
   );
 }
@@ -195,16 +205,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing["2xl"],
   },
   label: {
     fontSize: 14,
     fontWeight: "600",
     marginBottom: Spacing.sm,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
-    height: 48,
-    borderRadius: BorderRadius.sm,
+    height: 52,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     paddingHorizontal: Spacing.lg,
     fontSize: 16,
@@ -215,34 +227,33 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   targetOption: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    minWidth: 70,
+    alignItems: "center",
   },
   targetText: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 16,
+    fontWeight: "600",
   },
   colorGrid: {
     flexDirection: "row",
     gap: Spacing.md,
   },
   colorOption: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
   },
   colorSelected: {
     borderWidth: 3,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    borderColor: "rgba(255, 255, 255, 0.4)",
   },
   buttonContainer: {
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
   },
 });

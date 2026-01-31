@@ -7,7 +7,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
-import { Shadows } from "@/constants/theme";
+import { Shadows, BorderRadius } from "@/constants/theme";
 
 interface FloatingButtonProps {
   icon: keyof typeof Feather.glyphMap;
@@ -34,11 +34,11 @@ export function FloatingButton({
   const buttonColor = color || theme.primary;
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.92, { damping: 15, stiffness: 200 });
+    scale.value = withSpring(0.9, { damping: 12, stiffness: 300 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 200 });
+    scale.value = withSpring(1, { damping: 10, stiffness: 200 });
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -52,19 +52,19 @@ export function FloatingButton({
       onPressOut={handlePressOut}
       style={[
         styles.button,
-        Shadows.medium,
+        Shadows.colored(buttonColor),
         {
           backgroundColor: buttonColor,
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: BorderRadius.lg,
           bottom,
           right,
         },
         animatedStyle,
       ]}
     >
-      <Feather name={icon} size={24} color="#FFFFFF" />
+      <Feather name={icon} size={22} color="#FFFFFF" />
     </AnimatedPressable>
   );
 }

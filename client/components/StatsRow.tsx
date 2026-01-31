@@ -1,6 +1,7 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
@@ -15,45 +16,53 @@ export function StatsRow({ todayTotal, allTimeTotal }: StatsRowProps) {
 
   return (
     <View style={styles.container}>
-      <View
+      <Animated.View
+        entering={FadeInDown.delay(100).springify()}
         style={[
           styles.statCard,
-          { backgroundColor: theme.surface },
-          Shadows.small,
+          { 
+            backgroundColor: theme.surfaceElevated,
+            borderColor: theme.borderLight,
+          },
+          Shadows.medium,
         ]}
       >
-        <View style={[styles.iconContainer, { backgroundColor: theme.progressBackground }]}>
-          <Feather name="sun" size={16} color={theme.primary} />
+        <View style={[styles.iconContainer, { backgroundColor: `${theme.primary}15` }]}>
+          <Feather name="sun" size={18} color={theme.primary} />
         </View>
         <View style={styles.textContainer}>
-          <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
-            Today
-          </ThemedText>
           <ThemedText style={[styles.statValue, { color: theme.text }]}>
             {todayTotal.toLocaleString()}
           </ThemedText>
+          <ThemedText style={[styles.statLabel, { color: theme.textMuted }]}>
+            Today
+          </ThemedText>
         </View>
-      </View>
+      </Animated.View>
 
-      <View
+      <Animated.View
+        entering={FadeInDown.delay(200).springify()}
         style={[
           styles.statCard,
-          { backgroundColor: theme.surface },
-          Shadows.small,
+          { 
+            backgroundColor: theme.surfaceElevated,
+            borderColor: theme.borderLight,
+          },
+          Shadows.medium,
         ]}
       >
-        <View style={[styles.iconContainer, { backgroundColor: `${theme.accent}20` }]}>
-          <Feather name="bar-chart-2" size={16} color={theme.accent} />
+        <View style={[styles.iconContainer, { backgroundColor: `${theme.accent}15` }]}>
+          <Feather name="trending-up" size={18} color={theme.accent} />
         </View>
         <View style={styles.textContainer}>
-          <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
-            All Time
-          </ThemedText>
           <ThemedText style={[styles.statValue, { color: theme.text }]}>
             {allTimeTotal.toLocaleString()}
           </ThemedText>
+          <ThemedText style={[styles.statLabel, { color: theme.textMuted }]}>
+            All Time
+          </ThemedText>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -62,32 +71,35 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
   },
   statCard: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     gap: Spacing.md,
+    borderWidth: 1,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.xs,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
     justifyContent: "center",
     alignItems: "center",
   },
   textContainer: {
     flex: 1,
   },
-  statLabel: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
   statValue: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 2,
   },
 });

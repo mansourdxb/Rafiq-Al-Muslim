@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { PresetCard } from "@/components/PresetCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { EmptyState } from "@/components/EmptyState";
@@ -54,36 +55,28 @@ export default function PresetsScreen() {
     navigation.navigate("AddPreset");
   };
 
-  const renderItem = ({ item }: { item: Preset }) => (
-    <PresetCard
-      preset={item}
-      isActive={item.id === currentPreset?.id}
-      onPress={() => handlePresetPress(item)}
-      onLongPress={() => handlePresetLongPress(item)}
-    />
-  );
-
   const ListHeader = () => (
-    <>
+    <Animated.View entering={FadeIn.duration(300)}>
       <SectionHeader title="Recommended" />
-      {builtInPresets.map((preset) => (
+      {builtInPresets.map((preset, index) => (
         <PresetCard
           key={preset.id}
           preset={preset}
           isActive={preset.id === currentPreset?.id}
           onPress={() => handlePresetPress(preset)}
+          index={index}
         />
       ))}
       <SectionHeader title="Custom" />
-    </>
+    </Animated.View>
   );
 
   const EmptyCustom = () => (
     <EmptyState
       image={require("../../assets/images/empty-presets.png")}
-      title="No Custom Presets"
-      message="Add your own dhikr presets to track different prayers and goals."
-      buttonText="Add Preset"
+      title="No Custom Presets Yet"
+      message="Create your own dhikr presets with custom names and targets."
+      buttonText="Create Preset"
       onButtonPress={handleAddPreset}
     />
   );
@@ -93,12 +86,20 @@ export default function PresetsScreen() {
       <FlatList
         data={customPresets}
         keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        renderItem={({ item, index }) => (
+          <PresetCard
+            preset={item}
+            isActive={item.id === currentPreset?.id}
+            onPress={() => handlePresetPress(item)}
+            onLongPress={() => handlePresetLongPress(item)}
+            index={builtInPresets.length + index}
+          />
+        )}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={EmptyCustom}
         contentContainerStyle={{
-          paddingTop: insets.top + Spacing.md,
-          paddingBottom: tabBarHeight + Spacing["5xl"],
+          paddingTop: insets.top + Spacing.lg,
+          paddingBottom: tabBarHeight + Spacing["6xl"],
         }}
         showsVerticalScrollIndicator={false}
       />
@@ -107,13 +108,13 @@ export default function PresetsScreen() {
         icon="plus"
         onPress={handleAddPreset}
         bottom={tabBarHeight + Spacing.lg}
-        right={Spacing.lg}
+        right={Spacing.xl}
       />
 
       <ConfirmationModal
         visible={deleteModalVisible}
         title="Delete Preset"
-        message={`Are you sure you want to delete "${presetToDelete?.name}"? This action cannot be undone.`}
+        message={`Delete "${presetToDelete?.name}"? This cannot be undone.`}
         confirmText="Delete"
         confirmColor={theme.error}
         onConfirm={handleDelete}

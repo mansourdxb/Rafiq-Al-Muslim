@@ -2,10 +2,20 @@ import React from "react";
 import { View, StyleSheet, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
+
+const FEATURES = [
+  { icon: "target", text: "Track multiple dhikr presets" },
+  { icon: "bar-chart-2", text: "Beautiful progress animations" },
+  { icon: "calendar", text: "Daily and weekly statistics" },
+  { icon: "plus-circle", text: "Create custom presets" },
+  { icon: "smartphone", text: "Haptic feedback for mindful counting" },
+];
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
@@ -17,16 +27,17 @@ export default function AboutScreen() {
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       contentContainerStyle={{
         paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: insets.bottom + Spacing.xl,
-        paddingHorizontal: Spacing.lg,
+        paddingBottom: insets.bottom + Spacing["2xl"],
+        paddingHorizontal: Spacing.xl,
         alignItems: "center",
       }}
     >
-      <View
+      <Animated.View
+        entering={FadeInDown.delay(100).springify()}
         style={[
           styles.iconContainer,
-          { backgroundColor: theme.surface },
-          Shadows.medium,
+          { backgroundColor: theme.surfaceElevated },
+          Shadows.large,
         ]}
       >
         <Image
@@ -34,50 +45,86 @@ export default function AboutScreen() {
           style={styles.icon}
           resizeMode="contain"
         />
-      </View>
+      </Animated.View>
 
-      <ThemedText style={[styles.appName, { color: theme.text }]}>Tasbih</ThemedText>
-      <ThemedText style={[styles.version, { color: theme.textSecondary }]}>
-        Version 1.0.0
-      </ThemedText>
+      <Animated.View entering={FadeInDown.delay(150).springify()}>
+        <ThemedText style={[styles.appName, { color: theme.text }]}>Tasbih</ThemedText>
+      </Animated.View>
+      <Animated.View entering={FadeInDown.delay(200).springify()}>
+        <View style={[styles.versionBadge, { backgroundColor: `${theme.primary}12` }]}>
+          <ThemedText style={[styles.version, { color: theme.primary }]}>
+            Version 1.0.0
+          </ThemedText>
+        </View>
+      </Animated.View>
 
-      <View style={[styles.card, { backgroundColor: theme.surface }, Shadows.small]}>
-        <ThemedText style={[styles.description, { color: theme.text }]}>
+      <Animated.View 
+        entering={FadeInDown.delay(250).springify()}
+        style={[
+          styles.card, 
+          { 
+            backgroundColor: theme.surfaceElevated,
+            borderColor: theme.borderLight,
+          }, 
+          Shadows.medium
+        ]}
+      >
+        <ThemedText style={[styles.description, { color: theme.textSecondary }]}>
           A beautiful digital tasbeeh counter to help you track your dhikr and stay
           connected with your daily remembrance of Allah.
         </ThemedText>
-      </View>
+      </Animated.View>
 
-      <View style={[styles.card, { backgroundColor: theme.surface }, Shadows.small]}>
+      <Animated.View 
+        entering={FadeInDown.delay(300).springify()}
+        style={[
+          styles.card, 
+          { 
+            backgroundColor: theme.surfaceElevated,
+            borderColor: theme.borderLight,
+          }, 
+          Shadows.medium
+        ]}
+      >
         <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
           Features
         </ThemedText>
-        <ThemedText style={[styles.featureItem, { color: theme.textSecondary }]}>
-          Track multiple dhikr presets
-        </ThemedText>
-        <ThemedText style={[styles.featureItem, { color: theme.textSecondary }]}>
-          Beautiful progress animations
-        </ThemedText>
-        <ThemedText style={[styles.featureItem, { color: theme.textSecondary }]}>
-          Daily and weekly statistics
-        </ThemedText>
-        <ThemedText style={[styles.featureItem, { color: theme.textSecondary }]}>
-          Create custom presets
-        </ThemedText>
-        <ThemedText style={[styles.featureItem, { color: theme.textSecondary }]}>
-          Haptic feedback for mindful counting
-        </ThemedText>
-      </View>
+        {FEATURES.map((feature, index) => (
+          <View key={index} style={styles.featureRow}>
+            <View style={[styles.featureIcon, { backgroundColor: `${theme.primary}12` }]}>
+              <Feather name={feature.icon as any} size={16} color={theme.primary} />
+            </View>
+            <ThemedText style={[styles.featureText, { color: theme.textSecondary }]}>
+              {feature.text}
+            </ThemedText>
+          </View>
+        ))}
+      </Animated.View>
 
-      <View style={[styles.card, { backgroundColor: theme.surface }, Shadows.small]}>
-        <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
-          Privacy
-        </ThemedText>
+      <Animated.View 
+        entering={FadeInDown.delay(350).springify()}
+        style={[
+          styles.card, 
+          { 
+            backgroundColor: theme.surfaceElevated,
+            borderColor: theme.borderLight,
+          }, 
+          Shadows.medium
+        ]}
+      >
+        <View style={styles.privacyHeader}>
+          <View style={[styles.privacyIcon, { backgroundColor: `${theme.success}15` }]}>
+            <Feather name="shield" size={18} color={theme.success} />
+          </View>
+          <ThemedText style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>
+            Privacy
+          </ThemedText>
+        </View>
         <ThemedText style={[styles.privacyText, { color: theme.textSecondary }]}>
           All your data is stored locally on your device. We do not collect or
           transmit any personal information.
         </ThemedText>
-      </View>
+      </Animated.View>
     </KeyboardAwareScrollViewCompat>
   );
 }
@@ -89,28 +136,36 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 100,
     height: 100,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     overflow: "hidden",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   icon: {
     width: "100%",
     height: "100%",
   },
   appName: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "700",
-    marginBottom: Spacing.xs,
+    letterSpacing: -0.5,
+    marginBottom: Spacing.sm,
+  },
+  versionBadge: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing["3xl"],
   },
   version: {
-    fontSize: 15,
-    marginBottom: Spacing["3xl"],
+    fontSize: 13,
+    fontWeight: "600",
   },
   card: {
     width: "100%",
     padding: Spacing.xl,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
+    borderWidth: 1,
   },
   description: {
     fontSize: 15,
@@ -118,13 +173,39 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
+    marginBottom: Spacing.lg,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
-  featureItem: {
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.xs,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  featureText: {
     fontSize: 15,
-    lineHeight: 28,
+    flex: 1,
+  },
+  privacyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  privacyIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.xs,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
   },
   privacyText: {
     fontSize: 15,

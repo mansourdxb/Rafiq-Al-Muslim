@@ -1,0 +1,52 @@
+Improve the UI/UX of my existing “Tasbih” app (do NOT break functionality). Goal: premium, modern, minimal design with better typography, spacing, and micro-interactions. Keep current features (counter, presets dropdown, today/all-time stats, tabs).
+
+UI redesign requirements:
+1) Global Theme
+- Use a consistent design system: 8px spacing grid, rounded corners (16–22), soft shadows, subtle borders.
+- Adopt a calm palette: near-white background with a slight tint, primary accent purple/indigo, neutral text.
+- Improve typography: larger bold number, clearer labels, better hierarchy.
+- Add dark mode support (system + manual toggle if profile/settings exists).
+- Ensure RTL-ready layout if Arabic is enabled.
+
+2) Counter Showing Area
+- Replace plain background with a soft gradient (very subtle).
+- Make the ring progress smoother and thicker, with rounded line caps and a light grey track.
+- Add a gentle “bounce” animation on increment (number + ring).
+- Add haptic feedback on tap (if supported).
+- Make the whole ring tappable to increment (big touch target). Also provide a small + button for accessibility.
+
+3) Preset Selector
+- Convert preset selector into a nicer pill/dropdown: icon + label, centered, with subtle border.
+- Add a “Target” chip (33/99/custom) next to it.
+- Add quick target change UI (bottom sheet modal) with common targets + custom input.
+
+4) Stats Cards (Today / All Time)
+- Redesign into two elevated cards with:
+  - icon in a soft colored container
+  - label + value with better alignment
+  - subtle divider or secondary text (e.g., “taps”)
+- Add a third optional card “Streak” if tracking exists; otherwise keep two.
+
+5) Bottom Navigation
+- Make it cleaner: icons + labels, active tab uses accent color and a small indicator.
+- Ensure safe area padding and consistent height.
+
+6) Polishing
+- Improve empty states on Presets/Profile screens.
+- Use smooth transitions between tabs.
+- Ensure everything is responsive for small screens.
+
+Implementation instructions:
+- Identify the UI framework used (React Native Expo or Flutter). Use best practices for that framework.
+- Create a theme file (colors, spacing, typography, radii, shadows).
+- Refactor existing screens to use shared components:
+  - <StatCard />
+  - <PresetPill />
+  - <ProgressRing />
+  - <ScreenContainer />
+- Do NOT change data model or business logic; only presentation + interaction improvements.
+- Run the app and fix any layout glitches.
+
+Deliverables:
+- Commit changes with clear message “UI polish: premium redesign”
+- Provide a short summary of what changed and where (files touched).

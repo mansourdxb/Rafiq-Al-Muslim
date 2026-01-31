@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, Pressable, Modal } from "react-native";
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
+import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
@@ -39,11 +39,14 @@ export function ConfirmationModal({
       <Pressable style={styles.overlay} onPress={onCancel}>
         <Pressable>
           <Animated.View
-            entering={SlideInDown.springify().damping(15)}
+            entering={SlideInDown.springify().damping(18)}
             exiting={SlideOutDown.duration(200)}
             style={[
               styles.container,
-              { backgroundColor: theme.surface },
+              { 
+                backgroundColor: theme.surfaceElevated,
+                borderColor: theme.borderLight,
+              },
               Shadows.large,
             ]}
           >
@@ -55,7 +58,11 @@ export function ConfirmationModal({
             </ThemedText>
             <View style={styles.buttons}>
               <Pressable
-                style={[styles.cancelButton, { backgroundColor: theme.backgroundSecondary }]}
+                style={({ pressed }) => [
+                  styles.cancelButton, 
+                  { backgroundColor: theme.backgroundSecondary },
+                  pressed && { opacity: 0.8 },
+                ]}
                 onPress={onCancel}
               >
                 <ThemedText style={[styles.cancelText, { color: theme.text }]}>
@@ -88,20 +95,21 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   container: {
-    width: 300,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
+    width: 320,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing["2xl"],
+    borderWidth: 1,
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
     textAlign: "center",
   },
   message: {
     fontSize: 15,
     textAlign: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing["2xl"],
     lineHeight: 22,
   },
   buttons: {
@@ -110,17 +118,17 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    height: 48,
-    borderRadius: BorderRadius.sm,
+    height: 52,
+    borderRadius: BorderRadius.md,
     justifyContent: "center",
     alignItems: "center",
   },
   cancelText: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   confirmButton: {
     flex: 1,
-    height: 48,
+    height: 52,
   },
 });

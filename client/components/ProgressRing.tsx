@@ -22,7 +22,7 @@ interface ProgressRingProps {
 export function ProgressRing({
   progress,
   size,
-  strokeWidth = 8,
+  strokeWidth = 12,
   color,
 }: ProgressRingProps) {
   const { theme } = useTheme();
@@ -34,8 +34,9 @@ export function ProgressRing({
 
   useEffect(() => {
     animatedProgress.value = withSpring(Math.min(progress, 1), {
-      damping: 15,
-      stiffness: 80,
+      damping: 18,
+      stiffness: 90,
+      mass: 1,
     });
   }, [progress]);
 
@@ -59,14 +60,15 @@ export function ProgressRing({
         <Defs>
           <LinearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <Stop offset="0%" stopColor={ringColor} stopOpacity={1} />
-            <Stop offset="100%" stopColor={theme.accent} stopOpacity={1} />
+            <Stop offset="50%" stopColor={theme.accent} stopOpacity={1} />
+            <Stop offset="100%" stopColor={theme.primaryLight} stopOpacity={1} />
           </LinearGradient>
         </Defs>
         <Circle
           cx={center}
           cy={center}
           r={radius}
-          stroke={theme.progressBackground}
+          stroke={theme.progressTrack}
           strokeWidth={strokeWidth}
           fill="none"
         />

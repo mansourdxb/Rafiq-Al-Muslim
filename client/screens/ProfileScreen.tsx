@@ -5,6 +5,7 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ThemedText } from "@/components/ThemedText";
 import { DailyChart } from "@/components/DailyChart";
@@ -34,16 +35,19 @@ export default function ProfileScreen() {
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       contentContainerStyle={{
         paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: tabBarHeight + Spacing.xl,
+        paddingBottom: tabBarHeight + Spacing["2xl"],
       }}
       scrollIndicatorInsets={{ bottom: insets.bottom }}
     >
-      <View style={styles.profileSection}>
+      <Animated.View 
+        entering={FadeInDown.delay(100).springify()}
+        style={styles.profileSection}
+      >
         <View
           style={[
             styles.avatarContainer,
-            { backgroundColor: theme.surface },
-            Shadows.small,
+            { backgroundColor: theme.surfaceElevated },
+            Shadows.medium,
           ]}
         >
           <Image
@@ -57,48 +61,52 @@ export default function ProfileScreen() {
             <ThemedText style={[styles.statValue, { color: theme.primary }]}>
               {todayTotal.toLocaleString()}
             </ThemedText>
-            <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+            <ThemedText style={[styles.statLabel, { color: theme.textMuted }]}>
               Today
             </ThemedText>
           </View>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <View style={styles.statItem}>
-            <ThemedText style={[styles.statValue, { color: theme.primary }]}>
+            <ThemedText style={[styles.statValue, { color: theme.accent }]}>
               {allTimeTotal.toLocaleString()}
             </ThemedText>
-            <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+            <ThemedText style={[styles.statLabel, { color: theme.textMuted }]}>
               All Time
             </ThemedText>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      <SectionHeader title="Analytics" />
-      <DailyChart dailyLogs={dailyLogs} />
+      <Animated.View entering={FadeInDown.delay(200).springify()}>
+        <SectionHeader title="This Week" />
+        <DailyChart dailyLogs={dailyLogs} />
+      </Animated.View>
 
-      <SectionHeader title="Settings" />
-      <View style={styles.settingsContainer}>
-        <SettingsToggle
-          icon="smartphone"
-          title="Haptic Feedback"
-          subtitle="Vibrate when counting"
-          value={settings.hapticEnabled}
-          onValueChange={(value) => updateSettings({ hapticEnabled: value })}
-        />
-        <SettingsToggle
-          icon="sun"
-          title="Keep Screen On"
-          subtitle="Prevent display from sleeping"
-          value={settings.keepScreenOn}
-          onValueChange={(value) => updateSettings({ keepScreenOn: value })}
-        />
-        <SettingsButton
-          icon="info"
-          title="About"
-          subtitle="Version 1.0.0"
-          onPress={handleAbout}
-        />
-      </View>
+      <Animated.View entering={FadeInDown.delay(300).springify()}>
+        <SectionHeader title="Preferences" />
+        <View style={styles.settingsContainer}>
+          <SettingsToggle
+            icon="smartphone"
+            title="Haptic Feedback"
+            subtitle="Vibrate when counting"
+            value={settings.hapticEnabled}
+            onValueChange={(value) => updateSettings({ hapticEnabled: value })}
+          />
+          <SettingsToggle
+            icon="sun"
+            title="Keep Screen On"
+            subtitle="Prevent display from sleeping"
+            value={settings.keepScreenOn}
+            onValueChange={(value) => updateSettings({ keepScreenOn: value })}
+          />
+          <SettingsButton
+            icon="info"
+            title="About Tasbih"
+            subtitle="Version 1.0.0"
+            onPress={handleAbout}
+          />
+        </View>
+      </Animated.View>
     </KeyboardAwareScrollViewCompat>
   );
 }
@@ -109,15 +117,15 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
     marginBottom: Spacing.lg,
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     overflow: "hidden",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   avatar: {
     width: "100%",
@@ -126,24 +134,26 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xl,
+    gap: Spacing["3xl"],
   },
   statItem: {
     alignItems: "center",
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: "500",
     marginTop: 4,
   },
   divider: {
     width: 1,
-    height: 40,
+    height: 44,
   },
   settingsContainer: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
   },
 });

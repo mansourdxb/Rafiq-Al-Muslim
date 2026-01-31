@@ -1,8 +1,7 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
@@ -11,11 +10,14 @@ import Animated, {
   withTiming,
   withSequence,
   Easing,
+  FadeIn,
 } from "react-native-reanimated";
 import { CounterDisplay } from "@/components/CounterDisplay";
 import { StatsRow } from "@/components/StatsRow";
 import { FloatingButton } from "@/components/FloatingButton";
 import { PresetSelector } from "@/components/PresetSelector";
+import { PresetPill } from "@/components/PresetPill";
+import { TargetSheet } from "@/components/TargetSheet";
 import { ConfirmationModal } from "@/components/ConfirmationModal";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -32,22 +34,23 @@ export default function CounterScreen() {
     todayTotal,
     allTimeTotal,
     increment,
-    undo,
     reset,
     setCurrentPreset,
+    updatePreset,
   } = useApp();
 
   const [selectorVisible, setSelectorVisible] = useState(false);
+  const [targetSheetVisible, setTargetSheetVisible] = useState(false);
   const [resetModalVisible, setResetModalVisible] = useState(false);
 
-  const pulseOpacity = useSharedValue(0.4);
+  const pulseOpacity = useSharedValue(0.5);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (currentPreset?.count === 0) {
       pulseOpacity.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.4, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+          withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.5, { duration: 1200, easing: Easing.inOut(Easing.ease) })
         ),
         -1,
         true
@@ -66,34 +69,38 @@ export default function CounterScreen() {
     setResetModalVisible(false);
   };
 
+  const handleTargetChange = (newTarget: number) => {
+    if (currentPreset) {
+      updatePreset(currentPreset.id, { target: newTarget });
+    }
+  };
+
   if (!currentPreset) {
     return null;
   }
 
   const gradientColors = isDark
-    ? ["rgba(91, 124, 153, 0.08)", "transparent"]
-    : ["rgba(91, 124, 153, 0.05)", "transparent"];
+    ? [theme.gradientStart, theme.gradientEnd] as [string, string]
+    : [theme.gradientStart, theme.gradientEnd] as [string, string];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <LinearGradient
-        colors={gradientColors as [string, string]}
+        colors={gradientColors}
         style={StyleSheet.absoluteFill}
         start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 0.5 }}
+        end={{ x: 0.5, y: 0.6 }}
       />
 
-      <View style={[styles.content, { paddingTop: headerHeight }]}>
-        <Pressable
-          style={styles.presetButton}
+      <Animated.View 
+        entering={FadeIn.duration(400)}
+        style={[styles.content, { paddingTop: headerHeight + Spacing.sm }]}
+      >
+        <PresetPill
+          preset={currentPreset}
           onPress={() => setSelectorVisible(true)}
-        >
-          <View style={[styles.colorDot, { backgroundColor: currentPreset.color }]} />
-          <ThemedText style={[styles.presetName, { color: theme.textSecondary }]}>
-            {currentPreset.name}
-          </ThemedText>
-          <Feather name="chevron-down" size={16} color={theme.textSecondary} />
-        </Pressable>
+          onTargetPress={() => setTargetSheetVisible(true)}
+        />
 
         <View style={styles.counterArea}>
           <CounterDisplay
@@ -104,23 +111,24 @@ export default function CounterScreen() {
           />
           {currentPreset.count === 0 ? (
             <Animated.View style={[styles.hintContainer, pulseStyle]}>
-              <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-                Tap anywhere to begin
+              <ThemedText style={[styles.hint, { color: theme.textMuted }]}>
+                Tap the ring to begin
               </ThemedText>
             </Animated.View>
           ) : null}
         </View>
 
-        <View style={[styles.statsContainer, { paddingBottom: tabBarHeight + Spacing.xl }]}>
+        <View style={[styles.statsContainer, { paddingBottom: tabBarHeight + Spacing["2xl"] }]}>
           <StatsRow todayTotal={todayTotal} allTimeTotal={allTimeTotal} />
         </View>
-      </View>
+      </Animated.View>
 
       <FloatingButton
         icon="rotate-ccw"
         onPress={() => setResetModalVisible(true)}
         bottom={tabBarHeight + Spacing.lg}
-        right={Spacing.lg}
+        right={Spacing.xl}
+        color={theme.error}
       />
 
       <PresetSelector
@@ -131,10 +139,17 @@ export default function CounterScreen() {
         onClose={() => setSelectorVisible(false)}
       />
 
+      <TargetSheet
+        visible={targetSheetVisible}
+        currentTarget={currentPreset.target}
+        onSelect={handleTargetChange}
+        onClose={() => setTargetSheetVisible(false)}
+      />
+
       <ConfirmationModal
         visible={resetModalVisible}
         title="Reset Counter"
-        message={`Are you sure you want to reset the counter for ${currentPreset.name}? This will set the count back to 0.`}
+        message={`Reset "${currentPreset.name}" counter back to 0?`}
         confirmText="Reset"
         confirmColor={theme.error}
         onConfirm={handleReset}
@@ -151,33 +166,19 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  presetButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  colorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  presetName: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
   counterArea: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingVertical: Spacing["3xl"],
   },
   hintContainer: {
     position: "absolute",
-    bottom: 60,
+    bottom: 40,
   },
   hint: {
     fontSize: 15,
+    fontWeight: "500",
   },
   statsContainer: {
     paddingTop: Spacing.lg,

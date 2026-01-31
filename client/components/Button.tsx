@@ -9,7 +9,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { BorderRadius, Spacing } from "@/constants/theme";
+import { BorderRadius, Spacing, Shadows } from "@/constants/theme";
 
 interface ButtonProps {
   onPress?: () => void;
@@ -19,11 +19,10 @@ interface ButtonProps {
 }
 
 const springConfig: WithSpringConfig = {
-  damping: 15,
+  damping: 12,
   mass: 0.3,
-  stiffness: 150,
+  stiffness: 200,
   overshootClamping: true,
-  energyThreshold: 0.001,
 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -43,7 +42,7 @@ export function Button({
 
   const handlePressIn = () => {
     if (!disabled) {
-      scale.value = withSpring(0.98, springConfig);
+      scale.value = withSpring(0.96, springConfig);
     }
   };
 
@@ -62,9 +61,10 @@ export function Button({
       style={[
         styles.button,
         {
-          backgroundColor: theme.link,
+          backgroundColor: theme.primary,
           opacity: disabled ? 0.5 : 1,
         },
+        Shadows.colored(theme.primary),
         style,
         animatedStyle,
       ]}
@@ -82,11 +82,12 @@ export function Button({
 const styles = StyleSheet.create({
   button: {
     height: Spacing.buttonHeight,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: {
     fontWeight: "600",
+    fontSize: 16,
   },
 });
