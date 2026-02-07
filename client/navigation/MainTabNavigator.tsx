@@ -4,16 +4,17 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import QiblaScreen from "@/screens/QiblaScreen";
+import SalatukEntryScreen from "@/screens/salatuk/SalatukEntryScreen";
+import type { NavigatorScreenParams } from "@react-navigation/native";
 
 import PresetsStackNavigator from "@/navigation/PresetsStackNavigator";
 import StatsStackNavigator from "@/navigation/StatsStackNavigator";
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
-import LibraryStackNavigator from "@/navigation/LibraryStackNavigator";
+import LibraryStackNavigator, { type LibraryStackParamList } from "@/navigation/LibraryStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 
 export type MainTabParamList = {
-  LibraryTab: undefined;
+  LibraryTab: NavigatorScreenParams<LibraryStackParamList>;
   SettingsTab: undefined;
   CalendarTab: undefined;
   StatsTab: undefined;
@@ -42,7 +43,6 @@ function TabBarIcon({
 
 export default function MainTabNavigator() {
   const insets = useSafeAreaInsets();
-
   // Reference-like colors
   const active = "#5EA7D4"; // blue like your screenshots
   const inactive = "rgba(0,0,0,0.35)";
@@ -50,6 +50,7 @@ export default function MainTabNavigator() {
   return (
     <Tab.Navigator
       initialRouteName="PresetsTab"
+      backBehavior="none"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: active,
@@ -116,9 +117,9 @@ tabBarStyle: {
 
        {/* Qibla Tab */}
 <Tab.Screen name="QiblaTab"
-  component={QiblaScreen}
+  component={SalatukEntryScreen}
   options={{
-    title: "\u0627\u0644\u0642\u0628\u0644\u0629",
+    title: "\u0635\u0644\u0627\u062a\u0643",
     tabBarIcon: ({ color, size }) => <Feather name="navigation" color={color} size={size} />,
   }}
 />

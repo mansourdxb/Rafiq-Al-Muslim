@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { typography } from "@/theme/typography";
+import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 
 type TabKey = "summary" | "calendar" | "achievements";
 
@@ -173,6 +174,9 @@ export default function StatsScreen() {
         style={[styles.header, { paddingTop: insets.top + 12 }]}
       >
         <View style={[styles.headerInner, { width: contentWidth }]}>
+          <View style={styles.menuButton}>
+            <DrawerMenuButton />
+          </View>
           <Text style={styles.headerTitle}>الإحصائيات</Text>
 
           <SegmentedTabs
@@ -375,6 +379,7 @@ const styles = StyleSheet.create({
   headerInner: {
     paddingHorizontal: 14,
     alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     ...typography.screenTitle,
@@ -383,6 +388,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
     marginBottom: 10,
+  },
+  menuButton: {
+    position: "absolute",
+    right: 4,
+    top: 2,
+    zIndex: 5,
   },
 
   segmentWrap: {

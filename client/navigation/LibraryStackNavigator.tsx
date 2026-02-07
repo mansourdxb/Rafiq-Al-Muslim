@@ -1,6 +1,8 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import LibraryScreen from "@/screens/LibraryScreen";
+import LibraryHomeScreen from "@/screens/library/LibraryHomeScreen";
+import LibraryQuranScreen from "@/screens/library/LibraryQuranScreen";
+import LibraryHadithScreen from "@/screens/library/LibraryHadithScreen";
 import BukhariBooksScreen from "@/screens/BukhariBooksScreen";
 import BukhariChapterScreen from "@/screens/BukhariChapterScreen";
 import MuslimBooksScreen from "@/screens/MuslimBooksScreen";
@@ -20,8 +22,13 @@ import NasaiChapterScreen from "@/screens/NasaiChapterScreen";
 import MalikBooksScreen from "@/screens/MalikBooksScreen";
 import MalikChapterScreen from "@/screens/MalikChapterScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
+import QuranSurahListScreen from "@/screens/quran/QuranSurahListScreen";
+import QuranSurahDetailsScreen from "@/screens/quran/QuranSurahDetailsScreen";
 
 export type LibraryStackParamList = {
+  LibraryHome: undefined;
+  LibraryQuran: undefined;
+  LibraryHadith: undefined;
   Library: undefined;
   BukhariBooks: undefined;
   BukhariChapter: { chapterId: number; highlightId?: number | string };
@@ -42,14 +49,19 @@ export type LibraryStackParamList = {
   MalikBooks: undefined;
   MalikChapter: { chapterId: number; highlightId?: number | string };
   Favorites: undefined;
+  QuranSurahList: undefined;
+  QuranSurahDetails: { number: number; fileName: string };
 };
 
 const Stack = createNativeStackNavigator<LibraryStackParamList>();
 
 export default function LibraryStackNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Library" component={LibraryScreen} />
+    <Stack.Navigator initialRouteName="LibraryHome" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="LibraryHome" component={LibraryHomeScreen} />
+      <Stack.Screen name="LibraryQuran" component={LibraryQuranScreen} />
+      <Stack.Screen name="LibraryHadith" component={LibraryHadithScreen} />
+      <Stack.Screen name="Library" component={LibraryHomeScreen} />
       <Stack.Screen name="BukhariBooks" component={BukhariBooksScreen} />
       <Stack.Screen name="BukhariChapter" component={BukhariChapterScreen} />
       <Stack.Screen name="MuslimBooks" component={MuslimBooksScreen} />
@@ -69,6 +81,8 @@ export default function LibraryStackNavigator() {
       <Stack.Screen name="MalikBooks" component={MalikBooksScreen} />
       <Stack.Screen name="MalikChapter" component={MalikChapterScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="QuranSurahList" component={QuranSurahListScreen} />
+      <Stack.Screen name="QuranSurahDetails" component={QuranSurahDetailsScreen} />
     </Stack.Navigator>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
   View,
@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import PrivacyPolicyScreen from "@/screens/Privacypolicyscreen";
 import { typography } from "@/theme/typography";
+import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
+import { initLocalNotifications } from "@/src/services/notificationsInit";
 
 type RowProps = {
   title: string;
@@ -69,6 +71,9 @@ function CardRow({
 }
 
 export default function SettingsScreen() {
+  useEffect(() => {
+    void initLocalNotifications();
+  }, []);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { isDarkMode, toggleDarkMode, colors, setThemeMode } = useTheme();
@@ -112,6 +117,9 @@ export default function SettingsScreen() {
         style={[styles.header, { paddingTop: headerPadTop }]}
       >
         <View style={[styles.headerInner, { width: contentWidth }]}>
+          <View style={styles.menuButton}>
+            <DrawerMenuButton />
+          </View>
           <Text style={styles.headerTitle}>الإعدادات</Text>
         </View>
       </LinearGradient>
@@ -352,6 +360,7 @@ const styles = StyleSheet.create({
   headerInner: {
     paddingHorizontal: 18,
     alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     ...typography.screenTitle,
@@ -359,6 +368,12 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: "900",
     textAlign: "center",
+  },
+  menuButton: {
+    position: "absolute",
+    right: 4,
+    top: 2,
+    zIndex: 5,
   },
 
   scrollView: {

@@ -18,6 +18,7 @@ import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
 import hadithList from "@/constants/hadith.json";
 import { typography } from "@/theme/typography";
+import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 
 const AR_TITLE: Record<string, string> = {
   "Allahu Akbar": "تكبير",
@@ -162,6 +163,9 @@ export default function PresetsScreen() {
             <Feather name="plus" size={26} color="white" />
           </Pressable>
 
+          <View style={styles.menuButton}>
+            <DrawerMenuButton />
+          </View>
           <Text style={styles.headerTitle} pointerEvents="none">ذكر</Text>
         </View>
       </LinearGradient>
@@ -215,6 +219,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 2,
     ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null),
+  },
+  menuButton: {
+    position: "absolute",
+    right: 6,
+    top: 2,
+    zIndex: 3,
   },
 
   sheet: {

@@ -1,276 +1,402 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
   Platform,
-  useWindowDimensions,
-  Animated,
-  Alert,
+  Pressable,
   ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Location from "expo-location";
-import { Magnetometer } from "expo-sensors";
-import { useTheme } from "@/context/ThemeContext";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { typography } from "@/theme/typography";
+import Svg, { Circle } from "react-native-svg";
+import { Feather } from "@expo/vector-icons";
+
+import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
+import CityPickerModal from "@/components/prayer/CityPickerModal";
+import { useTheme } from "@/context/ThemeContext";
+import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
+import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/src/lib/prayer/preferences";
+import { reschedulePrayerNotificationsIfEnabled } from "@/src/services/prayerNotifications";
+import { computePrayerTimes, formatTimeInTZ, type PrayerName, type PrayerTimesResult } from "@/src/services/prayerTimes";
+import { getCityFromGPS } from "@/src/services/cityService";
+import tzLookup from "tz-lookup";
+
+const PRAYER_ARABIC: Record<PrayerName, string> = {
+  Fajr: "الفجر",
+  Sunrise: "الشروق",
+  Dhuhr: "الظهر",
+  Asr: "العصر",
+  Maghrib: "المغرب",
+  Isha: "العشاء",
+};
+
+const DEFAULT_SETTINGS: PrayerSettings = {
+  method: "MWL",
+  madhab: "Shafi",
+  adjustments: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+  notificationsEnabled: false,
+};
+
+type DialProps = {
+  nowMs: number;
+  remainingRatio: number;
+};
+
+function SalatukDial({ nowMs, remainingRatio }: DialProps) {
+  const now = new Date(nowMs);
+  const seconds = now.getSeconds();
+  const minutes = now.getMinutes();
+  const hours = now.getHours() % 12;
+
+  const hourDeg = hours * 30 + minutes * 0.5;
+  const minuteDeg = minutes * 6 + seconds * 0.1;
+  const secondDeg = seconds * 6;
+
+  const size = 258;
+  const strokeWidth = 5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const ratio = clamp01(remainingRatio);
+  const arcLength = circumference * ratio;
+
+  return (
+    <View style={styles.dialWrap}>
+      <View style={styles.dial}>
+        <Svg width={size} height={size} style={styles.arcSvg}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="#B90A12"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            strokeDasharray={`${arcLength} ${circumference}`}
+            strokeLinecap="round"
+            originX={size / 2}
+            originY={size / 2}
+            rotation={90}
+          />
+        </Svg>
+
+        <Text style={[styles.dialNumber, styles.n12]}>12</Text>
+        <Text style={[styles.dialNumber, styles.n3]}>3</Text>
+        <Text style={[styles.dialNumber, styles.n6]}>6</Text>
+        <Text style={[styles.dialNumber, styles.n9]}>9</Text>
+
+        <View style={styles.dialInner} />
+
+        <View style={[styles.handLayer, { transform: [{ rotate: `${hourDeg}deg` }] }]}>
+          <View style={styles.handHour} />
+        </View>
+        <View style={[styles.handLayer, { transform: [{ rotate: `${minuteDeg}deg` }] }]}>
+          <View style={styles.handMinute} />
+        </View>
+        <View style={[styles.handLayer, { transform: [{ rotate: `${secondDeg}deg` }] }]}>
+          <View style={styles.handSecond} />
+        </View>
+        <View style={styles.dialCenter} />
+      </View>
+    </View>
+  );
+}
 
 export default function QiblaScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { width } = useWindowDimensions();
-  const { colors, isDarkMode } = useTheme();
+  const { isDarkMode } = useTheme();
 
   const maxW = 430;
   const contentWidth = Math.min(width, maxW);
-  const headerPadTop = useMemo(() => insets.top + 12, [insets.top]);
+  const headerPadTop = useMemo(() => insets.top + 8, [insets.top]);
 
-  const [qiblaDirection, setQiblaDirection] = useState(0);
-  const [heading, setHeading] = useState(0);
-  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [locationName, setLocationName] = useState("جاري التحديد...");
-  const [magnetometerAvailable, setMagnetometerAvailable] = useState(true);
-  
-  const compassRotation = new Animated.Value(0);
-  const headerGradientColors = colors.headerGradient as [string, string, ...string[]];
+  const [selectedCity, setSelectedCityState] = useState<City | null>(null);
+  const [prayerSettings, setPrayerSettingsState] = useState<PrayerSettings>(DEFAULT_SETTINGS);
+  const [pt, setPt] = useState<PrayerTimesResult | null>(null);
+  const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
+  const [loadingCity, setLoadingCity] = useState(false);
+  const [cityLookupFailed, setCityLookupFailed] = useState(false);
+  const [autoOpenedPickerOnWeb, setAutoOpenedPickerOnWeb] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now());
+  const hasLoadedRef = useRef(false);
+  const cityVersionRef = useRef(0);
 
-  // Get user location
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("خطأ", "يرجى السماح بالوصول إلى الموقع لتحديد اتجاه القبلة");
-          return;
-        }
+  const loadCityAndSettings = useCallback(async () => {
+    setLoadingCity(true);
+    setCityLookupFailed(false);
+    const v = cityVersionRef.current;
 
-        const loc = await Location.getCurrentPositionAsync({});
-        setLocation({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-
-        // Get location name (city)
-        const reverseGeocode = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-
-        if (reverseGeocode && reverseGeocode.length > 0) {
-          const address = reverseGeocode[0];
-          setLocationName(address.city || address.region || "موقعك الحالي");
-        }
-      } catch (error) {
-        console.error("Location error:", error);
-        Alert.alert("خطأ", "تعذر الحصول على موقعك");
-      }
-    })();
-  }, []);
-
-  // Calculate Qibla direction
-  useEffect(() => {
-    if (location) {
-      const qibla = calculateQiblaDirection(location.latitude, location.longitude);
-      setQiblaDirection(qibla);
+    const settings = await getPrayerSettings().catch(() => DEFAULT_SETTINGS);
+    if (v !== cityVersionRef.current) {
+      setLoadingCity(false);
+      return;
     }
-  }, [location]);
+    setPrayerSettingsState(settings);
 
-  // Subscribe to magnetometer
-  useEffect(() => {
-    let subscription: any;
-    
-    const startMagnetometer = async () => {
+    const savedCity = await getSelectedCity();
+    if (v !== cityVersionRef.current) {
+      setLoadingCity(false);
+      return;
+    }
+
+    let cityToUse: City | null = null;
+    if (savedCity) {
+      if (savedCity.source === "manual" && savedCity.name?.trim()) {
+        cityToUse = savedCity;
+      } else if (!isUnknownCityName(savedCity.name)) {
+        cityToUse = savedCity;
+      }
+    }
+
+    if (!cityToUse && !selectedCity) {
       try {
-        // Check if magnetometer is available
-        const isAvailable = await Magnetometer.isAvailableAsync();
-        
-        if (!isAvailable) {
-          setMagnetometerAvailable(false);
-          Alert.alert(
-            "البوصلة غير متوفرة",
-            "جهازك لا يدعم البوصلة. سيتم عرض اتجاه القبلة بناءً على موقعك فقط."
-          );
+        const gpsCity = await getCityFromGPS();
+        if (v !== cityVersionRef.current) {
+          setLoadingCity(false);
           return;
         }
-
-        Magnetometer.setUpdateInterval(100);
-        
-        subscription = Magnetometer.addListener((data) => {
-          let angle = Math.atan2(data.y, data.x) * (180 / Math.PI);
-          angle = angle < 0 ? angle + 360 : angle;
-          setHeading(angle);
-        });
-      } catch (error) {
-        console.error("Magnetometer error:", error);
-        setMagnetometerAvailable(false);
+        if (!isUnknownCityName(gpsCity.name)) {
+          cityToUse = gpsCity;
+          await setSelectedCity(gpsCity);
+        } else {
+          setCityLookupFailed(true);
+          if (Platform.OS === "web" && !autoOpenedPickerOnWeb) {
+            setIsCityPickerOpen(true);
+            setAutoOpenedPickerOnWeb(true);
+          }
+        }
+      } catch {
+        if (v !== cityVersionRef.current) {
+          setLoadingCity(false);
+          return;
+        }
+        setCityLookupFailed(true);
+        if (Platform.OS === "web" && !autoOpenedPickerOnWeb) {
+          setIsCityPickerOpen(true);
+          setAutoOpenedPickerOnWeb(true);
+        }
       }
-    };
+    }
 
-    startMagnetometer();
+    if (v !== cityVersionRef.current) {
+      setLoadingCity(false);
+      return;
+    }
+    setSelectedCityState(cityToUse);
+    setLoadingCity(false);
+  }, [autoOpenedPickerOnWeb, selectedCity]);
 
-    return () => {
-      if (subscription) {
-        subscription.remove();
-      }
-    };
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    void loadCityAndSettings();
+  }, [loadCityAndSettings]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Calculate angle difference for the compass
-  const angleDifference = ((qiblaDirection - heading + 360) % 360);
+  useEffect(() => {
+    if (!selectedCity) {
+      setPt(null);
+      return;
+    }
+    const res = computePrayerTimes({
+      city: { lat: selectedCity.lat, lon: selectedCity.lon },
+      settings: prayerSettings,
+      timeZone: tz ?? undefined,
+    });
+    setPt(res);
+  }, [
+    selectedCity?.lat,
+    selectedCity?.lon,
+    prayerSettings.method,
+    prayerSettings.madhab,
+    prayerSettings.adjustments.fajr,
+    prayerSettings.adjustments.dhuhr,
+    prayerSettings.adjustments.asr,
+    prayerSettings.adjustments.maghrib,
+    prayerSettings.adjustments.isha,
+  ]);
 
-  // Dynamic colors
-  const cardBg = isDarkMode ? '#2B2B2B' : '#FFFFFF';
-  const textColor = isDarkMode ? '#FFFFFF' : '#1F2937';
-  const secondaryTextColor = isDarkMode ? 'rgba(255,255,255,0.65)' : '#6B7280';
+  useEffect(() => {
+    if (!selectedCity) return;
+    void reschedulePrayerNotificationsIfEnabled({ city: selectedCity, settings: prayerSettings });
+  }, [
+    selectedCity?.lat,
+    selectedCity?.lon,
+    prayerSettings.method,
+    prayerSettings.madhab,
+    prayerSettings.adjustments.fajr,
+    prayerSettings.adjustments.dhuhr,
+    prayerSettings.adjustments.asr,
+    prayerSettings.adjustments.maghrib,
+    prayerSettings.adjustments.isha,
+    prayerSettings.notificationsEnabled,
+  ]);
+
+  // Recompute once the next prayer passes
+  useEffect(() => {
+    if (!selectedCity || !pt) return;
+    if (pt.nextPrayerTime.getTime() > nowMs) return;
+    const res = computePrayerTimes({
+      city: { lat: selectedCity.lat, lon: selectedCity.lon },
+      settings: prayerSettings,
+      timeZone: tz ?? undefined,
+    });
+    setPt(res);
+  }, [nowMs, pt, prayerSettings, selectedCity]);
+
+  const handleCitySelect = async (city: City) => {
+    cityVersionRef.current += 1;
+    setSelectedCityState(city);
+    setCityLookupFailed(false);
+    setIsCityPickerOpen(false);
+
+    await setSelectedCity(city);
+
+    const res = computePrayerTimes({
+      city: { lat: city.lat, lon: city.lon },
+      settings: prayerSettings,
+      timeZone: tzLookup(city.lat, city.lon),
+    });
+    setPt(res);
+
+    await reschedulePrayerNotificationsIfEnabled({ city, settings: prayerSettings });
+  };
+
+  const cityTitle =
+    !selectedCity || isUnknownCityName(selectedCity.name) ? "اختر مدينة" : selectedCity.name;
+
+  const citySourceText =
+    selectedCity && !isUnknownCityName(selectedCity.name)
+      ? selectedCity.source === "manual"
+        ? "الموقع مثبت يدوياً"
+        : "تم تحديد الموقع تلقائياً"
+      : "";
+
+  const shouldShowChangeCity = !selectedCity || cityLookupFailed;
+
+  const tz = useMemo(
+    () => (selectedCity ? tzLookup(selectedCity.lat, selectedCity.lon) : null),
+    [selectedCity?.lat, selectedCity?.lon]
+  );
+
+  const remainingRatio = pt ? computeRemainingRatio(pt, nowMs) : 0;
+
+  // NEW: upcoming prayer info (like your attached second screenshot)
+  const nextPrayerLabel = pt ? PRAYER_ARABIC[pt.nextPrayerName] : "--";
+  const nextPrayerTimeText =
+    pt && tz ? formatTimeInTZ(pt.nextPrayerTime, tz, "ar") : "--:--";
+  const countdownText = pt ? formatCountdownMinus(pt.nextPrayerTime.getTime() - nowMs) : "--:--";
+
+  const mainText = isDarkMode ? "#FFFFFF" : "#0D1015";
+  const subText = isDarkMode ? "rgba(255,255,255,0.55)" : "#737373";
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <LinearGradient
-        colors={headerGradientColors}
-        style={[styles.header, { paddingTop: headerPadTop }]}
-      >
-        <View style={[styles.headerInner, { width: contentWidth }]}>
-          <Text style={styles.headerTitle}>اتجاه القبلة</Text>
-        </View>
-      </LinearGradient>
-
-      {/* Content */}
+    <View style={[styles.root, { backgroundColor: isDarkMode ? "#15140F" : "#F8F7F2" }]}>
       <ScrollView
         style={{ width: contentWidth }}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[styles.topRow, { paddingTop: headerPadTop }]}>
+          <View style={styles.menuButton}>
+            <DrawerMenuButton />
+          </View>
+        </View>
+
         <View style={styles.content}>
-        {/* Location Card */}
-        <View style={[styles.locationCard, { backgroundColor: cardBg }]}>
-          <Text style={[styles.locationLabel, { color: secondaryTextColor }]}>موقعك الحالي</Text>
-          <Text style={[styles.locationText, { color: textColor }]}>{locationName}</Text>
-          {location && (
-            <Text style={[styles.coordinates, { color: secondaryTextColor }]}>
-              {location.latitude.toFixed(4)}°، {location.longitude.toFixed(4)}°
+          <View style={styles.cityRow}>
+            <Text
+              style={[styles.cityName, { color: mainText }]}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
+              {loadingCity ? "..." : cityTitle}
             </Text>
-          )}
-        </View>
-
-        {/* Compass Container */}
-        <View style={styles.compassContainer}>
-          {/* Outer Circle with Degree Markings */}
-          <View style={[styles.outerCircle, { borderColor: isDarkMode ? '#374151' : '#E5E7EB' }]}>
-            {/* Degree Markers */}
-            {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((degree) => (
-              <View
-                key={degree}
-                style={[
-                  styles.degreeMarker,
-                  {
-                    transform: [
-                      { rotate: `${degree}deg` },
-                      { translateY: -135 },
-                    ],
-                  },
-                ]}
-              >
-                <View style={[styles.markerLine, { backgroundColor: isDarkMode ? '#4B5563' : '#D1D5DB' }]} />
-              </View>
-            ))}
-
-            {/* Cardinal Directions */}
-            <View style={[styles.cardinalDirection, styles.north]}>
-              <Text style={[styles.cardinalText, { color: '#EF4444' }]}>N</Text>
-            </View>
-            <View style={[styles.cardinalDirection, styles.east]}>
-              <Text style={[styles.cardinalText, { color: textColor }]}>E</Text>
-            </View>
-            <View style={[styles.cardinalDirection, styles.south]}>
-              <Text style={[styles.cardinalText, { color: textColor }]}>S</Text>
-            </View>
-            <View style={[styles.cardinalDirection, styles.west]}>
-              <Text style={[styles.cardinalText, { color: textColor }]}>W</Text>
-            </View>
+            <Pressable style={styles.pinButton} onPress={() => setIsCityPickerOpen(true)}>
+              <Feather name="map-pin" size={20} color="#3D6FA3" />
+            </Pressable>
           </View>
 
-          {/* Rotating Compass with Kaaba Icon */}
-          <Animated.View
-            style={[
-              styles.compassNeedle,
-              {
-                transform: [{ rotate: `${angleDifference}deg` }],
-              },
-            ]}
-          >
-            {/* Kaaba Icon / Pointer */}
-            <View style={styles.kaabaContainer}>
-              <View style={styles.kaabaIcon}>
-                <Text style={styles.kaabaText}>🕋</Text>
-              </View>
-              <View style={styles.arrow} />
-            </View>
-          </Animated.View>
+          {citySourceText ? <Text style={[styles.citySource, { color: subText }]}>{citySourceText}</Text> : null}
 
-          {/* Center Circle */}
-          <View style={[styles.centerCircle, { backgroundColor: cardBg }]}>
-            <Text style={[styles.degreeText, { color: textColor }]}>
-              {Math.round(angleDifference)}°
-            </Text>
-            <Text style={[styles.degreeLabel, { color: secondaryTextColor }]}>اتجاه القبلة</Text>
+          {shouldShowChangeCity ? (
+            <Pressable style={styles.changeCityBtn} onPress={() => setIsCityPickerOpen(true)}>
+              <Text style={styles.changeCityBtnText}>تغيير المدينة</Text>
+            </Pressable>
+          ) : null}
+
+          <SalatukDial nowMs={nowMs} remainingRatio={remainingRatio} />
+
+          {/* REPLACED: removed 259° + qibla text and added next prayer block */}
+          <View style={styles.nextPrayerWrap}>
+            <Text style={styles.nextPrayerName}>{nextPrayerLabel}</Text>
+            <Text style={styles.nextPrayerTime}>{nextPrayerTimeText}</Text>
+            <Text style={styles.nextPrayerCountdown}>{countdownText}</Text>
           </View>
-        </View>
-
-        {/* Instructions */}
-        <View style={[styles.instructionsCard, { backgroundColor: cardBg }]}>
-          <Text style={[styles.instructionText, { color: secondaryTextColor }]}>
-            📱 قم بتدوير هاتفك حتى تتطابق الأيقونة 🕋 مع الشمال (N) للوصول إلى اتجاه القبلة
-          </Text>
-        </View>
-
-        {/* Angle Indicator */}
-        <View style={[styles.angleCard, { backgroundColor: cardBg }]}>
-          <Text style={[styles.angleLabel, { color: secondaryTextColor }]}>زاوية الانحراف</Text>
-          <Text style={[styles.angleValue, { color: getAngleColor(angleDifference) }]}>
-            {getDirectionText(angleDifference)}
-          </Text>
-        </View>
         </View>
       </ScrollView>
+
+      <CityPickerModal
+        visible={isCityPickerOpen}
+        onClose={() => setIsCityPickerOpen(false)}
+        onSelect={handleCitySelect}
+      />
     </View>
   );
 }
 
-// Calculate Qibla direction from user's location
-function calculateQiblaDirection(latitude: number, longitude: number): number {
-  // Kaaba coordinates
-  const kaabaLat = 21.4225;
-  const kaabaLon = 39.8262;
-
-  const lat1 = (latitude * Math.PI) / 180;
-  const lat2 = (kaabaLat * Math.PI) / 180;
-  const dLon = ((kaabaLon - longitude) * Math.PI) / 180;
-
-  const y = Math.sin(dLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-
-  let bearing = Math.atan2(y, x);
-  bearing = (bearing * 180) / Math.PI;
-  bearing = (bearing + 360) % 360;
-
-  return bearing;
+function computeRemainingRatio(prayerTimes: PrayerTimesResult, nowMs: number): number {
+  const nextMs = prayerTimes.nextPrayerTime.getTime();
+  const prevMs = getPrevPrayerTimeMs(prayerTimes);
+  const total = Math.max(1, nextMs - prevMs);
+  const remaining = Math.max(0, nextMs - nowMs);
+  return clamp01(remaining / total);
 }
 
-// Get color based on angle
-function getAngleColor(angle: number): string {
-  if (angle < 10 || angle > 350) return '#10B981'; // Green - aligned
-  if (angle < 30 || angle > 330) return '#F59E0B'; // Orange - close
-  return '#EF4444'; // Red - off
+function getPrevPrayerTimeMs(prayerTimes: PrayerTimesResult): number {
+  const byName: Record<PrayerName, Date> = {
+    Fajr: prayerTimes.fajr,
+    Sunrise: prayerTimes.sunrise,
+    Dhuhr: prayerTimes.dhuhr,
+    Asr: prayerTimes.asr,
+    Maghrib: prayerTimes.maghrib,
+    Isha: prayerTimes.isha,
+  };
+
+  const sequence: PrayerName[] = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
+  const nextIndex = sequence.indexOf(prayerTimes.nextPrayerName);
+  if (nextIndex <= 0) return prayerTimes.isha.getTime();
+  const prevName = sequence[nextIndex - 1];
+  return byName[prevName].getTime();
 }
 
-// Get direction text
-function getDirectionText(angle: number): string {
-  if (angle < 10 || angle > 350) return 'متطابق ✓';
-  if (angle < 180) return `${Math.round(angle)}° إلى اليمين ←`;
-  return `${Math.round(360 - angle)}° إلى اليسار →`;
+// NEW: format countdown like screenshot: "-12:42" (HH:MM only)
+function formatCountdownMinus(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const pad = (v: number) => String(v).padStart(2, "0");
+  return `-${pad(h)}:${pad(m)}`;
+}
+
+function clamp01(v: number): number {
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
+
+function isUnknownCityName(name?: string | null): boolean {
+  if (!name) return true;
+  const trimmed = name.trim().toLowerCase();
+  if (trimmed === "" || trimmed === "unknown") return true;
+  return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(trimmed);
 }
 
 const styles = StyleSheet.create({
@@ -278,206 +404,153 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
   },
-
-  header: {
+  topRow: {
     width: "100%",
-    paddingBottom: 18,
-    alignItems: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: 14,
+    marginBottom: 4,
   },
-  headerInner: {
+  menuButton: {
+    zIndex: 5,
+  },
+  content: {
+    alignItems: "center",
     paddingHorizontal: 18,
-    alignItems: "center",
+    paddingTop: 14,
   },
-  headerTitle: {
-    ...typography.screenTitle,
-    color: "#FFFFFF",
-    fontSize: 40,
-    fontWeight: "900",
+  cityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  cityName: {
+    fontFamily: "CairoBold",
+    fontSize: 28,
+    lineHeight: 34,
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
+  pinButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  citySource: {
+    marginTop: -2,
+    fontFamily: "Cairo",
+    fontSize: 16,
     textAlign: "center",
   },
-
-  content: {
-    flex: 1,
-    paddingTop: 20,
-    paddingHorizontal: 16,
-    alignItems: "center",
-  },
-
-  locationCard: {
-    width: "100%",
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 24,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  locationLabel: {
-    ...typography.itemSubtitle,
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  locationText: {
-    ...typography.itemTitle,
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  coordinates: {
-    ...typography.numberText,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-
-  compassContainer: {
-    width: 300,
-    height: 300,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-
-  outerCircle: {
-    position: "absolute",
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    borderWidth: 2,
-  },
-
-  degreeMarker: {
-    position: "absolute",
-    width: 2,
-    height: 280,
-    alignItems: "center",
-    left: 139,
-    top: 0,
-  },
-  markerLine: {
-    width: 2,
-    height: 12,
-  },
-
-  cardinalDirection: {
-    position: "absolute",
-    width: 40,
+  changeCityBtn: {
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 14,
+    backgroundColor: "#EAF3FF",
+    paddingHorizontal: 18,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  north: { top: -5 },
-  east: { right: -5 },
-  south: { bottom: -5 },
-  west: { left: -5 },
-  cardinalText: {
-    ...typography.numberText,
-    fontSize: 20,
-    fontWeight: "900",
+  changeCityBtnText: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: "#3D6FA3",
   },
-
-  compassNeedle: {
-    position: "absolute",
-    width: 280,
-    height: 280,
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-
-  kaabaContainer: {
-    alignItems: "center",
-    marginTop: 20,
-  },
-  kaabaIcon: {
-    width: 50,
-    height: 50,
+  dialWrap: {
+    marginTop: 8,
+    marginBottom: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.1)",
-    borderRadius: 25,
   },
-  kaabaText: {
-    fontSize: 32,
+  dial: {
+    width: 258,
+    height: 258,
+    borderRadius: 129,
+    backgroundColor: "#AFD8F4",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
   },
-  arrow: {
-    width: 0,
-    height: 0,
-    marginTop: 4,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 20,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "#10B981",
-  },
-
-  centerCircle: {
+  arcSvg: {
     position: "absolute",
-    width: 100,
+    left: 0,
+    top: 0,
+  },
+  dialInner: {
+    position: "absolute",
+    width: 146,
+    height: 146,
+    borderRadius: 73,
+    backgroundColor: "#082434",
+  },
+  dialNumber: {
+    position: "absolute",
+    fontFamily: "CairoBold",
+    fontSize: 36,
+    color: "#FFFFFF",
+  },
+  n12: { top: 10 },
+  n3: { right: 18 },
+  n6: { bottom: 4 },
+  n9: { left: 18 },
+  handLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  handHour: {
+    width: 6,
+    height: 66,
+    borderRadius: 6,
+    backgroundColor: "#020202",
+    marginBottom: 2,
+  },
+  handMinute: {
+    width: 6,
+    height: 88,
+    borderRadius: 6,
+    backgroundColor: "#9CA4A9",
+    marginBottom: 2,
+  },
+  handSecond: {
+    width: 2,
     height: 100,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    borderRadius: 2,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 2,
   },
-  degreeText: {
-    ...typography.numberText,
-    fontSize: 24,
-    fontWeight: "900",
-  },
-  degreeLabel: {
-    ...typography.itemSubtitle,
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 2,
+  dialCenter: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
   },
 
-  instructionsCard: {
-    width: "100%",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  instructionText: {
-    ...typography.itemSubtitle,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-
-  angleCard: {
-    width: "100%",
-    padding: 16,
-    borderRadius: 12,
+  // NEW: next prayer block (matches your attached design)
+  nextPrayerWrap: {
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    marginTop: 14,
+    marginBottom: 18,
   },
-  angleLabel: {
-    ...typography.itemSubtitle,
-    fontSize: 14,
-    fontWeight: "600",
+  nextPrayerName: {
+    fontFamily: "CairoBold",
+    fontSize: 28,
+    color: "#2AA7C8",
+    marginBottom: 6,
+  },
+  nextPrayerTime: {
+    fontFamily: "CairoBold",
+    fontSize: 52,
+    color: "#6B6E72",
     marginBottom: 4,
   },
-  angleValue: {
-    ...typography.numberText,
-    fontSize: 20,
-    fontWeight: "800",
+  nextPrayerCountdown: {
+    fontFamily: "CairoBold",
+    fontSize: 28,
+    color: "#B90A12",
   },
 });
