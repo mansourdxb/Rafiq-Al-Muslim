@@ -43,13 +43,19 @@ export default function MainZikrScreen() {
   }, [progress]);
 
   const openPresets = () => {
-    navigation.navigate("AthkarTab", { screen: "Presets" });
+    navigation.navigate("Presets");
+  };
+  const openStats = () => {
+    navigation.navigate("Stats");
+  };
+  const openHisnCategory = (title: string) => {
+    navigation.navigate("HisnCategory", { categoryTitle: title });
   };
 
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, 8) }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.header, { paddingTop: topInset + 12 }]}>
@@ -58,6 +64,7 @@ export default function MainZikrScreen() {
               <Feather name="bell" size={20} color="#E9E3D4" />
             </Pressable>
             <Text style={styles.headerTitle}>الأذكار</Text>
+            <View style={styles.headerRightSpacer} />
           </View>
 
           <View style={styles.searchWrap}>
@@ -113,13 +120,28 @@ export default function MainZikrScreen() {
 
         <View style={styles.grid}>
           {CATEGORIES.map((item) => (
-            <View key={item.title} style={styles.gridCard}>
-              <View style={[styles.gridIcon, { backgroundColor: item.bg }]}
-              >
+            <Pressable
+              key={item.title}
+              style={styles.gridCard}
+              onPress={() => {
+                if (item.title === "أذكار الصباح" || item.title === "أذكار المساء") {
+                  openHisnCategory("أذكار الصباح والمساء");
+                  return;
+                }
+                if (item.title === "أذكار النوم") {
+                  openHisnCategory("أذكار النوم");
+                  return;
+                }
+                if (item.title === "أذكار الصلاة") {
+                  openHisnCategory("الأذكار بعد السلام من الصلاة");
+                }
+              }}
+            >
+              <View style={[styles.gridIcon, { backgroundColor: item.bg }]}>
                 <Feather name={item.icon as any} size={20} color={item.color} />
               </View>
               <Text style={styles.gridTitle}>{item.title}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
 
@@ -134,6 +156,40 @@ export default function MainZikrScreen() {
           </Pressable>
           <View style={styles.tasbeehMark} />
         </Pressable>
+
+        <View style={styles.quickActionsCard}>
+          <View style={styles.quickActionsRow}>
+            <Pressable
+              style={styles.quickActionButton}
+              onPress={() => console.log("quick-action:heart")}
+            >
+              <Feather name="heart" size={22} color="#D4AF37" />
+            </Pressable>
+            <Pressable
+              style={styles.quickActionButton}
+              onPress={() => console.log("quick-action:pin")}
+            >
+              <Feather name="map-pin" size={22} color="#D4AF37" />
+            </Pressable>
+            <Pressable
+              style={styles.quickActionButton}
+              onPress={() => {
+                console.log("quick-action:calendar");
+                // TODO: Wire to CalendarScreen route when navigation is confirmed.
+                navigation.navigate("Calendar");
+              }}
+            >
+              <Feather name="calendar" size={22} color="#D4AF37" />
+            </Pressable>
+            <Pressable
+              style={styles.quickActionButton}
+              onPress={openStats}
+            >
+              <Feather name="bar-chart-2" size={22} color="#D4AF37" />
+            </Pressable>
+          </View>
+          {/* TODO: Wire quick actions to routes when ready. */}
+        </View>
       </ScrollView>
     </View>
   );
@@ -148,7 +204,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   header: {
-    backgroundColor: "#3C5C4A",
+    backgroundColor: "#1B4332",
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     paddingBottom: 22,
@@ -174,23 +230,29 @@ const styles = StyleSheet.create({
     fontSize: 24,
     textAlign: "center",
   },
+  headerRightSpacer: {
+    width: 36,
+    height: 36,
+  },
   searchWrap: {
     marginTop: 16,
     backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
   },
   searchIcon: {
-    marginRight: 8,
+    marginLeft: 8,
   },
   searchInput: {
     flex: 1,
     ...typography.inputText,
     fontSize: 14,
     color: "#FFFFFF",
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   progressCard: {
     backgroundColor: "#FFFFFF",
@@ -236,7 +298,7 @@ const styles = StyleSheet.create({
   },
   progressButton: {
     marginTop: 16,
-    backgroundColor: "#3C5C4A",
+    backgroundColor: "#1B4332",
     borderRadius: 14,
     paddingVertical: 10,
     alignItems: "center",
@@ -279,7 +341,7 @@ const styles = StyleSheet.create({
     color: "#1F2D25",
   },
   tasbeehCard: {
-    backgroundColor: "#3C5C4A",
+    backgroundColor: "#1B4332",
     borderRadius: 22,
     padding: 18,
     marginTop: 8,
@@ -317,7 +379,7 @@ const styles = StyleSheet.create({
   tasbeehButtonText: {
     ...typography.buttonText,
     fontSize: 14,
-    color: "#3C5C4A",
+    color: "#1B4332",
   },
   tasbeehMark: {
     position: "absolute",
@@ -328,5 +390,35 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     borderWidth: 8,
     borderColor: "rgba(255,255,255,0.08)",
+  },
+  quickActionsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    marginTop: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  quickActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  quickActionButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F6F0E1",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
 });
