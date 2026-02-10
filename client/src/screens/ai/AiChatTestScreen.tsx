@@ -14,7 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system";
-import { initLlama } from "llama.rn";
+import { getModelInfo } from "@/src/lib/ai/modelStorage";
 
 import { typography } from "@/theme/typography";
 
@@ -68,14 +68,15 @@ export default function AiChatTestScreen() {
     setStatus("loading");
     setErrorText(null);
     try {
-      const info = await FileSystem.getInfoAsync(MODEL_PATH);
+      const info = await getModelInfo();
       if (!info.exists) {
         setStatus("missing");
         setErrorText("Model not installed");
         return;
       }
       const modelUri = "file://" + MODEL_PATH;
-      const ctx = await initLlama({ model: modelUri, n_ctx: 2048 });
+      const llama = await import("llama.rn");
+      const ctx = await llama.initLlama({ model: modelUri, n_ctx: 2048 });
       contextRef.current = ctx;
       setStatus("ready");
     } catch (err: any) {
@@ -92,6 +93,13 @@ export default function AiChatTestScreen() {
       } catch {}
     };
   }, [checkAndInit]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      void checkAndInit();
+    });
+    return unsub;
+  }, [navigation, checkAndInit]);
 
   const sendMessage = async () => {
     if (!canSend) return;
@@ -190,8 +198,15 @@ export default function AiChatTestScreen() {
         style={styles.body}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {footerStatus ? (
-          <Text style={styles.statusText}>{footerStatus}</Text>
+        {footerStatus ? <Text style={styles.statusText}>{footerStatus}</Text> : null}
+
+        {status === "missing" && Platform.OS !== "web" ? (
+          <Pressable
+            style={styles.installBtn}
+            onPress={() => navigation.navigate("AiModelSetup")}
+          >
+            <Text style={styles.installText}>تثبيت النموذج</Text>
+          </Pressable>
         ) : null}
 
         <FlatList
@@ -341,6 +356,18 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   sendText: {
+    ...typography.buttonText,
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
+  installBtn: {
+    marginTop: 12,
+    backgroundColor: "#1B4332",
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  installText: {
     ...typography.buttonText,
     fontSize: 14,
     color: "#FFFFFF",
