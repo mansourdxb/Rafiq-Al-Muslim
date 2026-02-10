@@ -1,18 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  useWindowDimensions,
-  Platform,
   ScrollView,
+  Pressable,
+  Platform,
+  StatusBar,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "@/context/ThemeContext";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+
 import { typography } from "@/theme/typography";
-import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 
 type Countdown = {
   days: number;
@@ -20,6 +20,41 @@ type Countdown = {
   minutes: number;
   seconds: number;
 };
+
+type EventItem = {
+  id: string;
+  title: string;
+  date: Date;
+  dateLabel: string;
+  showBell?: boolean;
+  bellText?: string;
+  unavailable?: boolean;
+};
+
+const EVENTS: EventItem[] = [
+  {
+    id: "ramadan",
+    title: "رمضان",
+    date: new Date(2026, 2, 1, 0, 0, 0),
+    dateLabel: "1 مارس 2026",
+    showBell: true,
+    bellText: "التنبيه قبل الحدث",
+  },
+  {
+    id: "last-ten",
+    title: "العشر الأواخر",
+    date: new Date(2026, 2, 20, 0, 0, 0),
+    dateLabel: "20 مارس 2026",
+    showBell: true,
+    bellText: "تذكير عند بداية العشر",
+  },
+  {
+    id: "eid",
+    title: "عيد الفطر",
+    date: new Date(2026, 3, 1, 0, 0, 0),
+    dateLabel: "1 أبريل 2026",
+  },
+];
 
 function clamp0(n: number) {
   return n < 0 ? 0 : n;
@@ -38,175 +73,193 @@ function getCountdown(target: Date): Countdown {
   return { days, hours, minutes, seconds };
 }
 
-function TimeCell({
-  value,
-  label,
-  primaryText,
-  secondaryText,
-}: {
-  value: number;
-  label: string;
-  primaryText: string;
-  secondaryText: string;
-}) {
-  return (
-    <View style={styles.timeCell}>
-      <Text style={[styles.timeValue, { color: primaryText }]}>
-        {String(value).padStart(2, "0")}
-      </Text>
-      <Text style={[styles.timeLabel, { color: secondaryText }]}>{label}</Text>
-    </View>
-  );
+function formatNumber(n: number) {
+  return String(n).toLocaleString("en-US");
 }
 
-type CalendarColors = {
-  cardOuterBackground: string;
-  cardInnerBackground: string;
-  cardTitleColor: string;
-  dividerColor: string;
-  primaryText: string;
-  secondaryText: string;
-};
+function getIslamicParts(date: Date): { iy: number; im: number; id: number } | null {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-TN-u-ca-islamic", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    });
+    const parts = fmt.formatToParts(date);
+    const day = Number(parts.find((p) => p.type === "day")?.value);
+    const month = Number(parts.find((p) => p.type === "month")?.value);
+    const year = Number(parts.find((p) => p.type === "year")?.value);
+    if (!day || !month || !year) return null;
+    return { iy: year, im: month, id: day };
+  } catch {
+    return null;
+  }
+}
 
-function CountdownCard({
-  title,
-  subtitle,
-  target,
-  colors,
-}: {
-  title: string;
-  subtitle: string;
-  target: Date;
-  colors: CalendarColors;
-}) {
-  const [cd, setCd] = useState<Countdown>(() => getCountdown(target));
+function findNextIslamicDate(
+  target: { month: number; day: number },
+  fromDate: Date
+): Date | null {
+  const start = new Date(fromDate);
+  start.setHours(0, 0, 0, 0);
+  for (let i = 0; i <= 400; i += 1) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const parts = getIslamicParts(d);
+    if (!parts) return null;
+    if (parts.im === target.month && parts.id === target.day) {
+      return d;
+    }
+  }
+  return null;
+}
+
+function useCountdown(target: Date | null) {
+  const [cd, setCd] = useState<Countdown>(() =>
+    target ? getCountdown(target) : { days: 0, hours: 0, minutes: 0, seconds: 0 }
+  );
 
   useEffect(() => {
+    if (!target) return;
     const t = setInterval(() => setCd(getCountdown(target)), 1000);
     return () => clearInterval(t);
   }, [target]);
 
-  const dateStr = `${target.getFullYear()}/${String(target.getMonth() + 1).padStart(2, "0")}/${String(
-    target.getDate()
-  ).padStart(2, "0")}`;
+  return cd;
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function CountdownCell({ value, label }: { value: number; label: string }) {
+  return (
+    <View style={styles.countCell}>
+      <Text style={styles.countValue}>{pad2(value)}</Text>
+      <Text style={styles.countLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function EventCard({ event }: { event: EventItem }) {
+  const cd = useCountdown(event.unavailable ? null : event.date);
 
   return (
-    <View style={[styles.cardOuter, { backgroundColor: colors.cardOuterBackground }]}>
-      <View style={[styles.cardInner, { backgroundColor: colors.cardInnerBackground }]}>
-        <View style={styles.cardTopRow}>
-          <Text style={styles.moonIcon}>🌙</Text>
-          <Text style={[styles.cardTitle, { color: colors.cardTitleColor }]}>{title}</Text>
+    <View style={styles.card}>
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardTextWrap}>
+          <Text style={styles.cardTitle}>{event.title}</Text>
+          <Text style={styles.cardDate}>{event.dateLabel}</Text>
+          {event.unavailable ? (
+            <Text style={styles.unavailableText}>غير متاح على هذا الجهاز</Text>
+          ) : null}
         </View>
-
-        <View style={[styles.cardDivider, { backgroundColor: colors.dividerColor }]} />
-
-        <View style={styles.timeRow}>
-          <TimeCell
-            value={cd.seconds}
-            label="ثانية"
-            primaryText={colors.primaryText}
-            secondaryText={colors.secondaryText}
-          />
-          <TimeCell
-            value={cd.minutes}
-            label="دقيقة"
-            primaryText={colors.primaryText}
-            secondaryText={colors.secondaryText}
-          />
-          <TimeCell
-            value={cd.hours}
-            label="ساعة"
-            primaryText={colors.primaryText}
-            secondaryText={colors.secondaryText}
-          />
-          <TimeCell
-            value={cd.days}
-            label="يوم"
-            primaryText={colors.primaryText}
-            secondaryText={colors.secondaryText}
-          />
+        <View style={styles.iconTile}>
+          <Feather name="calendar" size={20} color="#F0A33A" />
         </View>
-
-        <Text style={[styles.dateText, { color: colors.secondaryText }]}>{dateStr}</Text>
-
-        <Text style={[styles.cardSubtitle, { color: colors.secondaryText }]}>{subtitle}</Text>
       </View>
+
+      <View style={styles.countRow}>
+        <CountdownCell value={event.unavailable ? 0 : cd.seconds} label="ثانية" />
+        <CountdownCell value={event.unavailable ? 0 : cd.minutes} label="دقيقة" />
+        <CountdownCell value={event.unavailable ? 0 : cd.hours} label="ساعة" />
+        <CountdownCell value={event.unavailable ? 0 : cd.days} label="يوم" />
+      </View>
+
+      {event.showBell ? (
+        <View style={styles.bellRow}>
+          <Text style={styles.bellText}>{event.bellText}</Text>
+          <Feather name="bell" size={14} color="#9AA5A0" />
+        </View>
+      ) : null}
     </View>
   );
 }
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
-  const { width } = useWindowDimensions();
-  const { colors, isDarkMode } = useTheme();
+  const navigation = useNavigation<any>();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0
+  );
 
-  // Keep phone-like layout even on web
-  const maxW = 430;
-  const contentWidth = Math.min(width, maxW);
-  const headerGradientColors = colors.headerGradient as [string, string, ...string[]];
+  // Doubling header height (approx): old ~66px on web -> ~132px
+  const HEADER_MIN_HEIGHT = 132;
 
-  const pageBackground = colors.background;
-  const calendarColors: CalendarColors = {
-    cardOuterBackground: isDarkMode ? "#000000" : "#E7EDF4",
-    cardInnerBackground: isDarkMode ? "#2F2F30" : "#FFFFFF",
-    cardTitleColor: isDarkMode ? "#FFFFFF" : "#111418",
-    dividerColor: isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(17,20,24,0.08)",
-    primaryText: isDarkMode ? "#FFFFFF" : "#111418",
-    secondaryText: isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(17,20,24,0.55)",
-  };
-  const sheetBackground = isDarkMode ? "#0D0F12" : "#E9EFF5";
+  const footerYear = useMemo(() => formatNumber(new Date().getFullYear()), []);
+  const extraEvents = useMemo<EventItem[]>(() => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("ar-EG", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
 
-  // ✅ Replace these with your real dates (or compute from Hijri later)
-  // For now, using upcoming example dates:
-  const ramadanTarget = useMemo(() => {
-    // Example: Feb 18, 2026 (matches your screenshot format)
-    return new Date(2026, 1, 18, 0, 0, 0);
+    const buildEvent = (id: string, title: string, month: number, day: number): EventItem => {
+      const targetDate = findNextIslamicDate({ month, day }, now);
+      if (!targetDate) {
+        return {
+          id,
+          title,
+          date: now,
+          dateLabel: "--",
+          unavailable: true,
+        };
+      }
+      return {
+        id,
+        title,
+        date: targetDate,
+        dateLabel: formatter.format(targetDate),
+      };
+    };
+
+    return [
+      buildEvent("arafah", "يوم عرفة", 12, 9),
+      buildEvent("adha", "عيد الأضحى", 12, 10),
+      buildEvent("new-hijri", "رأس السنة الهجرية", 1, 1),
+    ];
   }, []);
 
-  const lastTenTarget = useMemo(() => {
-    // Example: 10 days after Ramadan start (placeholder)
-    const d = new Date(ramadanTarget);
-    d.setDate(d.getDate() + 10);
-    return d;
-  }, [ramadanTarget]);
-
   return (
-    <View style={[styles.root, { backgroundColor: pageBackground }]}>
-      <LinearGradient
-        colors={headerGradientColors}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
+    <View style={styles.root}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: topInset + 12,
+            minHeight: topInset + HEADER_MIN_HEIGHT,
+          },
+        ]}
       >
-        <View style={[styles.headerInner, { width: contentWidth }]}>
-          <View style={styles.menuButton}>
-            <DrawerMenuButton />
-          </View>
+        <View style={styles.headerRow}>
+          {/* Back button on the LEFT like StatsScreen */}
+          <Pressable
+            style={styles.headerIcon}
+            onPress={() => navigation.goBack()}
+            hitSlop={10}
+          >
+            <Feather name="chevron-left" size={22} color="#FFFFFF" />
+          </Pressable>
+
+          {/* Centered title */}
           <Text style={styles.headerTitle}>المواعيد الإسلامية</Text>
+
+          {/* Right spacer to keep title perfectly centered (and remove 3 dots) */}
+          <View style={styles.headerIconSpacer} />
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
-        style={{ width: contentWidth }}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.sheet, { backgroundColor: sheetBackground }]}>
-          <CountdownCard
-            title="رمضان"
-            subtitle="العد التنازلي لرمضان"
-            target={ramadanTarget}
-            colors={calendarColors}
-          />
-
-          <View style={{ height: 16 }} />
-
-          <CountdownCard
-            title="العشر الأواخر"
-            subtitle="العد التنازلي للعشر الأواخر"
-            target={lastTenTarget}
-            colors={calendarColors}
-          />
-        </View>
+        {EVENTS.map((event) => (
+          <EventCard key={event.id} event={event} />
+        ))}
+        {extraEvents.map((event) => (
+          <EventCard key={event.id} event={event} />
+        ))}
       </ScrollView>
     </View>
   );
@@ -215,110 +268,126 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    alignItems: "center",
+    backgroundColor: "#F4F4F2",
   },
-
   header: {
-    width: "100%",
-    paddingBottom: 18,
-    alignItems: "center",
+    backgroundColor: "#1B4332",
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    paddingHorizontal: 18,
+    paddingBottom: 36, // ↑ increased to help make header feel ~double height
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
-  headerInner: {
-    paddingHorizontal: 16,
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  headerIconSpacer: {
+    width: 36,
+    height: 36,
   },
   headerTitle: {
     ...typography.screenTitle,
+    flex: 1,
     color: "#FFFFFF",
-    fontSize: 40,
-    fontWeight: "900",
+    fontSize: 22,
     textAlign: "center",
   },
-  menuButton: {
-    position: "absolute",
-    right: 4,
-    top: 2,
-    zIndex: 5,
-  },
-
-  body: {
-    flex: 1,
-    paddingTop: 12,
-  },
-
-  sheet: {
-    flex: 1,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+  scroll: {
+    paddingHorizontal: 18,
     paddingTop: 18,
-    paddingHorizontal: 14,
   },
-
-  cardOuter: {
-    borderRadius: 28,
-    padding: 10,
-    ...(Platform.OS === "web" ? ({ boxShadow: "0 12px 30px rgba(0,0,0,0.12)" } as any) : null),
-  },
-  cardInner: {
+  card: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 22,
     padding: 18,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   cardTopRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  moonIcon: {
-    ...typography.numberText,
-    fontSize: 22,
-    opacity: 0.9,
+  cardTextWrap: {
+    flex: 1,
+    alignItems: "flex-end",
   },
   cardTitle: {
-    ...typography.sectionTitle,
-    fontSize: 26,
-    fontWeight: "900",
-    textAlign: "right",
+    ...typography.itemTitle,
+    fontSize: 20,
+    color: "#1F2D25",
   },
-  cardDivider: {
-    marginTop: 12,
-    height: 1,
+  cardDate: {
+    ...typography.itemSubtitle,
+    fontSize: 13,
+    color: "#8A9490",
+    marginTop: 4,
   },
-
-  timeRow: {
-    marginTop: 18,
+  unavailableText: {
+    ...typography.itemSubtitle,
+    fontSize: 12,
+    color: "#B0B8B3",
+    marginTop: 4,
+  },
+  iconTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFF3E0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  countRow: {
+    marginTop: 16,
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  timeCell: {
-    width: "23%",
+  countCell: {
     alignItems: "center",
+    flex: 1,
   },
-  timeValue: {
+  countValue: {
     ...typography.numberText,
-    fontSize: 34,
-    fontWeight: "900",
+    fontSize: 22,
+    color: "#F0A33A",
   },
-  timeLabel: {
+  countLabel: {
     ...typography.itemSubtitle,
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 12,
+    color: "#9AA5A0",
+    marginTop: 4,
   },
-
-  dateText: {
-    ...typography.itemSubtitle,
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: "800",
-    textAlign: "left",
+  bellRow: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.06)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-
-  cardSubtitle: {
+  bellText: {
     ...typography.itemSubtitle,
-    marginTop: 10,
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "right",
+    fontSize: 12,
+    color: "#9AA5A0",
   },
 });

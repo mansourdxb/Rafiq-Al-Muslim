@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,38 +10,44 @@ import {
   ScrollView,
   useWindowDimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
 import { useApp } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
+import { typography } from "@/theme/typography";
 
 type CategoryKey = "general" | "morning" | "evening" | "tasbeeh" | "istighfar" | "custom";
 
-const CATEGORIES: { key: CategoryKey; label: string }[] = [
+const CATEGORIES: { key: CategoryKey; label: string; dashed?: boolean }[] = [
   { key: "general", label: "عام" },
-  { key: "morning", label: "صبح" },
+  { key: "morning", label: "صباح" },
   { key: "evening", label: "مساء" },
   { key: "tasbeeh", label: "تسبيح" },
   { key: "istighfar", label: "استغفار" },
-  { key: "custom", label: "مخصص" },
+  { key: "custom", label: "مخصص +", dashed: true },
 ];
 
 export default function AddZikrScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { addPreset } = useApp();
+  const { isDarkMode } = useTheme();
   const { width } = useWindowDimensions();
 
-  // ✅ Mobile-like layout when previewing on web (doesn't affect native apps)
   const maxW = 420;
   const contentWidth = Math.min(width, maxW);
+
+  const pageBackground = isDarkMode ? "#0F1215" : "#F7F4EE";
+  const inputBg = isDarkMode ? "#1B1E22" : "#F3F5F6";
+  const chipBg = isDarkMode ? "#1C2A26" : "#E9F1EE";
+  const gold = "#C79B3B";
 
   const [title, setTitle] = useState("");
   const [zikr, setZikr] = useState("");
   const [target, setTarget] = useState("33");
-  const [category, setCategory] = useState<CategoryKey>("custom");
+  const [category, setCategory] = useState<CategoryKey>("general");
   const [error, setError] = useState<string | null>(null);
 
   const canSave = useMemo(() => {
@@ -57,7 +63,6 @@ export default function AddZikrScreen() {
 
     setError(null);
 
-    // ✅ Save basic fields only (safe with your current Preset type)
     addPreset({
       name: title.trim(),
       text: zikr.trim(),
@@ -69,23 +74,20 @@ export default function AddZikrScreen() {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* Header (full width like iOS) */}
-      <LinearGradient colors={["#7EC3E6", "#64B5E1"]} style={styles.header}>
+    <View style={[styles.root, { backgroundColor: pageBackground, paddingTop: insets.top }]}>
+      <View style={styles.header}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={({ pressed }) => [styles.headerIconBtn, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.85 }]}
           hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="إغلاق"
         >
-          <Feather name="x" size={26} color="#fff" />
+          <Feather name="x" size={22} color="#F7F4EE" />
         </Pressable>
+        <Text style={styles.headerTitle}>إضافة ذكر جديد</Text>
+      </View>
 
-        <Text style={styles.headerTitle}>إضافة ذكر</Text>
-
-        <View style={styles.headerIconBtn} />
-      </LinearGradient>
-
-      {/* Content centered & constrained (mobile feel on web preview) */}
       <View style={styles.centerWrap}>
         <View style={[styles.contentContainer, { width: contentWidth }]}>
           <KeyboardAvoidingView
@@ -98,78 +100,90 @@ export default function AddZikrScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <View style={styles.card}>
-                <View style={styles.inputRow}>
-                  <TextInput
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="العنوان"
-                    placeholderTextColor="rgba(17,20,24,0.35)"
-                    style={styles.input}
-                    textAlign="right"
-                  />
-                </View>
-
-                <View style={styles.inputRow}>
-                  <TextInput
-                    value={zikr}
-                    onChangeText={setZikr}
-                    placeholder="الذكر"
-                    placeholderTextColor="rgba(17,20,24,0.35)"
-                    style={styles.input}
-                    textAlign="right"
-                  />
-                </View>
-
-                <View style={styles.inputRow}>
-                  <TextInput
-                    value={target}
-                    onChangeText={setTarget}
-                    placeholder="العدد"
-                    placeholderTextColor="rgba(17,20,24,0.35)"
-                    style={styles.input}
-                    keyboardType="number-pad"
-                    textAlign="right"
-                  />
-                </View>
-
-                <Text style={styles.sectionTitle}>الصنف</Text>
-
-                <View style={styles.chipsWrap}>
-                  {CATEGORIES.map((c) => {
-                    const active = c.key === category;
-                    return (
-                      <Pressable
-                        key={c.key}
-                        onPress={() => setCategory(c.key)}
-                        style={({ pressed }) => [
-                          styles.chip,
-                          active && styles.chipActive,
-                          pressed && { opacity: 0.9 },
-                        ]}
-                      >
-                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                          {c.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {error ? <Text style={styles.error}>{error}</Text> : null}
-
-                <Pressable
-                  onPress={onSave}
-                  disabled={!canSave}
-                  style={({ pressed }) => [
-                    styles.saveBtn,
-                    !canSave && { opacity: 0.45 },
-                    pressed && canSave && { opacity: 0.9 },
-                  ]}
-                >
-                  <Text style={styles.saveText}>حفظ</Text>
-                </Pressable>
+              <Text style={styles.label}>عنوان الذكر</Text>
+              <View style={[styles.inputRow, { backgroundColor: inputBg }]}>
+                <TextInput
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder={"مثلا أذكار الصباح"}
+                  placeholderTextColor="#9AA5A1"
+                  style={[styles.input, styles.inputTitle]}
+                  textAlign="right"
+                  writingDirection="rtl"
+                />
               </View>
+
+              <Text style={styles.label}>نص الذكر</Text>
+              <View style={[styles.inputRow, styles.textAreaRow, { backgroundColor: inputBg }]}>
+                <TextInput
+                  value={zikr}
+                  onChangeText={setZikr}
+                  placeholder={"أكتب نص الذكر هنا"}
+                  placeholderTextColor="#9AA5A1"
+                  style={[styles.input, styles.inputBody, styles.textArea]}
+                  textAlign="right"
+                  writingDirection="rtl"
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <Text style={styles.label}>العدد</Text>
+              <View style={[styles.countRow, { backgroundColor: inputBg }]}>
+                <Text style={styles.countSuffix}>مرة</Text>
+                <TextInput
+                  value={target}
+                  onChangeText={setTarget}
+                  keyboardType="number-pad"
+                  style={styles.countInput}
+                  textAlign="center"
+                />
+                <View style={styles.countSpacer} />
+              </View>
+
+              <View style={styles.sectionDivider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.sectionTitle}>الصنف</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <View style={styles.chipsWrap}>
+                {CATEGORIES.map((c) => {
+                  const active = c.key === category;
+                  return (
+                    <Pressable
+                      key={c.key}
+                      onPress={() => setCategory(c.key)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        { backgroundColor: active ? gold : chipBg },
+                        c.dashed ? styles.chipDashed : null,
+                        pressed && { opacity: 0.9 },
+                      ]}
+                      accessibilityRole="button"
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                        {c.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              <Pressable
+                onPress={onSave}
+                disabled={!canSave}
+                style={({ pressed }) => [
+                  styles.saveBtn,
+                  !canSave && { opacity: 0.45 },
+                  pressed && canSave && { opacity: 0.9 },
+                ]}
+              >
+                <Text style={styles.saveText}>حفظ</Text>
+              </Pressable>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
@@ -179,26 +193,34 @@ export default function AddZikrScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F3F5F8" },
-
+  root: { flex: 1 },
   header: {
-    height: 88,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: "#1F4B3B",
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 18,
     alignItems: "center",
     justifyContent: "center",
-    ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null),
   },
-  headerTitle: { color: "#fff", fontSize: 26, fontWeight: "900", textAlign: "center" },
-
-  // ✅ centers the phone-like card on web
+  headerTitle: {
+    ...typography.itemTitle,
+    color: "#F7F4EE",
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  closeBtn: {
+    position: "absolute",
+    right: 18,
+    top: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   centerWrap: {
     flex: 1,
     alignItems: "center",
@@ -206,65 +228,137 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
   },
-
-  sheet: { flex: 1, paddingHorizontal: 14, paddingTop: 14 },
-
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 16,
+  sheet: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 18,
   },
-
+  label: {
+    ...typography.itemSubtitle,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1B1F22",
+    textAlign: "right",
+    marginBottom: 8,
+  },
   inputRow: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(17,20,24,0.12)",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
   },
-  input: { fontSize: 16, fontWeight: "700", color: "#111418" },
-
-  sectionTitle: {
-    marginTop: 8,
-    marginBottom: 10,
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#111418",
+  input: {
+    color: "#1B1F22",
+    ...(Platform.OS === "web" ? ({ direction: "rtl" } as any) : null),
+  },
+  inputTitle: {
+    ...typography.itemTitle,
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "right",
+  },
+  inputBody: {
+    ...typography.itemSubtitle,
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  textAreaRow: {
+    minHeight: 120,
+  },
+  textArea: {
+    minHeight: 90,
+  },
+  countRow: {
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    marginBottom: 18,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  countInput: {
+    ...typography.itemTitle,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1B1F22",
+    flex: 1,
     textAlign: "center",
   },
-
+  countSuffix: {
+    ...typography.itemSubtitle,
+    color: "#6B6F6E",
+    fontSize: 13,
+    fontWeight: "600",
+    minWidth: 44,
+    textAlign: "right",
+  },
+  countSpacer: {
+    minWidth: 44,
+  },
+  sectionDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E0E3DE",
+  },
+  sectionTitle: {
+    ...typography.itemSubtitle,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1B1F22",
+  },
   chipsWrap: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",
     gap: 10,
-    justifyContent: "center",
-    marginBottom: 14,
+    justifyContent: "flex-start",
+    marginBottom: 18,
   },
   chip: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 999,
-    backgroundColor: "#EEF1F5",
   },
-  chipActive: { backgroundColor: "#F1C56B" },
-  chipText: { fontSize: 14, fontWeight: "900", color: "rgba(17,20,24,0.65)" },
-  chipTextActive: { color: "#FFFFFF" },
-
+  chipDashed: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#C7D0C9",
+    backgroundColor: "transparent",
+  },
+  chipText: {
+    ...typography.itemSubtitle,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#2E3A35",
+  },
+  chipTextActive: {
+    color: "#FFFFFF",
+  },
   error: {
     color: "#D64545",
     fontWeight: "800",
     textAlign: "center",
     marginBottom: 10,
   },
-
   saveBtn: {
     marginTop: 4,
-    backgroundColor: "#F1C56B",
+    backgroundColor: "#C79B3B",
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
   },
-  saveText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  saveText: {
+    ...typography.itemTitle,
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+  },
 });

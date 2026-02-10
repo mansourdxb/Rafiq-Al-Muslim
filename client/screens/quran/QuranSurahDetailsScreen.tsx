@@ -1,23 +1,32 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, ImageBackground, Platform } from "react-native";
+import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { typography } from "@/theme/typography";
-import AyahActionSheet from "@/src/components/quran/AyahActionSheet";
 import { clearMark, loadMarks, setMark, type AyahMark } from "@/src/lib/quran/ayahMarks";
 import { getPageCount, getPageData, getPageForAyah, arabicIndic } from "@/src/lib/quran/mushaf";
+import ReaderOptionsSheet from "@/ui/quran/ReaderOptionsSheet";
+import TafsirSheet from "@/ui/quran/TafsirSheet";
+
+const DEBUG_QURAN_NAV = true;
 
 type Props = {
   initialPageNo?: number;
   highlightAyah?: { sura: number; aya: number };
   jumpToPage?: number;
   jumpId?: number;
+  jumpLockMs?: number;
+  trimBeforeSura?: number;
+  disableAutoScroll?: boolean;
   onPageChange?: (pageNo: number) => void;
   onVisiblePageChange?: (pageNo: number, sura: number, surahName: string) => void;
+  openOptionsToken?: number;
 };
 
-export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, jumpToPage, jumpId, onPageChange, onVisiblePageChange }: Props) {
+export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, jumpToPage, jumpId, jumpLockMs = 1200, trimBeforeSura, disableAutoScroll, onPageChange, onVisiblePageChange, openOptionsToken }: Props) {
   const [marks, setMarks] = useState<Record<string, AyahMark>>({});
+  const [measuredPageHeight, setMeasuredPageHeight] = useState<number | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [tafsirVisible, setTafsirVisible] = useState(false);
   const [selectedAyah, setSelectedAyah] = useState<{
     surahName: string;
     surahNumber: number;
@@ -29,17 +38,72 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   } | null>(null);
 
   const listRef = useRef<FlatList<number>>(null);
+  const initialTargetRef = useRef<number | null>(null);
+  const lockedPageRef = useRef<number | null>(null);
+  const hasSettledRef = useRef(false);
+  const lockUntilRef = useRef<number>(0);
+  const { height: windowHeight } = useWindowDimensions();
+  const estimatedPageHeight = Math.max(640, windowHeight + 120);
+  const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
+  const getItemLayout = useCallback(
+    (_: ArrayLike<number> | null | undefined, index: number) => ({
+      length: pageHeight,
+      offset: pageHeight * index,
+      index,
+    }),
+    [pageHeight]
+  );
+
+  const scrollToPageIndex = useCallback(
+    (index: number) => {
+      listRef.current?.scrollToOffset({ offset: index * pageHeight, animated: false });
+      const t = setTimeout(() => {
+        listRef.current?.scrollToIndex({ index, animated: false });
+      }, 50);
+      return () => clearTimeout(t);
+    },
+    [pageHeight]
+  );
+
+  useEffect(() => {
+    if (!DEBUG_QURAN_NAV) return;
+    console.log("[QuranReader][debug] Details mount", { initialPageNo, jumpToPage, jumpId, highlightAyah });
+  }, []);
 
   useEffect(() => {
     if (!jumpToPage) return;
-    const index = Math.max(0, jumpToPage - 1);
+    initialTargetRef.current = jumpToPage;
+    const target = jumpToPage;
+    if (disableAutoScroll) return;
+    lockedPageRef.current = target;
+    hasSettledRef.current = false;
+    lockUntilRef.current = Date.now() + jumpLockMs;
+    if (DEBUG_QURAN_NAV) {
+      console.log("[QuranReader][debug] Details jump", { jumpToPage, jumpId, target });
+    }
+    const index = Math.max(0, target - 1);
     const t = setTimeout(() => {
-      listRef.current?.scrollToIndex({ index, animated: false });
+      scrollToPageIndex(index);
     }, 0);
     return () => clearTimeout(t);
-  }, [jumpId, jumpToPage]);
+  }, [jumpId, jumpToPage, scrollToPageIndex]);
+
+  useEffect(() => {
+    if (!disableAutoScroll) return;
+    if (!initialPageNo) return;
+    // Keep initial page stable by ignoring early viewability noise.
+    lockUntilRef.current = Date.now() + 2000;
+    lockedPageRef.current = initialPageNo;
+    hasSettledRef.current = false;
+  }, [disableAutoScroll, initialPageNo]);
   const pageCount = getPageCount();
   const pages = useMemo(() => Array.from({ length: pageCount }, (_, i) => i + 1), [pageCount]);
+  const displayPages = useMemo(() => {
+    if (trimBeforeSura && jumpToPage) {
+      return pages.slice(Math.max(0, jumpToPage - 1));
+    }
+    return pages;
+  }, [pages, trimBeforeSura, jumpToPage]);
 
   const refreshMarks = useCallback(async () => {
     const loaded = await loadMarks();
@@ -69,6 +133,13 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     });
     setSheetVisible(true);
   }, []);
+
+  useEffect(() => {
+    if (!openOptionsToken) return;
+    if (selectedAyah) {
+      setSheetVisible(true);
+    }
+  }, [openOptionsToken, selectedAyah]);
 
   const handleBookmarkSelect = useCallback(
     async (color: string | null) => {
@@ -122,38 +193,113 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: number }[] }) => {
     if (!viewableItems?.length) return;
     const pageNo = viewableItems[0].item;
+    if (DEBUG_QURAN_NAV) {
+      console.log("[QuranReader][debug] viewable page", pageNo, "locked=", lockedPageRef.current, "settled=", hasSettledRef.current);
+    }
+    if (disableAutoScroll) {
+      const lockedPage = lockedPageRef.current;
+      if (lockedPage && pageNo !== lockedPage && Date.now() < lockUntilRef.current) {
+        return;
+      }
+      onPageChange?.(pageNo);
+      const page = getPageData(pageNo);
+      const first = page.ayahs[0];
+      if (first) {
+        if (DEBUG_QURAN_NAV) {
+          console.log("[QuranReader][debug] visible first ayah", { sura: first.sura, aya: first.aya, name: first.surahName });
+        }
+        onVisiblePageChange?.(pageNo, first.sura, first.surahName);
+      }
+      return;
+    }
+    const lockedPage = lockedPageRef.current;
+    if (lockedPage && pageNo !== lockedPage && Date.now() < lockUntilRef.current) {
+      return;
+    }
+    if (lockedPage && pageNo === lockedPage) {
+      hasSettledRef.current = true;
+    }
+    if (lockedPage && !hasSettledRef.current) {
+      // Ignore intermediate viewability updates while locking to target.
+      return;
+    }
     onPageChange?.(pageNo);
     const page = getPageData(pageNo);
     const first = page.ayahs[0];
     if (first) {
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] visible first ayah", { sura: first.sura, aya: first.aya, name: first.surahName });
+      }
       onVisiblePageChange?.(pageNo, first.sura, first.surahName);
     }
   }).current;
 
   const initialPage = useMemo(() => {
-    if (jumpToPage) return jumpToPage;
-    if (initialPageNo) return initialPageNo;
-    if (highlightAyah) return getPageForAyah(highlightAyah.sura, highlightAyah.aya);
-    return 1;
+    const desired =
+      jumpToPage ?? initialPageNo ?? (highlightAyah ? getPageForAyah(highlightAyah.sura, highlightAyah.aya) : 1);
+    if (desired) {
+      initialTargetRef.current = desired;
+    }
+    return desired ?? 1;
   }, [highlightAyah, initialPageNo, jumpToPage]);
 
   return (
     <View style={styles.container}>
       <FlatList
-        key={String(jumpId ?? "base")}
         ref={listRef}
-        data={pages}
+        data={displayPages}
         keyExtractor={(item) => String(item)}
-        extraData={jumpId}
-        initialScrollIndex={Math.max(0, initialPage - 1)}
+        initialScrollIndex={
+          disableAutoScroll
+            ? 0
+            : trimBeforeSura && jumpToPage
+              ? 0
+              : Math.max(0, initialPage - 1)
+        }
+        getItemLayout={getItemLayout}
+        scrollEnabled
+        removeClippedSubviews={false}
+        windowSize={10}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
         onScrollToIndexFailed={({ index }) => {
-          listRef.current?.scrollToOffset({ offset: index * 600, animated: false });
+          if (disableAutoScroll) {
+            if (DEBUG_QURAN_NAV) {
+              console.log("[QuranReader][debug] scrollToIndexFailed ignored", index);
+            }
+            return;
+          }
+          if (DEBUG_QURAN_NAV) {
+            console.log("[QuranReader][debug] scrollToIndexFailed", index);
+          }
+          scrollToPageIndex(index);
         }}
         renderItem={({ item: pageNo }) => {
           const page = getPageData(pageNo);
-          const showBanner = page.ayahs[0]?.aya === 1;
+          let ayahs = page.ayahs;
+          if (trimBeforeSura && jumpToPage === pageNo) {
+            const startIdx = ayahs.findIndex((a) => a.sura === trimBeforeSura && a.aya === 1);
+            if (startIdx > 0) {
+              ayahs = ayahs.slice(startIdx);
+            }
+          }
+          const bannerIndex = ayahs.findIndex((a) => a.aya === 1);
+          const showBanner = bannerIndex >= 0;
+          const bannerName = showBanner ? ayahs[bannerIndex].surahName : page.surahName;
           return (
-            <View style={styles.pageSection}>
+            <View
+              style={styles.pageSection}
+              onLayout={
+                disableAutoScroll && !measuredPageHeight
+                  ? (event) => {
+                      const { height } = event.nativeEvent.layout;
+                      if (height > 0) {
+                        setMeasuredPageHeight(height);
+                      }
+                    }
+                  : undefined
+              }
+            >
               <View style={styles.pageHeaderRow}>
                 <Text style={styles.pageHeaderLeft}>{page.surahName}</Text>
                 <Text style={styles.pageHeaderRight}>{`الجزء ${arabicIndic(page.juzNo)}`}</Text>
@@ -165,27 +311,26 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                   style={styles.frame}
                   imageStyle={styles.frameImage}
                 >
-                  <Text style={styles.frameTitle}>{`سورة ${page.surahName.replace(/^سورة\s*/i, "")}`}</Text>
+                  <Text style={styles.frameTitle}>{`سورة ${bannerName.replace(/^سورة\s*/i, "")}`}</Text>
                 </ImageBackground>
               ) : null}
 
               <Text style={styles.mushafText}>
-                {page.ayahs.map((a, idx) => {
-                  const prefix = idx === 0 ? "" : " ";
+                {ayahs.map((a, idx) => {
+                  const prefix = idx === 0 ? "" : a.aya === 1 ? "\n\n" : " ";
                   const number = arabicIndic(a.aya);
                   const mark = markFor(a.sura, a.aya);
                   const bookmarkDot = mark?.bookmarkColor ? " \u25cf" : "";
                   const isHighlighted =
                     highlightAyah && highlightAyah.sura === a.sura && highlightAyah.aya === a.aya;
                   return (
-                    <Text
-                      key={`${page.pageNo}-${a.sura}-${a.aya}`}
-                      onLongPress={() => openAyahSheet(page.pageNo, page.juzNo, a)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        openAyahSheet(page.pageNo, page.juzNo, a);
-                      }}
-                      delayLongPress={250}
+                      <Text
+                        key={`${page.pageNo}-${a.sura}-${a.aya}`}
+                        onPress={() => openAyahSheet(page.pageNo, page.juzNo, a)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          openAyahSheet(page.pageNo, page.juzNo, a);
+                        }}
                       style={[
                         styles.ayahText,
                         mark?.highlightColor ? { backgroundColor: mark.highlightColor } : null,
@@ -215,20 +360,35 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         onViewableItemsChanged={onViewableItemsChanged}
       />
 
-      <AyahActionSheet
+      <ReaderOptionsSheet
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
-        surahName={selectedAyah?.surahName ?? ""}
-        surahNumber={selectedAyah?.surahNumber ?? 1}
         ayahNumber={selectedAyah?.ayahNumber ?? 1}
-        pageNo={selectedAyah?.pageNo ?? 1}
-        juzNo={selectedAyah?.juzNo ?? 1}
-        ayahText={selectedAyah?.ayahText ?? ""}
-        tafsirList={selectedAyah?.tafsirList ?? []}
-        bookmarkColor={selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.bookmarkColor ?? null : null}
-        highlightColor={selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.highlightColor ?? null : null}
+        bookmarkColor={
+          selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.bookmarkColor ?? null : null
+        }
+        highlightColor={
+          selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.highlightColor ?? null : null
+        }
         onSelectBookmark={handleBookmarkSelect}
         onSelectHighlight={handleHighlightSelect}
+        onShare={async () => {
+          if (!selectedAyah) return;
+          const text = `${selectedAyah.ayahText}\nسورة ${selectedAyah.surahName} - آية ${selectedAyah.ayahNumber}`;
+          await Share.share({ message: text });
+        }}
+        onCopy={() => {
+          Alert.alert("نسخ", "النسخ غير متوفر حالياً.");
+        }}
+        onOpenTafsir={() => {
+          setSheetVisible(false);
+          setTafsirVisible(true);
+        }}
+      />
+      <TafsirSheet
+        visible={tafsirVisible}
+        onClose={() => setTafsirVisible(false)}
+        tafsirList={selectedAyah?.tafsirList ?? []}
       />
     </View>
   );

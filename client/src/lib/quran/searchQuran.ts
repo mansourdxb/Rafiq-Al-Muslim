@@ -1,5 +1,6 @@
 import { quranFiles } from "@/lib/quran/quranFiles";
 import { getPageForAyah } from "@/src/lib/quran/mushaf";
+import { normalizeArabic, runNormalizeArabicDevTests } from "@/utils/normalizeArabic";
 
 export type SearchHit = {
   sura: number;
@@ -16,23 +17,11 @@ type IndexedAyah = SearchHit & {
 let indexBuilt = false;
 let indexedAyat: IndexedAyah[] = [];
 
-const HARAKAT_REGEX = /[\u0610-\u061A\u064B-\u065F\u06D6-\u06ED]/g;
-const TATWEEL_REGEX = /\u0640/g;
-const MULTISPACE_REGEX = /\s+/g;
-
-export function normalizeArabic(value: string) {
-  return (value || "")
-    .replace(HARAKAT_REGEX, "")
-    .replace(TATWEEL_REGEX, "")
-    .replace(/[إأآ]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
-    .replace(MULTISPACE_REGEX, " ")
-    .trim();
-}
-
 export async function buildQuranSearchIndexOnce() {
   if (indexBuilt) return;
+  if (__DEV__) {
+    runNormalizeArabicDevTests();
+  }
   const collected: IndexedAyah[] = [];
 
   quranFiles.forEach((file) => {
@@ -75,6 +64,9 @@ export async function searchQuran(query: string, limit = 50): Promise<SearchHit[
       page: item.page,
     });
     if (results.length >= limit) break;
+  }
+  if (__DEV__) {
+    console.log("[QuranSearch]", { query, normalizedQuery, resultsCount: results.length });
   }
   return results;
 }

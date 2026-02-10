@@ -6,6 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Platform,
+  StatusBar,
   useWindowDimensions,
   Share,
   Alert,
@@ -43,6 +44,10 @@ export default function CounterScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0
+  );
 
   const {
     currentPreset,
@@ -181,7 +186,7 @@ export default function CounterScreen() {
       <View style={[styles.pageBg, { backgroundColor: "#F8F4EC" }]} />
 
       <View style={[styles.phone, { width: contentWidth }]}>
-        <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: headerColor }]}>
+        <View style={[styles.header, { paddingTop: topInset + 10, backgroundColor: headerColor }]}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               <Pressable
@@ -297,12 +302,14 @@ const styles = StyleSheet.create({
     paddingBottom: 26,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    overflow: "visible",
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 14,
+    minHeight: 48,
   },
   headerLeft: {
     flexDirection: "row",

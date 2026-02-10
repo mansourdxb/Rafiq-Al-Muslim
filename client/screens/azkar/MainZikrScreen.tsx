@@ -45,6 +45,9 @@ export default function MainZikrScreen() {
   const openPresets = () => {
     navigation.navigate("Presets");
   };
+  const openHisnIndex = () => {
+    navigation.navigate("HisnAlMuslim");
+  };
   const openStats = () => {
     navigation.navigate("Stats");
   };
@@ -79,10 +82,10 @@ export default function MainZikrScreen() {
           </View>
         </View>
 
-        <View style={styles.progressCard}>
+        <Pressable style={styles.progressCard} onPress={openHisnIndex}>
           <View style={styles.progressRow}>
             <View style={styles.progressTextWrap}>
-              <Text style={styles.progressTitle}>أذكار الصباح</Text>
+              <Text style={styles.progressTitle}>حصن المسلم</Text>
               <Text style={styles.progressSubtitle}>تم إنجاز 12 من 33</Text>
             </View>
             <View style={styles.progressRing}>
@@ -113,10 +116,10 @@ export default function MainZikrScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.progressButton}>
+          <Pressable style={styles.progressButton} onPress={openHisnIndex}>
             <Text style={styles.progressButtonText}>متابعة الأذكار</Text>
           </Pressable>
-        </View>
+        </Pressable>
 
         <View style={styles.grid}>
           {CATEGORIES.map((item) => (

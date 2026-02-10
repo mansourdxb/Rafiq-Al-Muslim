@@ -8,6 +8,7 @@ import {
   Pressable,
   Platform,
   StatusBar,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,10 +39,14 @@ export default function HisnAlMuslimScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [query, setQuery] = useState("");
+  const { width } = useWindowDimensions();
   const topInset = Math.max(
     insets.top,
     Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0
   );
+
+  const maxW = 430;
+  const contentWidth = Math.min(width, maxW);
 
   const filtered = useMemo(() => {
     const q = query.trim();
@@ -51,61 +56,60 @@ export default function HisnAlMuslimScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: topInset + 12 }]}
-      >
-        <View style={styles.headerRow}>
-          <Pressable
-            style={styles.headerIcon}
-            onPress={() => navigation.goBack()}
-            hitSlop={10}
-          >
-            <Feather name="chevron-left" size={22} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.headerTitle}>حصن المسلم</Text>
-          <View style={styles.headerSpacer} />
+      <View style={[styles.phone, { width: contentWidth }]}>
+        <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.headerTitle}>حصن المسلم</Text>
+            <Pressable
+              style={styles.headerIcon}
+              onPress={() => navigation.goBack()}
+              hitSlop={10}
+            >
+              <Feather name="chevron-right" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          <View style={styles.searchWrap}>
+            <Feather name="search" size={18} color="#B8C3B6" style={styles.searchIcon} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="البحث في حصن المسلم..."
+              placeholderTextColor="#B8C3B6"
+              style={styles.searchInput}
+              textAlign="right"
+              writingDirection="rtl"
+            />
+          </View>
         </View>
 
-        <View style={styles.searchWrap}>
-          <Feather name="search" size={18} color="#B8C3B6" style={styles.searchIcon} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="بحث في حصن المسلم..."
-            placeholderTextColor="#B8C3B6"
-            style={styles.searchInput}
-            textAlign="right"
-            writingDirection="rtl"
-          />
-        </View>
-      </View>
-
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() =>
-              navigation.navigate("HisnCategory", {
-                categoryId: item.id,
-                categoryTitle: item.category,
-              })
-            }
-            style={styles.rowCard}
-          >
-            <View style={styles.rowRight}>
-              <Text style={styles.rowTitle}>{item.category}</Text>
-            </View>
-            <View style={styles.rowLeft}>
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() =>
+                navigation.navigate("HisnCategory", {
+                  categoryId: item.id,
+                  categoryTitle: item.category,
+                })
+              }
+              style={styles.rowCard}
+            >
               <View style={styles.countPill}>
                 <Text style={styles.countText}>{item.array?.length ?? 0}</Text>
               </View>
-              <Feather name="chevron-left" size={18} color="#B3BAB7" />
-            </View>
-          </Pressable>
-        )}
-        showsVerticalScrollIndicator={false}
-      />
+              <Text style={styles.rowTitle}>{item.category}</Text>
+              <Feather name="chevron-left" size={18} color="#D4AF37" />
+            </Pressable>
+          )}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+
+     
     </View>
   );
 }
@@ -114,12 +118,17 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F4F4F2",
+    alignItems: "center",
+  },
+  phone: {
+    flex: 1,
+    alignSelf: "center",
   },
   header: {
     backgroundColor: "#1B4332",
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
-    paddingBottom: 18,
+    paddingBottom: 22,
     paddingHorizontal: 18,
     marginHorizontal: -18,
   },
@@ -145,6 +154,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 22,
     textAlign: "center",
+    flex: 1,
   },
   searchWrap: {
     marginTop: 16,
@@ -176,7 +186,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     marginBottom: 12,
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     shadowColor: "#000",
@@ -185,33 +195,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  rowRight: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
   rowTitle: {
     ...typography.itemTitle,
     fontSize: 16,
     color: "#1F2D25",
     textAlign: "right",
-  },
-  rowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    flex: 1,
   },
   countPill: {
     minWidth: 32,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#E9EFEA",
+    backgroundColor: "#DFF3E8",
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 10,
   },
   countText: {
     ...typography.numberText,
     fontSize: 12,
     color: "#1B4332",
   },
+
 });

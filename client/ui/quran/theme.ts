@@ -1,0 +1,43 @@
+export const quranTheme = {
+  colors: {
+    bg: "#2D5A41",
+    bgDeep: "#234636",
+    bgDark: "#244D3C",
+    bgLight: "#2F5A48",
+    bgGradient: ["#2D5A41", "#26483A"],
+    searchBg: "#3A6A5D",
+    card: "#E3EFE6",
+    cardTint: "#CFE1D2",
+    text: "#1C2D27",
+    textMuted: "#5D6C66",
+    textOnDark: "#E9F3ED",
+    gold: "#C8A552",
+    goldSoft: "#D8BF7A",
+    white: "#FFFFFF",
+    divider: "rgba(255,255,255,0.12)",
+    row: "#2F5A48",
+    rowHighlight: "#345F4D",
+  },
+  spacing: {
+    xs: 6,
+    sm: 10,
+    md: 14,
+    lg: 18,
+    xl: 22,
+  },
+  radius: {
+    sm: 10,
+    md: 14,
+    lg: 18,
+    pill: 999,
+  },
+  shadow: {
+    soft: {
+      shadowColor: "#000",
+      shadowOpacity: 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 6,
+    },
+  },
+} as const;

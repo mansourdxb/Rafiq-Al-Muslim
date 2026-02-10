@@ -8,10 +8,13 @@ import {
   FlatList,
   ScrollView,
   Alert,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { loadKhatmah, saveKhatmah, type KhatmahState } from "@/src/lib/quran/khatmah";
 import { quranFiles } from "@/lib/quran/quranFiles";
 
@@ -61,49 +64,18 @@ type Props = {
 
 const mushafPages: { index: number; sura: number; aya: number }[] = require("../../data/Quran/mushaf-pages.json");
 
-const BOTTOM_TABS = [
-  { key: "tafseer", label: "التفسير", icon: "book-outline" },
-  { key: "marks", label: "الفواصل", icon: "bookmark-outline" },
-  { key: "khatma", label: "الختمة", icon: "checkmark-circle-outline" },
-  { key: "index", label: "الفهرس", icon: "list" },
-] as const;
-
 const SEGMENT_TABS = [
   { key: "surah", label: "السور" },
-  { key: "quarters", label: "الأرباع" },
+  { key: "juz", label: "الأجزاء" },
+  { key: "favorites", label: "المفضلات" },
 ] as const;
 
 const JUZ_NAMES = [
-  "الأول",
-  "الثاني",
-  "الثالث",
-  "الرابع",
-  "الخامس",
-  "السادس",
-  "السابع",
-  "الثامن",
-  "التاسع",
-  "العاشر",
-  "الحادي عشر",
-  "الثاني عشر",
-  "الثالث عشر",
-  "الرابع عشر",
-  "الخامس عشر",
-  "السادس عشر",
-  "السابع عشر",
-  "الثامن عشر",
-  "التاسع عشر",
-  "العشرون",
-  "الحادي والعشرون",
-  "الثاني والعشرون",
-  "الثالث والعشرون",
-  "الرابع والعشرون",
-  "الخامس والعشرون",
-  "السادس والعشرون",
-  "السابع والعشرون",
-  "الثامن والعشرون",
-  "التاسع والعشرون",
-  "الثلاثون",
+  "الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر",
+  "الحادي عشر", "الثاني عشر", "الثالث عشر", "الرابع عشر", "الخامس عشر", "السادس عشر", "السابع عشر",
+  "الثامن عشر", "التاسع عشر", "العشرون", "الحادي والعشرون", "الثاني والعشرون", "الثالث والعشرون",
+  "الرابع والعشرون", "الخامس والعشرون", "السادس والعشرون", "السابع والعشرون", "الثامن والعشرون",
+  "التاسع والعشرون", "الثلاثون",
 ];
 
 function arabicIndic(value: number) {
@@ -114,7 +86,6 @@ function arabicIndic(value: number) {
     .join("");
 }
 
-const KHATMA_DAY_OPTIONS = [7, 15, 30, 60] as const;
 const LAST_READ_KEY = "@tasbeeh/quranLastRead";
 
 export default function QuranIndexScreen({
@@ -132,486 +103,281 @@ export default function QuranIndexScreen({
   onDeleteBookmark,
   inline = false,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [activeSegment, setActiveSegment] = useState<(typeof SEGMENT_TABS)[number]["key"]>("surah");
-  const [activeBottom, setActiveBottom] = useState<(typeof BOTTOM_TABS)[number]["key"]>("index");
-  const listRef = useRef<FlatList<any>>(null);
-  const quartersRef = useRef<FlatList<any>>(null);
-  const juzQuick = useMemo(() => Array.from({ length: 30 }, (_, i) => i + 1), []);
-  const [khatmah, setKhatmah] = useState<KhatmahState | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [lastRead, setLastRead] = useState<{ surahName: string; ayah: number; progress: number } | null>(null);
 
   useEffect(() => {
     if (!visible) return;
-    const init = async () => {
-      const stored = await loadKhatmah();
+    const loadLastRead = async () => {
+      const stored = await AsyncStorage.getItem(LAST_READ_KEY);
       if (stored) {
-        setKhatmah(stored);
-        return;
+        const parsed = JSON.parse(stored);
+        setLastRead({
+          surahName: parsed.surahName || "البقرة",
+          ayah: parsed.ayah || 286,
+          progress: parsed.progress || 45,
+        });
       }
-      const lastRead = await AsyncStorage.getItem(LAST_READ_KEY);
-      const parsed = lastRead ? JSON.parse(lastRead) : null;
-      const startPage = parsed?.pageNo ?? 1;
-      const targetDays = 30;
-      const pagesPerDay = Math.ceil((604 - startPage + 1) / targetDays);
-      const state: KhatmahState = {
-        startDate: new Date().toISOString(),
-        targetDays,
-        startPage,
-        endPage: 604,
-        pagesPerDay,
-        completedPages: [],
-        lastPage: startPage - 1,
-        updatedAt: new Date().toISOString(),
-      };
-      await saveKhatmah(state);
-      setKhatmah(state);
     };
-    init();
+    loadLastRead();
   }, [visible]);
 
-  const getMushafJuz = useMemo(() => {
-    const sorted = [...juzList].sort((a, b) => (a.sura === b.sura ? a.aya - b.aya : a.sura - b.sura));
-    return (sura: number, aya: number) => {
-      let lo = 0;
-      let hi = sorted.length - 1;
-      let best = sorted[0]?.index ?? 1;
-      while (lo <= hi) {
-        const mid = Math.floor((lo + hi) / 2);
-        const ref = sorted[mid];
-        if (sura > ref.sura || (sura === ref.sura && aya >= ref.aya)) {
-          best = ref.index;
-          lo = mid + 1;
-        } else {
-          hi = mid - 1;
-        }
-      }
-      return best;
-    };
-  }, [juzList]);
+  const filteredSurahs = useMemo(() => {
+    if (!searchQuery) return surahs;
+    const query = searchQuery.toLowerCase();
+    return surahs.filter((s) => s.name.toLowerCase().includes(query));
+  }, [searchQuery, surahs]);
 
-  const getMushafPage = useMemo(() => {
-    const sorted = [...mushafPages].sort((a, b) => (a.sura === b.sura ? a.aya - b.aya : a.sura - b.sura));
-    return (sura: number, aya: number) => {
-      let lo = 0;
-      let hi = sorted.length - 1;
-      let best = sorted[0]?.index ?? 1;
-      while (lo <= hi) {
-        const mid = Math.floor((lo + hi) / 2);
-        const ref = sorted[mid];
-        if (sura > ref.sura || (sura === ref.sura && aya >= ref.aya)) {
-          best = ref.index;
-          lo = mid + 1;
-        } else {
-          hi = mid - 1;
-        }
-      }
-      return best;
-    };
-  }, []);
+  const renderSurahCard = ({ item }: { item: SurahItem }) => {
+    const isActive = item.number === currentSurah;
+    const isMadani = item.typeLabel.includes("مدنية");
 
-  const surahListWithHeaders = useMemo(() => {
-    const rows: Array<{ type: "header"; juz: number } | { type: "surah"; item: SurahItem }> = [];
-    const indexMap = new Map<number, number>();
-    let lastJuz: number | null = null;
-    surahs.forEach((s) => {
-      const juz = getMushafJuz(s.number, 1);
-      if (juz !== lastJuz) {
-        rows.push({ type: "header", juz });
-        lastJuz = juz;
-      }
-      indexMap.set(s.number, rows.length);
-      rows.push({ type: "surah", item: s });
-    });
-    return { rows, indexMap };
-  }, [getMushafJuz, surahs]);
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.surahCard,
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={() => {
+          onSelectSurah(item.number);
+          onClose();
+        }}
+      >
+        <View style={styles.surahCardRight}>
+          <Text style={styles.surahCardNumber}>.{arabicIndic(item.number)}</Text>
+          <View style={styles.surahIcon}>
+            <Text style={styles.surahIconText}>القرآن الكريم</Text>
+          </View>
+        </View>
 
-  const firstQuarterIndexByJuz = useMemo(() => {
-    const map = new Map<number, number>();
-    quarters.forEach((q, idx) => {
-      if (!map.has(q.juzNo)) {
-        map.set(q.juzNo, idx);
-      }
-    });
-    return map;
-  }, [quarters]);
-
-  const getPageStart = (pageNo: number) => mushafPages.find((p) => p.index === pageNo);
-
-  const completedCount = khatmah?.completedPages.length ?? 0;
-  const progressPercent = khatmah ? Math.min(100, Math.round((completedCount / 604) * 100)) : 0;
-
-  const todayRange = useMemo(() => {
-    if (!khatmah) return null;
-    const nextStart = Math.min(khatmah.lastPage + 1, khatmah.endPage);
-    const end = Math.min(nextStart + khatmah.pagesPerDay - 1, khatmah.endPage);
-    return { start: nextStart, end };
-  }, [khatmah]);
-
-  const handleMarkTodayDone = async () => {
-    if (!khatmah || !todayRange) return;
-    const pages = [];
-    for (let p = todayRange.start; p <= todayRange.end; p += 1) {
-      pages.push(p);
-    }
-    const merged = Array.from(new Set([...(khatmah.completedPages ?? []), ...pages]));
-    const updated: KhatmahState = {
-      ...khatmah,
-      completedPages: merged,
-      lastPage: todayRange.end,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveKhatmah(updated);
-    setKhatmah(updated);
+        <View style={styles.surahCardCenter}>
+          <Text style={styles.surahCardName}>{item.name}</Text>
+          <View style={styles.surahCardMeta}>
+            <Ionicons name="moon" size={14} color="#B8AC9B" />
+            <Text style={styles.surahCardType}>{isMadani ? "مدنية" : "مكية"}</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
   };
 
-  const handleJumpToPage = (pageNo: number) => {
-    const start = getPageStart(pageNo);
-    if (!start) return;
-    onSelectJuz(start.sura, start.aya);
-    onClose();
+  const renderJuzCardLegacy = ({ item, index }: { item: any; index: number }) => {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.juzCard,
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={() => {
+          onSelectJuz(item.sura, item.aya);
+          onClose();
+        }}
+      >
+        <Text style={styles.juzCardNumber}>{arabicIndic(index + 1)}</Text>
+        <Text style={styles.juzCardName}>الجزء {JUZ_NAMES[index]}</Text>
+      </Pressable>
+    );
   };
 
-  const handleResetKhatmah = () => {
-    Alert.alert("إعادة ضبط الختمة", "هل تريد إعادة ضبط الختمة الحالية؟", [
-      { text: "إلغاء", style: "cancel" },
-      {
-        text: "إعادة ضبط",
-        style: "destructive",
-        onPress: async () => {
-          if (!khatmah) return;
-          const updated: KhatmahState = {
-            ...khatmah,
-            completedPages: [],
-            lastPage: khatmah.startPage - 1,
-            updatedAt: new Date().toISOString(),
-          };
-          await saveKhatmah(updated);
-          setKhatmah(updated);
-        },
-      },
-    ]);
+  /* const renderJuzCard = ({ item, index }: { item: any; index: number }) => {
+    const juzNumber = typeof item?.index === "number" ? item.index : index + 1;
+    const juzName = JUZ_NAMES[juzNumber - 1] ?? "";
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.juzCard,
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={() => {
+          onSelectJuz(item.sura, item.aya);
+          onClose();
+        }}
+      >
+        <Text style={styles.juzCardNumber}>{arabicIndic(juzNumber)}</Text>
+        <Text style={styles.juzCardName}>Ø§Ù„Ø¬Ø²Ø¡ {juzName}</Text>
+      </Pressable>
+    );
   };
 
-  const handleChangeTargetDays = async (days: number) => {
-    if (!khatmah) return;
-    const pagesPerDay = Math.ceil((khatmah.endPage - khatmah.startPage + 1) / days);
-    const updated: KhatmahState = {
-      ...khatmah,
-      targetDays: days,
-      pagesPerDay,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveKhatmah(updated);
-    setKhatmah(updated);
+  */
+  const renderFavoriteCard = ({ item }: { item: BookmarkItem }) => {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.favoriteCard,
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={() => {
+          onSelectBookmark(item.sura, item.ayah);
+          onClose();
+        }}
+      >
+        <View style={styles.favoriteCardHeader}>
+          <Text style={styles.favoriteCardTitle}>{item.surahName}</Text>
+          {onDeleteBookmark && (
+            <Pressable onPress={() => onDeleteBookmark(item.sura, item.ayah)}>
+              <Ionicons name="trash-outline" size={20} color="#C0392B" />
+            </Pressable>
+          )}
+        </View>
+        <Text style={styles.favoriteCardSnippet} numberOfLines={2}>
+          {item.snippet}
+        </Text>
+        <Text style={styles.favoriteCardMeta}>
+          الآية {arabicIndic(item.ayah)} • الجزء {arabicIndic(item.juzNo)} • صفحة {arabicIndic(item.pageNo)}
+        </Text>
+      </Pressable>
+    );
   };
 
   const body = (
-    <View style={styles.root}>
-      <View style={styles.topBar}>
-        <Pressable onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={22} color="#6E5A46" />
-        </Pressable>
-      </View>
-
-        <Text style={styles.title}>الفهرس</Text>
-        {currentJuz ? (
-          <Text style={styles.currentJuz}>{`الجزء ${JUZ_NAMES[currentJuz - 1] ?? currentJuz}`}</Text>
-        ) : null}
-
-        {activeBottom === "index" ? (
-          <View style={styles.segmentWrap}>
-            {SEGMENT_TABS.map((tab) => {
-              const active = tab.key === activeSegment;
-              return (
-                <Pressable
-                  key={tab.key}
-                  style={[styles.segmentBtn, active ? styles.segmentActive : null]}
-                  onPress={() => setActiveSegment(tab.key)}
-                >
-                  <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
-
-        <View style={styles.content}>
-          {activeBottom === "index" && activeSegment === "surah" ? (
-            <View style={styles.surahLayout}>
-              <View style={styles.railColumn} pointerEvents="box-none">
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.juzColumnContent}>
-                  {juzQuick.map((juz) => {
-                    const isActive = currentJuz === juz;
-                    return (
-                      <Pressable
-                        key={juz}
-                        style={[styles.railPill, isActive ? styles.railPillActive : null]}
-                        pointerEvents="auto"
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        onPress={() => {
-                          const entry = juzList.find((item) => item.index === juz);
-                          if (activeSegment === "quarters") {
-                            const index = firstQuarterIndexByJuz.get(juz);
-                            if (typeof index === "number") {
-                              quartersRef.current?.scrollToIndex({ index, animated: true });
-                            }
-                            return;
-                          }
-                          if (entry) {
-                            onSelectJuz(entry.sura, entry.aya);
-                          }
-                          onClose();
-                          const firstSurah = surahs.find((s) => getMushafJuz(s.number, 1) === juz);
-                          if (firstSurah) {
-                            const listIndex = surahListWithHeaders.indexMap.get(firstSurah.number);
-                            if (typeof listIndex === "number") {
-                              listRef.current?.scrollToIndex({ index: listIndex, animated: true });
-                            }
-                          }
-                        }}
-                      >
-                        <Text style={[styles.railPillText, isActive ? styles.railPillTextActive : null]}>
-                          {arabicIndic(juz)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              <FlatList
-                ref={listRef}
-                data={surahListWithHeaders.rows}
-                keyExtractor={(item) =>
-                  item.type === "header" ? `header-${item.juz}` : `surah-${item.item.number}`
-                }
-                contentContainerStyle={styles.list}
-                renderItem={({ item }) => {
-                  if (item.type === "header") {
-                    return (
-                      <View style={styles.juzHeader}>
-                        <Text style={styles.juzHeaderText}>{`الجزء ${JUZ_NAMES[item.juz - 1] ?? item.juz}`}</Text>
-                      </View>
-                    );
-                  }
-                  const row = item.item;
-                  const isActive = currentSurah === row.number;
-                  return (
-                    <Pressable
-                      style={styles.surahRow}
-                      onPress={() => {
-                        console.log("[QURAN INDEX] open surah", row.number);
-                        const hasFile = quranFiles.some((f) => f.number === row.number);
-                        if (!hasFile) {
-                          Alert.alert("ملف السورة غير متوفر");
-                          return;
-                        }
-                        navigation.navigate("QuranReader", {
-                          sura: row.number,
-                          aya: 1,
-                          page: row.startPage ?? undefined,
-                          source: "index",
-                          navToken: Date.now(),
-                        });
-                        onClose();
-                      }}
-                    >
-                      <View style={styles.surahBadgeWrap}>
-                        <View style={[styles.surahBadge, isActive ? styles.surahBadgeActive : null]}>
-                          <Text style={[styles.surahBadgeText, isActive ? styles.surahBadgeTextActive : null]}>
-                            {arabicIndic(row.number)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.surahText}>
-                        <Text style={styles.surahName}>{row.name}</Text>
-                        <Text style={styles.surahMeta}>
-                          {`الصفحة ${row.startPage} - آية ${row.ayahsCount} - ${row.typeLabel}`}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                }}
-                onScrollToIndexFailed={({ index }) => {
-                  listRef.current?.scrollToOffset({ offset: index * 56, animated: true });
-                }}
-              />
-            </View>
-          ) : null}
-
-          {activeBottom === "index" && activeSegment === "quarters" ? (
-            <FlatList
-              ref={quartersRef}
-              data={quarters}
-              keyExtractor={(item) => item.key}
-              contentContainerStyle={styles.list}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.quarterRow}
-                  onPress={() => {
-                    onSelectJuz(item.sura, item.aya);
-                    onClose();
-                  }}
-                >
-                  <View style={styles.surahBadgeWrap}>
-                    {item.showJuzBadge ? (
-                      <View style={styles.juzBadge}>
-                        <Text style={styles.juzBadgeText}>{arabicIndic(item.juzNo)}</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.juzBadgePlaceholder} />
-                    )}
-                  </View>
-                  <View style={styles.quarterText}>
-                    <Text style={styles.quarterSnippet}>{item.snippet}</Text>
-                    <Text style={styles.quarterMeta}>
-                      {`${item.surahName} : ${arabicIndic(item.aya)} - الصفحة ${arabicIndic(item.pageNo)}`}
-                    </Text>
-                  </View>
-                </Pressable>
-              )}
-              onScrollToIndexFailed={({ index }) => {
-                quartersRef.current?.scrollToOffset({ offset: index * 72, animated: true });
-              }}
-            />
-          ) : null}
-
-          {activeBottom === "marks" ? (
-            <ScrollView contentContainerStyle={styles.list}>
-              {bookmarks.length === 0 ? (
-                <Text style={styles.placeholder}>لا توجد فواصل محفوظة</Text>
-              ) : (
-                bookmarks.map((item) => (
-                  <Pressable
-                    key={item.key}
-                    style={styles.surahRow}
-                    onPress={() => {
-                      onSelectBookmark(item.sura, item.ayah);
-                      onClose();
-                    }}
-                  >
-                    <View style={styles.surahBadgeWrap}>
-                      <View style={styles.surahBadge}>
-                        <Text style={styles.surahBadgeText}>{arabicIndic(item.ayah)}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.surahText}>
-                      <Text style={styles.bookmarkSnippet} numberOfLines={2}>
-                        {item.snippet}
-                      </Text>
-                      <Text style={styles.bookmarkMeta}>
-                        {`${item.surahName} : ${arabicIndic(item.ayah)} - الصفحة ${arabicIndic(item.pageNo)}`}
-                      </Text>
-                    </View>
-                    <View style={styles.bookmarkActions}>
-                      <Pressable
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        onPress={() => onDeleteBookmark?.(item.sura, item.ayah)}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#8B7B6A" />
-                      </Pressable>
-                    </View>
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-          ) : null}
-
-          {activeBottom === "tafseer" ? (
-            <View style={styles.placeholderWrap}>
-              <Text style={styles.placeholder}>اختر آية لعرض التفسير</Text>
-            </View>
-          ) : null}
-
-          {activeBottom === "khatma" ? (
-            <View style={styles.khatmaWrap}>
-              {!khatmah ? (
-                <View style={styles.khatmaEmpty}>
-                  <Text style={styles.khatmaTitle}>الختمة</Text>
-                  <Text style={styles.khatmaText}>جاري تجهيز بيانات الختمة...</Text>
-                </View>
-              ) : (
-                <View style={styles.khatmaDashboard}>
-                  <Text style={styles.khatmaTitle}>الختمة</Text>
-                  <View style={styles.khatmaCard}>
-                    <Text style={styles.khatmaMeta}>{`${completedCount}/604`}</Text>
-                    <Text style={styles.khatmaProgress}>{`${progressPercent}%`}</Text>
-                  </View>
-
-                  {todayRange ? (
-                    <View style={styles.khatmaCard}>
-                      <Text style={styles.khatmaLabel}>ورد اليوم</Text>
-                      <Pressable onPress={() => handleJumpToPage(todayRange.start)}>
-                        <Text style={styles.khatmaMeta}>
-                          {`من الصفحة ${todayRange.start} إلى الصفحة ${todayRange.end}`}
-                        </Text>
-                      </Pressable>
-                      <Pressable style={styles.khatmaPrimary} onPress={handleMarkTodayDone}>
-                        <Text style={styles.khatmaPrimaryText}>تم</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.khatmaTargets}>
-                    {KHATMA_DAY_OPTIONS.map((days) => {
-                      const active = khatmah.targetDays === days;
-                      return (
-                        <Pressable
-                          key={`days-${days}`}
-                          style={[styles.khatmaTargetBtn, active ? styles.khatmaTargetActive : null]}
-                          onPress={() => handleChangeTargetDays(days)}
-                        >
-                          <Text style={[styles.khatmaTargetText, active ? styles.khatmaTargetTextActive : null]}>
-                            {days}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <Pressable style={styles.khatmaReset} onPress={handleResetKhatmah}>
-                    <Text style={styles.khatmaResetText}>إعادة ضبط الختمة</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          ) : null}
+    <LinearGradient
+      colors={['#2F6E52', '#1E5A3D', '#0F4429']}
+      style={styles.root}
+    >
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={22} color="#B8AC9B" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="بحث في القرآن الكريم"
+            placeholderTextColor="#B8AC9B"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            textAlign="right"
+          />
         </View>
 
-      <View style={styles.bottomBar}>
-        {BOTTOM_TABS.map((tab) => {
-          const active = tab.key === activeBottom;
-          return (
-            <Pressable
+        {/* Continue Reading Card */}
+        {lastRead && (
+          <View style={styles.continueCard}>
+            <View style={styles.continueCardPattern}>
+              {/* Islamic Pattern SVG placeholder */}
+              <View style={styles.patternCircle} />
+            </View>
+            <View style={styles.continueCardContent}>
+              <Text style={styles.continueCardTitle}>استمرار القراءة</Text>
+              <Text style={styles.continueCardSubtitle}>
+                سورة {lastRead.surahName}، آية {arabicIndic(lastRead.ayah)}
+              </Text>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${lastRead.progress}%` }]} />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Segment Tabs */}
+        <View style={styles.segmentContainer}>
+          {SEGMENT_TABS.map((tab) => {
+            const active = tab.key === activeSegment;
+            return (
+              <Pressable
                 key={tab.key}
-                style={styles.bottomItem}
-                onPress={() => setActiveBottom(tab.key)}
+                style={[styles.segmentTab, active && styles.segmentTabActive]}
+                onPress={() => setActiveSegment(tab.key)}
               >
-                <Ionicons name={tab.icon as any} size={20} color={active ? "#1E8B5A" : "#8B7B6A"} />
-                <Text style={[styles.bottomText, active ? styles.bottomTextActive : null]}>
+                <Text style={[styles.segmentTabText, active && styles.segmentTabTextActive]}>
                   {tab.label}
                 </Text>
               </Pressable>
-          );
-        })}
+            );
+          })}
+        </View>
+
+        {/* Content List */}
+        <View style={styles.listContainer}>
+          {activeSegment === "surah" && (
+            <FlatList
+              data={filteredSurahs}
+              renderItem={renderSurahCard}
+              keyExtractor={(item) => `surah-${item.number}`}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+
+          {activeSegment === "juz" && (
+            <FlatList
+              data={juzList.filter((_, i) => i < 30)}
+              renderItem={renderJuzCardLegacy}
+              keyExtractor={(item, index) => `juz-${typeof item?.index === "number" ? item.index : index}`}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+
+          {activeSegment === "favorites" && (
+            <FlatList
+              data={bookmarks}
+              renderItem={renderFavoriteCard}
+              keyExtractor={(item) => item.key}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Ionicons name="bookmark-outline" size={48} color="#B8AC9B" />
+                  <Text style={styles.emptyText}>لا توجد مفضلات بعد</Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </View>
+    </LinearGradient>
+  );
+
+  const bodyWithNavigation = (
+    <View style={{ flex: 1 }}>
+      {body}
+      {/* Bottom Navigation - Matches design exactly */}
+      <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
+        {/* المزيد (More/Menu) */}
+        <Pressable style={styles.navItem} onPress={() => {/* Navigate to More */}}>
+          <Ionicons name="ellipsis-horizontal" size={26} color="#8B7B6A" />
+          <Text style={styles.navText}>المزيد</Text>
+        </Pressable>
+        
+        {/* الأذكار (Athkar/Remembrance) */}
+        <Pressable style={styles.navItem} onPress={() => {/* Navigate to Athkar */}}>
+          <Ionicons name="color-palette-outline" size={26} color="#8B7B6A" />
+          <Text style={styles.navText}>الأذكار</Text>
+        </Pressable>
+        
+        {/* الحديث (Hadith) */}
+        <Pressable style={styles.navItem} onPress={() => {/* Navigate to Hadith */}}>
+          <Ionicons name="chatbubbles-outline" size={26} color="#8B7B6A" />
+          <Text style={styles.navText}>الحديث</Text>
+        </Pressable>
+        
+        {/* القرآن (Quran) - ACTIVE */}
+        <Pressable style={styles.navItem} onPress={() => {/* Current: Quran */}}>
+          <View style={styles.quranIconContainer}>
+            <Ionicons name="book" size={26} color="#D4A56A" />
+          </View>
+          <Text style={[styles.navText, styles.navTextActive]}>القرآن</Text>
+        </Pressable>
+        
+        {/* الصلاة (Prayer) */}
+        <Pressable style={styles.navItem} onPress={() => {/* Navigate to Prayer */}}>
+          <Ionicons name="moon-outline" size={26} color="#8B7B6A" />
+          <Text style={styles.navText}>الصلاة</Text>
+        </Pressable>
       </View>
     </View>
   );
 
   if (inline) {
-    return (
-      <View style={styles.inlineOverlay}>
-        <Pressable style={styles.inlineBackdrop} onPress={onClose} />
-        {body}
-      </View>
-    );
+    return bodyWithNavigation;
   }
 
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
-      {body}
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      {bodyWithNavigation}
     </Modal>
   );
 }
@@ -619,390 +385,274 @@ export default function QuranIndexScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F3EEE5",
-    paddingHorizontal: 14,
-    paddingTop: 10,
   },
-  inlineOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 50,
-    backgroundColor: "rgba(0,0,0,0.45)",
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
   },
-  inlineBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+
+  // Search Bar
+  searchContainer: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    backgroundColor: 'rgba(78, 123, 101, 0.4)',
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 16,
+    marginBottom: 16,
   },
-  topBar: {
-    height: 32,
-    alignItems: "flex-start",
-    justifyContent: "center",
+  searchIcon: {
+    marginLeft: 8,
   },
-  title: {
-    fontFamily: "CairoBold",
-    fontSize: 30,
-    color: "#3D3022",
-    textAlign: "right",
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  currentJuz: {
-    fontFamily: "CairoBold",
+  searchInput: {
+    flex: 1,
+    fontFamily: 'Cairo',
     fontSize: 16,
-    color: "#8B7B6A",
-    textAlign: "right",
-    marginBottom: 8,
+    color: '#FFFFFF',
   },
-  segmentWrap: {
-    alignSelf: "center",
-    flexDirection: "row-reverse",
-    backgroundColor: "#E3DDD3",
-    borderRadius: 18,
-    padding: 4,
-    gap: 6,
+
+  // Continue Reading Card
+  continueCard: {
+    backgroundColor: '#E8DCC8',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  continueCardPattern: {
+    width: 80,
+    height: 80,
+    marginLeft: 16,
+  },
+  patternCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#D4B896',
+    opacity: 0.3,
+  },
+  continueCardContent: {
+    flex: 1,
+  },
+  continueCardTitle: {
+    fontFamily: 'CairoBold',
+    fontSize: 20,
+    color: '#2F2A24',
+    textAlign: 'right',
+    marginBottom: 4,
+  },
+  continueCardSubtitle: {
+    fontFamily: 'Cairo',
+    fontSize: 14,
+    color: '#6E5A46',
+    textAlign: 'right',
     marginBottom: 12,
   },
-  segmentBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor: "transparent",
+  progressBar: {
+    height: 8,
+    backgroundColor: '#2F6E52',
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  segmentActive: {
-    backgroundColor: "#FFFFFF",
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#D4A56A',
+    borderRadius: 4,
   },
-  segmentText: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#6B5B4B",
-  },
-  segmentTextActive: {
-    color: "#3D3022",
-  },
-  content: {
-    flex: 1,
-    paddingBottom: 12,
-  },
-  surahLayout: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 10,
-  },
-  railColumn: {
-    width: 30,
-    alignItems: "center",
-    zIndex: 2,
-    elevation: 2,
-  },
-  juzColumnContent: {
-    gap: 2,
-    paddingTop: 6,
-    paddingBottom: 40,
-  },
-  railPill: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-  },
-  railPillActive: {
-    backgroundColor: "transparent",
-  },
-  railPillText: {
-    fontFamily: "CairoBold",
-    fontSize: 10,
-    color: "#2F6E52",
-  },
-  railPillTextActive: {
-    color: "#1E8B5A",
-  },
-  list: {
-    paddingBottom: 16,
-    gap: 0,
-  },
-  juzHeader: {
-    paddingVertical: 8,
-    alignItems: "flex-end",
-  },
-  juzHeaderText: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#8B7B6A",
-    textAlign: "right",
-  },
-  surahRow: {
-    backgroundColor: "transparent",
-    borderRadius: 0,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
-  },
-  surahBadgeWrap: {
-    width: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  surahText: {
-    flex: 1,
-    alignItems: "flex-end",
-    paddingRight: 6,
-  },
-  surahName: {
-    fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#2F2A24",
-    textAlign: "right",
-  },
-  surahMeta: {
-    marginTop: 2,
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#8B7B6A",
-    textAlign: "right",
-  },
-  surahBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E5E1D9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  surahBadgeActive: {
-    backgroundColor: "#1E8B5A",
-  },
-  surahBadgeText: {
-    fontFamily: "CairoBold",
-    fontSize: 12,
-    color: "#3D3022",
-  },
-  surahBadgeTextActive: {
-    color: "#FFFFFF",
-  },
-  bookmarkSnippet: {
-    fontFamily: "KFGQPCUthmanicScript",
-    fontSize: 18,
-    color: "#8B7B6A",
-    textAlign: "right",
-    writingDirection: "rtl",
-  },
-  bookmarkMeta: {
-    marginTop: 4,
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#8B7B6A",
-    textAlign: "right",
-  },
-  bookmarkActions: {
-    width: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quarterRow: {
-    backgroundColor: "transparent",
-    borderRadius: 0,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
-  },
-  quarterText: {
-    flex: 1,
-    alignItems: "flex-end",
-    paddingRight: 6,
-  },
-  quarterSnippet: {
-    fontFamily: "KFGQPCUthmanicScript",
-    fontSize: 18,
-    color: "#8B7B6A",
-    textAlign: "right",
-    writingDirection: "rtl",
-  },
-  quarterMeta: {
-    marginTop: 4,
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#8B7B6A",
-    textAlign: "right",
-  },
-  juzBadge: {
-    width: 32,
-    height: 32,
+
+  // Segment Tabs
+  segmentContainer: {
+    flexDirection: 'row-reverse',
+    backgroundColor: 'rgba(78, 123, 101, 0.3)',
     borderRadius: 16,
-    backgroundColor: "#1E8B5A",
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 4,
+    marginBottom: 16,
   },
-  juzBadgePlaceholder: {
-    width: 32,
-    height: 32,
-  },
-  juzBadgeText: {
-    fontFamily: "CairoBold",
-    fontSize: 12,
-    color: "#FFFFFF",
-  },
-  placeholderWrap: {
+  segmentTab: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 12,
   },
-  placeholder: {
-    fontFamily: "CairoBold",
+  segmentTabActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  segmentTabText: {
+    fontFamily: 'CairoBold',
     fontSize: 14,
-    color: "#8B7B6A",
-    textAlign: "center",
+    color: '#B8AC9B',
   },
-  bottomBar: {
-    height: 64,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.08)",
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 6,
+  segmentTabTextActive: {
+    color: '#2F6E52',
   },
-  bottomItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-  },
-  bottomText: {
-    fontFamily: "CairoBold",
-    fontSize: 11,
-    color: "#8B7B6A",
-  },
-  bottomTextActive: {
-    color: "#1E8B5A",
-  },
-  khatmaWrap: {
+
+  // List Container
+  listContainer: {
     flex: 1,
   },
-  khatmaEmpty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-    marginTop: 16,
-  },
-  khatmaDashboard: {
-    flex: 1,
+  listContent: {
+    paddingBottom: 20,
     gap: 12,
   },
-  khatmaTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 22,
-    color: "#3D3022",
-    textAlign: "right",
-  },
-  khatmaText: {
-    marginTop: 8,
-    fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#8B7B6A",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  khatmaPrimary: {
-    marginTop: 12,
-    backgroundColor: "#1E8B5A",
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 20,
-    alignSelf: "center",
-  },
-  khatmaPrimaryText: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#FFFFFF",
-  },
-  khatmaRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
-  },
-  khatmaRowRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  khatmaLabel: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#3D3022",
-  },
-  khatmaValue: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#6E5A46",
-  },
-  khatmaCard: {
-    backgroundColor: "#FFFFFF",
+
+  // Surah Card
+  surahCard: {
+    backgroundColor: 'rgba(78, 123, 101, 0.4)',
     borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-    gap: 8,
+    padding: 16,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  khatmaMeta: {
-    fontFamily: "CairoBold",
-    fontSize: 12,
-    color: "#3D3022",
-    textAlign: "right",
+  surahCardRight: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 12,
   },
-  khatmaProgress: {
-    fontFamily: "CairoBold",
+  surahCardNumber: {
+    fontFamily: 'CairoBold',
+    fontSize: 18,
+    color: '#FFFFFF',
+  },
+  surahIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(212, 165, 106, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  surahIconText: {
+    fontFamily: 'CairoBold',
+    fontSize: 8,
+    color: '#D4A56A',
+  },
+  surahCardCenter: {
+    alignItems: 'flex-end',
+  },
+  surahCardName: {
+    fontFamily: 'CairoBold',
     fontSize: 20,
-    color: "#1E8B5A",
-    textAlign: "right",
+    color: '#FFFFFF',
+    textAlign: 'right',
+    marginBottom: 4,
   },
-  khatmaSnippet: {
-    fontFamily: "Cairo",
+  surahCardMeta: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 4,
+  },
+  surahCardType: {
+    fontFamily: 'Cairo',
     fontSize: 12,
-    color: "#8B7B6A",
-    textAlign: "right",
+    color: '#B8AC9B',
   },
-  khatmaTargets: {
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    gap: 8,
+
+  // Juz Card
+  juzCard: {
+    backgroundColor: 'rgba(78, 123, 101, 0.4)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'flex-end',
+  },
+  juzCardNumber: {
+    fontFamily: 'CairoBold',
+    fontSize: 24,
+    color: '#D4A56A',
+    marginBottom: 4,
+  },
+  juzCardName: {
+    fontFamily: 'CairoBold',
+    fontSize: 18,
+    color: '#FFFFFF',
+  },
+
+  // Favorite Card
+  favoriteCard: {
+    backgroundColor: 'rgba(78, 123, 101, 0.4)',
+    borderRadius: 16,
+    padding: 16,
+  },
+  favoriteCardHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  favoriteCardTitle: {
+    fontFamily: 'CairoBold',
+    fontSize: 18,
+    color: '#FFFFFF',
+  },
+  favoriteCardSnippet: {
+    fontFamily: 'KFGQPCUthmanicScript',
+    fontSize: 16,
+    color: '#E8DCC8',
+    textAlign: 'right',
+    lineHeight: 28,
+    marginBottom: 8,
+  },
+  favoriteCardMeta: {
+    fontFamily: 'Cairo',
+    fontSize: 12,
+    color: '#B8AC9B',
+    textAlign: 'right',
+  },
+
+  // Empty State
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontFamily: 'CairoBold',
+    fontSize: 16,
+    color: '#B8AC9B',
+    marginTop: 12,
+  },
+
+  // Bottom Navigation
+  bottomNav: {
+    flexDirection: 'row-reverse',
+    backgroundColor: '#F5F1E8',
+    paddingTop: 12,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  navItemActive: {
+    // Active item styling
+  },
+  quranIconContainer: {
+    // Special styling for active Quran icon
+  },
+  navText: {
+    fontFamily: 'Cairo',
+    fontSize: 11,
+    color: '#8B7B6A',
     marginTop: 4,
   },
-  khatmaTargetBtn: {
-    flex: 1,
-    backgroundColor: "#E9E3D9",
-    paddingVertical: 8,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  khatmaTargetActive: {
-    backgroundColor: "#1E8B5A",
-  },
-  khatmaTargetText: {
-    fontFamily: "CairoBold",
-    fontSize: 12,
-    color: "#6E5A46",
-  },
-  khatmaTargetTextActive: {
-    color: "#FFFFFF",
-  },
-  khatmaReset: {
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  khatmaResetText: {
-    fontFamily: "CairoBold",
-    fontSize: 13,
-    color: "#C0392B",
+  navTextActive: {
+    fontFamily: 'CairoBold',
+    color: '#D4A56A',
   },
 });

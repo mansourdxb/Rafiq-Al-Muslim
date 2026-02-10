@@ -47,7 +47,7 @@ export default function LibraryHomeScreen() {
       >
         <View style={[styles.sheet, { backgroundColor: sheetBackground }]}>
           <Pressable
-            onPress={() => navigation.navigate("LibraryQuran")}
+            onPress={() => navigation.navigate("QuranSurahList")}
             style={({ pressed }) => [
               styles.cardOuter,
               { backgroundColor: cardOuterBackground },

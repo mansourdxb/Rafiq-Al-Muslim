@@ -3,7 +3,7 @@ import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -35,15 +35,22 @@ export default function LibraryQuranScreen() {
 
   const openSurah = (sura: number, aya = 1) => {
     const page = getPageForAyah(sura, aya);
-    navigation.dispatch(
-      StackActions.push("QuranReader", {
-        sura,
-        aya,
-        page,
-        source: "index",
-        navToken: Date.now(),
-      })
-    );
+    const params = {
+      sura,
+      aya,
+      surahNumber: sura,
+      ayahNumber: aya,
+      page,
+      source: "manual",
+      navToken: Date.now(),
+    };
+    console.log("[LibraryQuran] openSurah", params);
+    const parent = navigation.getParent?.();
+    if (parent?.navigate) {
+      parent.navigate("QuranReader", params as any);
+      return;
+    }
+    navigation.navigate("QuranReader", params as any);
   };
 
   return (

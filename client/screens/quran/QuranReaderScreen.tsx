@@ -3,6 +3,7 @@ import { SafeAreaView, View, Text, StyleSheet, Pressable, Platform } from "react
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import QuranSurahDetailsScreen from "@/screens/quran/QuranSurahDetailsScreen";
 import { quranFiles } from "@/lib/quran/quranFiles";
 import { loadMarks, removeBookmark } from "@/src/lib/quran/ayahMarks";
@@ -11,7 +12,9 @@ import QuranIndexScreen from "@/screens/quran/QuranIndexScreen";
 import { suraTypeAr } from "@/src/lib/quran/suraMeta";
 import { SURAH_META } from "@/constants/quran/surahMeta";
 import { getHizbQuarters } from "@/src/lib/quran/hizbQuarters";
-import { getPageData, getPageForAyah } from "@/src/lib/quran/mushaf";
+import { getPageData, getPageForAyah, arabicIndic } from "@/src/lib/quran/mushaf";
+
+const DEBUG_QURAN_NAV = true;
 
 type Params = {
   QuranReader: {
@@ -75,6 +78,8 @@ function findPageStart(pageNo: number) {
 export default function QuranReaderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<Params, "QuranReader">>();
+  const rawParams = (route.params as any)?.params ?? route.params;
+  const hasRawParams = !!(rawParams && Object.keys(rawParams).length > 0);
   const [currentSurahNumber, setCurrentSurahNumber] = useState(1);
   const [currentSurahName, setCurrentSurahName] = useState<string>("القرآن");
   const [initialPageNo, setInitialPageNo] = useState<number | undefined>(undefined);
@@ -83,7 +88,13 @@ export default function QuranReaderScreen() {
   const [indexVisible, setIndexVisible] = useState(false);
   const [currentJuz, setCurrentJuz] = useState<number | null>(null);
   const [highlightAyah, setHighlightAyah] = useState<{ sura: number; aya: number } | null>(null);
+  const [trimBeforeSura, setTrimBeforeSura] = useState<number | undefined>(undefined);
+  const [jumpLockMs, setJumpLockMs] = useState(1200);
+  const [disableAutoScroll, setDisableAutoScroll] = useState(false);
   const lastAppliedTokenRef = React.useRef<number | null>(null);
+  const hasExplicitNavRef = React.useRef(false);
+  const [renderReady, setRenderReady] = useState(!hasRawParams);
+  const [optionsToken, setOptionsToken] = useState(0);
   const [bookmarks, setBookmarks] = useState<
     {
       key: string;
@@ -96,82 +107,191 @@ export default function QuranReaderScreen() {
       createdAt: string;
     }[]
   >([]);
+  
+  function normalizeDigits(value: string) {
+    const map: Record<string, string> = {
+      "\u0660": "0",
+      "\u0661": "1",
+      "\u0662": "2",
+      "\u0663": "3",
+      "\u0664": "4",
+      "\u0665": "5",
+      "\u0666": "6",
+      "\u0667": "7",
+      "\u0668": "8",
+      "\u0669": "9",
+      "\u06F0": "0",
+      "\u06F1": "1",
+      "\u06F2": "2",
+      "\u06F3": "3",
+      "\u06F4": "4",
+      "\u06F5": "5",
+      "\u06F6": "6",
+      "\u06F7": "7",
+      "\u06F8": "8",
+      "\u06F9": "9",
+    };
+    return value.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (d) => map[d] ?? d);
+  }
 
-  useEffect(() => {
-    let cancelled = false;
-    const p = route.params as
+  function parseMaybeNumber(value: unknown, fallback: number) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const normalized = normalizeDigits(value);
+      const digitsOnly = normalized.replace(/[^\d]/g, "");
+      const parsed = Number.parseInt(digitsOnly, 10);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+  }
+
+
+
+  
+  const normalizeIncomingParams = () => {
+    const rawParams = (route.params as any)?.params ?? route.params;
+    if (DEBUG_QURAN_NAV) {
+      console.log("[QuranReader][debug] rawParams", rawParams);
+    }
+    const p = rawParams as
       | {
           sura?: number;
           aya?: number;
+          surahNumber?: number;
+          ayahNumber?: number;
           page?: number;
           navToken?: number;
-          source?: "manual" | "resume" | "index";
+          source?: "manual" | "resume" | "index" | "search" | "juz";
           openIndex?: boolean;
         }
       | undefined;
-    const hasAnyParam = !!p && Object.keys(p).length > 0;
-    const sura = p?.sura;
-    const aya = p?.aya ?? 1;
-    const page = p?.page;
-    const token = p?.navToken ?? 0;
 
-    if (hasAnyParam && !sura) {
-      console.warn("QuranReader opened with params but missing `sura`:", p);
-      setCurrentSurahNumber(1);
-      setCurrentSurahName(quranFiles.find((f) => f.number === 1)?.data?.surah ?? "القرآن");
-      setInitialPageNo(1);
-      setJumpToPage(1);
-      setJumpId(Date.now());
-      setHighlightAyah({ sura: 1, aya: 1 });
-      return () => {
-        cancelled = true;
-      };
+    if (!p || Object.keys(p).length === 0) {
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] empty params");
+      }
+      return null;
     }
+    const sura = parseMaybeNumber(p.sura ?? p.surahNumber, 0);
+    const aya = parseMaybeNumber(p.aya ?? p.ayahNumber, 1);
+    const page = parseMaybeNumber(p.page, 0);
+    const navToken = typeof p.navToken === "number" ? p.navToken : 0;
 
-    if (sura) {
-      if (token && lastAppliedTokenRef.current === token) {
+    const pageStart = page > 0 ? findPageStart(page) : undefined;
+    const resolvedSura = sura || pageStart?.sura || 0;
+    const resolvedAya = sura ? aya : pageStart?.aya ?? aya;
+    const resolvedPage = page > 0 ? page : resolvedSura ? getMushafPage(resolvedSura, resolvedAya) : 0;
+
+    if (!resolvedSura) {
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] unresolved params", { sura, aya, page, navToken });
+      }
+      return null;
+    }
+    // If we've already applied an explicit navigation, ignore param updates without a navToken.
+    if (hasExplicitNavRef.current && !navToken) {
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] ignoring params without navToken after explicit nav");
+      }
+      return null;
+    }
+    return { sura: resolvedSura, aya: resolvedAya, page: resolvedPage, navToken, source: p.source };
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    if (rawParams && Object.keys(rawParams).length > 0) {
+      hasExplicitNavRef.current = true;
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] saw non-empty rawParams, mark explicit");
+      }
+    }
+    const incoming = normalizeIncomingParams();
+    console.log("[QuranReader] incoming params", incoming);
+
+    if (incoming) {
+      const { sura, aya, page, navToken, source } = incoming;
+      hasExplicitNavRef.current = true;
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] applying incoming", { sura, aya, page, navToken });
+      }
+      if (navToken && lastAppliedTokenRef.current === navToken) {
         return () => {
           cancelled = true;
         };
       }
-      if (token) lastAppliedTokenRef.current = token;
-      const targetPage = page ?? getMushafPage(sura, aya);
+      if (navToken) lastAppliedTokenRef.current = navToken;
       setCurrentSurahNumber(sura);
-      setCurrentSurahName(quranFiles.find((f) => f.number === sura)?.data?.surah ?? "القرآن");
-      setInitialPageNo(targetPage);
-      setJumpToPage(targetPage);
-      setJumpId(token || Date.now());
-      setHighlightAyah({ sura, aya });
-      console.log("[QuranReader] JUMP", {
-        source: p?.source,
-        sura,
-        aya,
-        page: targetPage,
-        navToken: token,
-      });
+      setCurrentSurahName(quranFiles.find((f) => f.number === sura)?.data?.surah ?? "??????");
+      setInitialPageNo(page);
+      if (source === "juz") {
+        setJumpToPage(undefined);
+        setJumpId(undefined);
+      } else {
+        setJumpToPage(page);
+        setJumpId(navToken || Date.now());
+      }
+      const shouldHighlight = source === "search" || source === "resume" || (aya && aya !== 1);
+      setHighlightAyah(shouldHighlight ? { sura, aya } : null);
+      setTrimBeforeSura(source === "manual" && aya === 1 ? sura : undefined);
+      setJumpLockMs(source === "juz" ? 3000 : 1200);
+      setDisableAutoScroll(source === "juz");
+      setRenderReady(true);
       return () => {
         cancelled = true;
       };
     }
 
-    setCurrentSurahNumber(1);
-    setCurrentSurahName(quranFiles.find((f) => f.number === 1)?.data?.surah ?? "القرآن");
-    setInitialPageNo(1);
-    setJumpToPage(1);
-    setJumpId(Date.now());
-    setHighlightAyah({ sura: 1, aya: 1 });
+    const loadLastRead = async () => {
+      try {
+        const raw = await AsyncStorage.getItem("quran:lastRead");
+        if (!raw || cancelled) return;
+        // If we navigated here with explicit params, do not override with last read.
+        if (hasExplicitNavRef.current) return;
+        const lastRead = JSON.parse(raw) as { surahNumber: number; ayahNumber: number; page?: number };
+        console.log("[QuranReader] applying lastRead", lastRead);
+        if (DEBUG_QURAN_NAV) {
+          console.log("[QuranReader][debug] lastRead page", lastRead.page);
+        }
+        const targetSura = lastRead.surahNumber || 1;
+        const targetAya = lastRead.ayahNumber || 1;
+        const targetPage = lastRead.page || getMushafPage(targetSura, targetAya);
+        setCurrentSurahNumber(targetSura);
+        setCurrentSurahName(quranFiles.find((f) => f.number === targetSura)?.data?.surah ?? "??????");
+        setInitialPageNo(targetPage);
+        setJumpToPage(targetPage);
+        setJumpId(Date.now());
+        setHighlightAyah(null);
+        setTrimBeforeSura(undefined);
+        setJumpLockMs(1200);
+        setDisableAutoScroll(false);
+        setRenderReady(true);
+      } catch (err) {
+        console.warn("Failed to load quran:lastRead", err);
+        setRenderReady(true);
+      }
+    };
+    loadLastRead();
 
     return () => {
       cancelled = true;
     };
-  }, [route.params?.sura, route.params?.aya, route.params?.page, route.params?.navToken]);
+  }, [
+    rawParams?.sura,
+    rawParams?.surahNumber,
+    rawParams?.aya,
+    rawParams?.ayahNumber,
+    rawParams?.page,
+    rawParams?.navToken,
+    rawParams?.source,
+  ]);
 
   useEffect(() => {
-    if (route.params?.openIndex) {
-      setIndexVisible(true);
+    if (!hasRawParams) return;
+    if (jumpToPage || initialPageNo) {
+      setRenderReady(true);
     }
-  }, [route.params?.openIndex, route.params?.navToken]);
-
+  }, [hasRawParams, initialPageNo, jumpToPage]);
 
   const refreshBookmarks = useCallback(async () => {
     const marks = await loadMarks();
@@ -183,7 +303,7 @@ export default function QuranReaderScreen() {
       const ayah = Number(ayahStr);
       if (!sura || !ayah) return;
       const surah = quranFiles.find((f) => f.number === sura);
-      const surahName = surah?.data?.surah ?? `سورة ${sura}`;
+      const surahName = surah?.data?.surah ?? `???? ${sura}`;
       const pageNo = getMushafPage(sura, ayah);
       const juzNo = getMushafJuz(sura, ayah);
       const snippet =
@@ -204,10 +324,6 @@ export default function QuranReaderScreen() {
   }, []);
 
   useEffect(() => {
-    refreshBookmarks();
-  }, [currentSurahNumber, refreshBookmarks]);
-
-  useEffect(() => {
     if (indexVisible) {
       refreshBookmarks();
     }
@@ -220,7 +336,7 @@ export default function QuranReaderScreen() {
       const typeLabel = suraTypeAr(m.revelationType);
       return {
         number: m.number,
-        name: m.name_ar ?? `سورة ${m.number}`,
+        name: m.name_ar ?? `???? ${m.number}`,
         ayahsCount: m.ayahCount,
         typeLabel,
         startPage: m.pageStart,
@@ -243,7 +359,7 @@ export default function QuranReaderScreen() {
     let lastJuz: number | null = null;
     return quarterRefs.map((q, idx) => {
       const surah = quranFiles.find((f) => f.number === q.sura);
-      const surahName = surah?.data?.surah ?? `سورة ${q.sura}`;
+      const surahName = surah?.data?.surah ?? `???? ${q.sura}`;
       const ayahText =
         surah?.data?.ayahs?.find((a: any) => a.ayah_number === q.aya)?.text ?? "";
       const snippet = ayahText
@@ -270,6 +386,9 @@ export default function QuranReaderScreen() {
 
   const handlePageChange = useCallback(
     async (pageNo: number) => {
+      if (DEBUG_QURAN_NAV) {
+        console.log("[QuranReader][debug] onPageChange", pageNo);
+      }
       const pageStart = findPageStart(pageNo);
       if (pageStart) {
         setCurrentSurahNumber(pageStart.sura);
@@ -278,6 +397,18 @@ export default function QuranReaderScreen() {
           page.surahName || (quranFiles.find((f) => f.number === pageStart.sura)?.data?.surah ?? "القرآن")
         );
         setCurrentJuz(getMushafJuz(pageStart.sura, pageStart.aya));
+        const firstAyah = page.ayahs?.[0];
+        if (firstAyah) {
+          await AsyncStorage.setItem(
+            "quran:lastRead",
+            JSON.stringify({
+              surahNumber: firstAyah.sura,
+              ayahNumber: firstAyah.aya,
+              page: pageNo,
+              updatedAt: new Date().toISOString(),
+            })
+          );
+        }
       }
     },
     []
@@ -293,7 +424,7 @@ export default function QuranReaderScreen() {
   const handleSelectJuz = (sura: number, aya: number) => {
     const page = getMushafPage(sura, aya);
     const navToken = Date.now();
-    navigation.setParams({ sura, aya, page, source: "index", navToken });
+    navigation.setParams({ sura, aya, page, source: "juz", navToken });
     setIndexVisible(false);
   };
 
@@ -324,31 +455,56 @@ export default function QuranReaderScreen() {
           style={({ pressed }) => [styles.toolbarButton, pressed ? { opacity: 0.7 } : null]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"} size={22} color="#6E5A46" />
+          <Ionicons name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"} size={22} color="#E8F2EC" />
         </Pressable>
         <Text style={styles.toolbarTitle}>{surahName}</Text>
         <View style={styles.toolbarActions}>
+          <Text style={styles.juzText}>{`الجزء ${arabicIndic(currentJuz ?? 1)}`}</Text>
           <Pressable
-            onPress={() => setIndexVisible(true)}
+            onPress={() => setOptionsToken((v) => v + 1)}
             style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.iconText}>☰</Text>
+            <Ionicons name="settings-outline" size={20} color="#E8F2EC" />
           </Pressable>
         </View>
       </View>
-
-      <QuranSurahDetailsScreen
-        initialPageNo={initialPageNo}
-        highlightAyah={highlightAyah ?? undefined}
-        jumpToPage={jumpToPage}
-        jumpId={jumpId}
-        onPageChange={handlePageChange}
+      {renderReady ? (
+        <QuranSurahDetailsScreen
+          initialPageNo={initialPageNo}
+          highlightAyah={highlightAyah ?? undefined}
+          jumpToPage={jumpToPage}
+          jumpId={jumpId}
+          jumpLockMs={jumpLockMs}
+          trimBeforeSura={trimBeforeSura}
+          disableAutoScroll={disableAutoScroll || !!trimBeforeSura}
+          onPageChange={handlePageChange}
         onVisiblePageChange={(pageNo, sura, name) => {
+          if (DEBUG_QURAN_NAV) {
+            console.log("[QuranReader][debug] onVisiblePageChange", { pageNo, sura, name });
+          }
           setCurrentSurahNumber(sura);
           setCurrentSurahName(name || "القرآن");
+          setCurrentJuz(getMushafJuz(sura, 1));
+          const page = getPageData(pageNo);
+          const firstAyah = page.ayahs?.[0];
+          if (firstAyah) {
+            void AsyncStorage.setItem(
+              "quran:lastRead",
+              JSON.stringify({
+                surahNumber: firstAyah.sura,
+                ayahNumber: firstAyah.aya,
+                page: pageNo,
+                updatedAt: new Date().toISOString(),
+              })
+            );
+          }
         }}
-      />
+          openOptionsToken={optionsToken}
+        />
+      ) : (
+        <View style={{ flex: 1 }} />
+      )}
 
       {indexVisible && Platform.OS === "web" ? (
         <View style={styles.webOverlay}>
@@ -391,14 +547,15 @@ export default function QuranReaderScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F8F1E6",
+    backgroundColor: "#EFE8DD",
   },
   toolbar: {
-    height: 54,
-    paddingHorizontal: 12,
+    height: 64,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#2F5B4F",
   },
   toolbarButton: {
     width: 36,
@@ -409,13 +566,19 @@ const styles = StyleSheet.create({
   },
   toolbarTitle: {
     fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#6E5A46",
+    fontSize: 20,
+    color: "#E8F2EC",
+    textAlign: "center",
   },
   toolbarActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+  },
+  juzText: {
+    fontFamily: "Cairo",
+    fontSize: 13,
+    color: "#CFE0D6",
   },
   iconButton: {
     width: 32,
@@ -427,11 +590,27 @@ const styles = StyleSheet.create({
   iconText: {
     fontFamily: "CairoBold",
     fontSize: 18,
-    color: "#6E5A46",
+    color: "#E8F2EC",
   },
   webOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 40,
   },
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

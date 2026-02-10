@@ -7,6 +7,7 @@ import SalatukTabNavigator from "@/navigation/SalatukTabNavigator";
 import AddPresetScreen from "@/screens/AddPresetScreen";
 import AboutScreen from "@/screens/AboutScreen";
 import QuranReaderScreen from "@/screens/quran/QuranReaderScreen";
+import QuranSearchScreen from "@/screens/quran/QuranSearchScreen";
 import SettingsPlaceholderScreen from "@/screens/settings/SettingsPlaceholderScreen";
 import PrayerSettingsScreen from "@/screens/settings/PrayerSettingsScreen";
 import SalatukAthanSettingsScreen from "@/screens/salatuk/SalatukAthanSettingsScreen";
@@ -32,10 +33,11 @@ export type RootStackParamList = {
     sura: number;
     aya?: number;
     page?: number;
-    source?: "manual" | "resume" | "index";
+    source?: "manual" | "resume" | "index" | "search" | "juz";
     navToken?: number;
     openIndex?: boolean;
   };
+  QuranSearch: { initialQuery?: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -128,6 +130,14 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="QuranReader"
         component={QuranReaderScreen}
+        options={{
+          headerShown: false,
+          presentation: Platform.OS === "ios" ? "fullScreenModal" : "card",
+        }}
+      />
+      <Stack.Screen
+        name="QuranSearch"
+        component={QuranSearchScreen}
         options={{
           headerShown: false,
           presentation: Platform.OS === "ios" ? "fullScreenModal" : "card",

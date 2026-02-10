@@ -9,13 +9,11 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { SURAH_META } from "@/constants/quran/surahMeta";
 import { getPageForAyah, arabicIndic } from "@/src/lib/quran/mushaf";
-import { buildQuranSearchIndexOnce, searchQuran, type SearchHit } from "@/src/lib/quran/searchQuran";
 import { quranTheme } from "@/ui/quran/theme";
 import QuranSearchBar from "@/ui/quran/QuranSearchBar";
 import ContinueReadingCard from "@/ui/quran/ContinueReadingCard";
 import QuranSegmentTabs from "@/ui/quran/QuranSegmentTabs";
 import SurahRow from "@/ui/quran/SurahRow";
-import QuranSearchResults from "@/screens/quran/QuranSearchResults";
 import type { LibraryStackParamList } from "@/navigation/LibraryStackNavigator";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -26,36 +24,6 @@ type LastRead = {
   page?: number;
   updatedAt?: string;
 };
-
-  const openSearchHit = (hit: SearchHit) => {
-    navigation.navigate("QuranReader", {
-      sura: hit.sura,
-      aya: hit.aya,
-      page: hit.page,
-      source: "search",
-      navToken: Date.now(),
-    });
-  };
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setResultLimit(50);
-      setLoadingSearch(false);
-      return;
-    }
-    setLoadingSearch(true);
-    const t = setTimeout(() => {
-      searchQuran(q, resultLimit)
-        .then((items) => setResults(items))
-        .finally(() => setLoadingSearch(false));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [query, resultLimit]);
-
-  const showResults = query.trim().length >= 2;
-  const canShowMore = showResults && results.length >= resultLimit && resultLimit < 200;
 type FavoriteItem = {
   surahNumber: number;
   ayahNumber: number;
@@ -78,22 +46,11 @@ export default function QuranSurahListScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>("surah");
   const [lastRead, setLastRead] = useState<LastRead | null>(null);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchHit[]>([]);
-  const [resultLimit, setResultLimit] = useState(50);
-  const [loadingSearch, setLoadingSearch] = useState(false);
 
   useEffect(() => {
     console.log("QURAN TAB ENTRY:", "QuranSurahListScreen");
   }, []);
 
-  useEffect(() => {
-    void buildQuranSearchIndexOnce();
-  }, []);
-
-  useEffect(() => {
-    setResultLimit(50);
-  }, [query]);
 
   useEffect(() => {
     let active = true;
@@ -126,6 +83,7 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
     navToken: Date.now(),
   });
 };
+
 
   const lastReadMeta = useMemo(() => {
     if (!lastRead) return null;
@@ -192,23 +150,8 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
   return (
     <LinearGradient colors={quranTheme.colors.bgGradient} style={styles.gradient}>
       <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
-        <QuranSearchBar value={query} onChangeText={setQuery} />
+        <QuranSearchBar editable={false} onPress={() => navigation.navigate("QuranSearch")} />
 
-        {showResults ? (
-          <View style={styles.searchResults}>
-            {loadingSearch ? (
-              <Text style={styles.searchLoading}>جارٍ البحث...</Text>
-            ) : (
-              <QuranSearchResults
-                results={results}
-                query={query}
-                onSelect={openSearchHit}
-                canShowMore={canShowMore}
-                onShowMore={() => setResultLimit(200)}
-              />
-            )}
-          </View>
-        ) : null}
 
         <Pressable
           onPress={() => {
@@ -279,15 +222,6 @@ const styles = StyleSheet.create({
     gap: quranTheme.spacing.md,
     paddingVertical: quranTheme.spacing.sm,
     paddingBottom: 30,
-  },
-  searchResults: {
-    width: "100%",
-  },
-  searchLoading: {
-    color: quranTheme.colors.textOnDark,
-    fontFamily: "Cairo",
-    textAlign: "right",
-    paddingVertical: 8,
   },
   juzRow: {
     backgroundColor: quranTheme.colors.row,
