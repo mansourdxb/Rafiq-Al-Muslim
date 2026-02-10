@@ -54,6 +54,9 @@ export default function MainZikrScreen() {
   const openHisnCategory = (title: string) => {
     navigation.navigate("HisnCategory", { categoryTitle: title });
   };
+  const openAiChat = () => {
+    navigation.navigate("AiChatTest");
+  };
 
   return (
     <View style={styles.root}>
@@ -193,6 +196,14 @@ export default function MainZikrScreen() {
           </View>
           {/* TODO: Wire quick actions to routes when ready. */}
         </View>
+
+        <Pressable style={styles.aiCard} onPress={openAiChat}>
+          <View style={styles.aiIconWrap}>
+            <Feather name="cpu" size={20} color="#D4AF37" />
+          </View>
+          <Text style={styles.aiTitle}>المساعد الذكي</Text>
+          <Feather name="chevron-left" size={18} color="#D4AF37" />
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -423,5 +434,36 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
+  },
+  aiCard: {
+    marginTop: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  aiIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F6F0E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiTitle: {
+    ...typography.itemTitle,
+    fontSize: 16,
+    color: "#1F2D25",
+    textAlign: "right",
+    flex: 1,
+    marginHorizontal: 10,
   },
 });

@@ -9,6 +9,7 @@ import CalendarScreen from "@/screens/CalendarScreen";
 import StatsScreen from "@/screens/StatsScreen";
 import HisnAlMuslimScreen from "@/screens/athkar/HisnAlMuslimScreen";
 import HisnCategoryScreen from "@/screens/athkar/HisnCategoryScreen";
+import AiChatTestScreen from "@/src/screens/ai/AiChatTestScreen";
 
 export type PresetsStackParamList = {
   MainZikr: undefined;
@@ -19,6 +20,7 @@ export type PresetsStackParamList = {
   Stats: undefined;
   HisnAlMuslim: undefined;
   HisnCategory: { categoryId?: number; categoryTitle?: string };
+  AiChatTest: undefined;
 };
 
 const Stack = createNativeStackNavigator<PresetsStackParamList>();
@@ -34,6 +36,7 @@ export default function PresetsStackNavigator() {
       <Stack.Screen name="Stats" component={StatsScreen} />
       <Stack.Screen name="HisnAlMuslim" component={HisnAlMuslimScreen} />
       <Stack.Screen name="HisnCategory" component={HisnCategoryScreen} />
+      <Stack.Screen name="AiChatTest" component={AiChatTestScreen} />
     </Stack.Navigator>
   );
 }
