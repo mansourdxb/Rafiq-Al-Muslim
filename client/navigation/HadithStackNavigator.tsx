@@ -1,26 +1,26 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import LibraryHadithScreen from "@/screens/library/LibraryHadithScreen";
-import BukhariBooksScreen from "@/screens/BukhariBooksScreen";
-import BukhariChapterScreen from "@/screens/BukhariChapterScreen";
-import MuslimBooksScreen from "@/screens/MuslimBooksScreen";
-import MuslimChapterScreen from "@/screens/MuslimChapterScreen";
-import AbuDawudBooksScreen from "@/screens/AbuDawudBooksScreen";
-import AbuDawudChapterScreen from "@/screens/AbuDawudChapterScreen";
-import AhmedBooksScreen from "@/screens/AhmedBooksScreen";
-import AhmedChapterScreen from "@/screens/AhmedChapterScreen";
-import DarimiBooksScreen from "@/screens/DarimiBooksScreen";
-import DarimiChapterScreen from "@/screens/DarimiChapterScreen";
-import TirmidhiBooksScreen from "@/screens/TirmidhiBooksScreen";
-import TirmidhiChapterScreen from "@/screens/TirmidhiChapterScreen";
-import IbnMajahBooksScreen from "@/screens/IbnMajahBooksScreen";
-import IbnMajahChapterScreen from "@/screens/IbnMajahChapterScreen";
-import NasaiBooksScreen from "@/screens/NasaiBooksScreen";
-import NasaiChapterScreen from "@/screens/NasaiChapterScreen";
-import MalikBooksScreen from "@/screens/MalikBooksScreen";
-import MalikChapterScreen from "@/screens/MalikChapterScreen";
-import FavoritesScreen from "@/screens/FavoritesScreen";
+import LibraryHadithScreen from "@/screens/hadith/LibraryHadithScreen";
+import BukhariBooksScreen from "@/screens/hadith/BukhariBooksScreen";
+import BukhariChapterScreen from "@/screens/hadith/BukhariChapterScreen";
+import MuslimBooksScreen from "@/screens/hadith/MuslimBooksScreen";
+import MuslimChapterScreen from "@/screens/hadith/MuslimChapterScreen";
+import AbuDawudBooksScreen from "@/screens/hadith/AbuDawudBooksScreen";
+import AbuDawudChapterScreen from "@/screens/hadith/AbuDawudChapterScreen";
+import AhmedBooksScreen from "@/screens/hadith/AhmedBooksScreen";
+import AhmedChapterScreen from "@/screens/hadith/AhmedChapterScreen";
+import DarimiBooksScreen from "@/screens/hadith/DarimiBooksScreen";
+import DarimiChapterScreen from "@/screens/hadith/DarimiChapterScreen";
+import TirmidhiBooksScreen from "@/screens/hadith/TirmidhiBooksScreen";
+import TirmidhiChapterScreen from "@/screens/hadith/TirmidhiChapterScreen";
+import IbnMajahBooksScreen from "@/screens/hadith/IbnMajahBooksScreen";
+import IbnMajahChapterScreen from "@/screens/hadith/IbnMajahChapterScreen";
+import NasaiBooksScreen from "@/screens/hadith/NasaiBooksScreen";
+import NasaiChapterScreen from "@/screens/hadith/NasaiChapterScreen";
+import MalikBooksScreen from "@/screens/hadith/MalikBooksScreen";
+import MalikChapterScreen from "@/screens/hadith/MalikChapterScreen";
+import FavoritesScreen from "@/screens/hadith/FavoritesScreen";
 
 export type HadithStackParamList = {
   HadithHome: undefined;
@@ -73,3 +73,4 @@ export default function HadithStackNavigator() {
     </Stack.Navigator>
   );
 }
+
