@@ -6,13 +6,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -66,7 +64,6 @@ const formatTimeLatinInTZ = (date: Date, tz: string) =>
   formatTimeInTZ(date, tz, "en-US").replace(/AM/i, "ص").replace(/PM/i, "م");
 
 export default function SalatukCitiesScreen() {
-  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -76,7 +73,6 @@ export default function SalatukCitiesScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [expandedCityIds, setExpandedCityIds] = useState<Record<string, boolean>>({});
   const [menuVisible, setMenuVisible] = useState(false);
-  const [query, setQuery] = useState("");
 
   const contentWidth = Math.min(width, 430);
   const headerPadTop = useMemo(() => insets.top + 8, [insets.top]);
@@ -121,15 +117,10 @@ export default function SalatukCitiesScreen() {
     setPickerVisible(false);
   };
 
-  const visibleCities = useMemo(() => {
-    const list = isEditing ? draftCities : worldCities;
-    const term = query.trim().toLowerCase();
-    if (!term) return list;
-    return list.filter((city) => {
-      const name = `${city.name ?? ""} ${city.country ?? ""}`.toLowerCase();
-      return name.includes(term);
-    });
-  }, [isEditing, draftCities, worldCities, query]);
+  const visibleCities = useMemo(
+    () => (isEditing ? draftCities : worldCities),
+    [isEditing, draftCities, worldCities]
+  );
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
@@ -175,10 +166,57 @@ export default function SalatukCitiesScreen() {
         timeZone: tz,
       });
 
-    const nextPrayerName = times ? NEXT_PRAYER_ARABIC[times.nextPrayerName] : "--";
-    const nextPrayerTime = times ? formatTimeLatin(times.nextPrayerTime) : "--:--";
-    const currentTime = formatTimeLatinInTZ(new Date(), tz);
-    const countdown = times ? formatCountdown(times.timeToNextMs) : "--:--";
+    const nowCityDate = nowCity.toDate();
+    const sequence = times
+      ? [
+          { key: "Fajr" as const, time: times.fajr },
+          { key: "Dhuhr" as const, time: times.dhuhr },
+          { key: "Asr" as const, time: times.asr },
+          { key: "Maghrib" as const, time: times.maghrib },
+          { key: "Isha" as const, time: times.isha },
+        ]
+      : [];
+    let nextPrayerKey: PrayerName | null = null;
+    let nextPrayerTimeValue: Date | null = null;
+    for (const entry of sequence) {
+      const entryTime = dayjs(entry.time).tz(tz);
+      if (entryTime.isAfter(nowCity)) {
+        nextPrayerKey = entry.key;
+        nextPrayerTimeValue = entry.time;
+        break;
+      }
+    }
+    if (!nextPrayerKey && settings) {
+      const tomorrow = nowCity.add(1, "day").toDate();
+      const tomorrowTimes = computePrayerTimes({
+        city: { lat: item.lat, lon: item.lon },
+        settings,
+        date: tomorrow,
+        timeZone: tz,
+      });
+      nextPrayerKey = "Fajr";
+      nextPrayerTimeValue = tomorrowTimes.fajr;
+    }
+
+    const nextPrayerName = nextPrayerKey ? NEXT_PRAYER_ARABIC[nextPrayerKey] : "--";
+    const nextPrayerTime = nextPrayerTimeValue
+      ? formatTimeLatin(nextPrayerTimeValue)
+      : "--:--";
+    const currentTime = formatTimeLatinInTZ(nowCityDate, tz);
+    const countdown =
+      nextPrayerTimeValue && nextPrayerKey
+        ? formatCountdown(nextPrayerTimeValue.getTime() - nowCityDate.getTime())
+        : "--:--";
+
+    console.log(
+      "[WorldCities]",
+      item.name,
+      tz,
+      "now",
+      nowCity.format(),
+      "next",
+      nextPrayerKey
+    );
 
     return (
       <View style={styles.cityItem}>
@@ -229,7 +267,7 @@ export default function SalatukCitiesScreen() {
         </View>
 
         {!isExpanded ? (
-          <View style={styles.prayerRow}> 
+            <View style={styles.prayerRow}>
             <View style={styles.leftValueWrap}>
               <Text style={styles.countdown}>{countdown}</Text>
             </View>
@@ -238,12 +276,14 @@ export default function SalatukCitiesScreen() {
             </View>
             <View style={styles.rightValueWrap}>
               <View style={styles.rightValueRow}>
-                <View style={styles.iconBox}>
-                  <Pressable onPress={() => {}} hitSlop={6} style={styles.speakerBtn}>
-                    <FontAwesome5 name="mosque" size={18} color={COLORS.accent} solid />
-                  </Pressable>
-                </View>
                 <Text style={styles.timeText}>{nextPrayerTime}</Text>
+                <View style={styles.iconBox}>
+                  {nextPrayerKey ? (
+                    <Pressable onPress={() => {}} hitSlop={6} style={styles.speakerBtn}>
+                      <FontAwesome5 name="mosque" size={18} color={COLORS.accent} solid />
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             </View>
           </View>
@@ -251,11 +291,11 @@ export default function SalatukCitiesScreen() {
 
         {isExpanded && times ? (
           <View style={styles.expandedList}>
-            {renderFullRow("الفجر", times.fajr, times.nextPrayerName === "Fajr")}
-            {renderFullRow("الظهر", times.dhuhr, times.nextPrayerName === "Dhuhr")}
-            {renderFullRow("العصر", times.asr, times.nextPrayerName === "Asr")}
-            {renderFullRow("المغرب", times.maghrib, times.nextPrayerName === "Maghrib")}
-            {renderFullRow("العشاء", times.isha, times.nextPrayerName === "Isha")}
+            {renderFullRow("الفجر", times.fajr, nextPrayerKey === "Fajr")}
+            {renderFullRow("الظهر", times.dhuhr, nextPrayerKey === "Dhuhr")}
+            {renderFullRow("العصر", times.asr, nextPrayerKey === "Asr")}
+            {renderFullRow("المغرب", times.maghrib, nextPrayerKey === "Maghrib")}
+            {renderFullRow("العشاء", times.isha, nextPrayerKey === "Isha")}
           </View>
         ) : null}
       </View>
@@ -268,55 +308,28 @@ export default function SalatukCitiesScreen() {
         <View style={[styles.headerInner, { width: contentWidth }]}>
           <View style={styles.headerLeftGroup}>
             <Pressable
-              onPress={() => setPickerVisible(true)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.addBtn}
-            >
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-            </Pressable>
-            <Pressable
               onPress={openMenu}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.kebabBtn}
             >
               <Ionicons name="ellipsis-vertical" size={16} color={COLORS.accent} />
             </Pressable>
+            <Pressable
+              onPress={() => setPickerVisible(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.addBtn}
+            >
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+            </Pressable>
           </View>
 
           <Text style={styles.headerTitle}>مدن العالم</Text>
 
-          <Pressable
-            onPress={() => {
-              let current: any = navigation;
-              while (current) {
-                const state = current.getState?.();
-                if (state?.type === "drawer") {
-                  current.dispatch(DrawerActions.openDrawer());
-                  return;
-                }
-                current = current.getParent?.();
-              }
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.menuBtn}
-          >
-            <Ionicons name="menu" size={22} color={COLORS.accent} />
-          </Pressable>
+          <View style={styles.menuBtn} />
         </View>
       </View>
 
       <View style={[styles.body, { width: contentWidth }]}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color={COLORS.muted} style={styles.searchIcon} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="البحث عن مدينة..."
-            placeholderTextColor={COLORS.muted}
-            style={styles.searchInput}
-          />
-        </View>
-
         <FlatList
           data={visibleCities}
           keyExtractor={(item) => `${item.lat}:${item.lon}`}
@@ -368,7 +381,7 @@ export default function SalatukCitiesScreen() {
 
 function renderFullRow(label: string, time: Date, isNext = false) {
   return (
-    <View style={styles.fullRow}>
+    <View style={[styles.fullRow, isNext && styles.fullRowActive]}>
       <View style={styles.leftValueWrap} />
 
       <View style={styles.centerLabelWrap}>
@@ -377,12 +390,12 @@ function renderFullRow(label: string, time: Date, isNext = false) {
 
       <View style={styles.rightValueWrap}>
         <View style={styles.rightValueRow}>
+          <Text style={styles.timeText}>{formatTimeLatin(time)}</Text>
           <View style={styles.iconBox}>
             {isNext ? (
               <FontAwesome5 name="mosque" size={16} color={COLORS.accent} solid />
             ) : null}
           </View>
-          <Text style={styles.timeText}>{formatTimeLatin(time)}</Text>
         </View>
       </View>
     </View>
@@ -450,26 +463,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 18,
     alignItems: "center",
-  },
-  searchBar: {
-    width: "100%",
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    backgroundColor: COLORS.searchBg,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
-  searchIcon: {
-    marginLeft: 8,
-  },
-  searchInput: {
-    flex: 1,
-    textAlign: "right",
-    fontFamily: "Cairo",
-    fontSize: 14,
-    color: COLORS.text,
   },
   listContent: {
     paddingBottom: 24,
@@ -605,6 +598,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  fullRowActive: {
+    backgroundColor: COLORS.accentSoft,
   },
   fullLabelCentered: {
     fontFamily: "CairoBold",
