@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import Svg, { Line } from "react-native-svg";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import tzLookup from "tz-lookup";
 
 import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
@@ -131,7 +130,7 @@ export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const tabBarHeight = useBottomTabBarHeight();
+  const tabBarHeight = insets.bottom;
   const [city, setCity] = useState<City | null>(null);
   const [loadingCity, setLoadingCity] = useState(false);
   const [settings, setSettings] = useState<PrayerSettings | null>(null);
@@ -331,7 +330,8 @@ export default function SalatukPrayerTimesScreen() {
         >
           <View style={[styles.header, { paddingTop: topPad }]}>
             <View style={[styles.headerInner, { width: contentWidth }]}>
-              <Text style={styles.headerTitle}>رفيق المسلم</Text>
+              <View style={styles.headerSpacer} />
+              <Text style={styles.headerTitle}>مواقيت الصلاة</Text>
               <View style={styles.headerSpacer} />
             </View>
           </View>
@@ -438,12 +438,27 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.quickActions}>
               {[
-                { key: "times", label: "مواقيت الصلاة", icon: "clock", tint: COLORS.secondary },
+                
                 { key: "world", label: "مدن العالم", icon: "globe", tint: COLORS.primary },
                 { key: "qibla", label: "القبلة", icon: "compass", tint: COLORS.secondary },
                 { key: "mosques", label: "المساجد", icon: "home", tint: COLORS.primary },
+                { key: "times", label: "إعدادات التوقيق", icon: "clock", tint: COLORS.secondary },
               ].map((item) => (
-                <Pressable key={item.key} style={styles.quickCard}>
+                <Pressable
+                  key={item.key}
+                  style={styles.quickCard}
+                  onPress={() => {
+                    if (item.key === "world") {
+                      navigation.navigate("SalatukCities");
+                    }
+                    if (item.key === "qibla") {
+                      navigation.navigate("SalatukHome");
+                    }
+                    if (item.key === "times") {
+                      navigation.navigate("SalatukSettings");
+                    }
+                  }}
+                >
                   <View style={[styles.quickIconWrap, { backgroundColor: `${item.tint}1A` }]}> 
                     <Feather name={item.icon as any} size={18} color={item.tint} />
                   </View>
