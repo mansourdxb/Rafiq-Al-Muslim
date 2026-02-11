@@ -30,6 +30,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [tafsirVisible, setTafsirVisible] = useState(false);
   const [playback, setPlayback] = useState(getQuranPlaybackState());
+  const [miniPlayerH, setMiniPlayerH] = useState(0);
+  const [headerH, setHeaderH] = useState(0);
   const [selectedAyah, setSelectedAyah] = useState<{
     surahName: string;
     surahNumber: number;
@@ -42,6 +44,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
 
   const listRef = useRef<FlatList<number>>(null);
   const pendingIndexRef = useRef<number | null>(null);
+  const viewableSetRef = useRef<Set<number>>(new Set());
+  const ensureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialTargetRef = useRef<number | null>(null);
   const lockedPageRef = useRef<number | null>(null);
   const hasSettledRef = useRef(false);
@@ -49,7 +53,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const { height: windowHeight } = useWindowDimensions();
   const estimatedPageHeight = Math.max(640, windowHeight + 120);
   const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
-  const MINI_PLAYER_HEIGHT = 140;
+  const VIEW_OFFSET = headerH + miniPlayerH + 12;
   const getItemLayout = useCallback(
     (_: ArrayLike<number> | null | undefined, index: number) => ({
       length: pageHeight,
@@ -70,19 +74,40 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     [pageHeight]
   );
 
-  const revealPageIndex = useCallback(
+  const stopEnsure = useCallback(() => {
+    if (ensureTimerRef.current) {
+      clearTimeout(ensureTimerRef.current);
+      ensureTimerRef.current = null;
+    }
+  }, []);
+
+  const ensureVisibleIndex = useCallback(
     (index: number) => {
-      if (index < 0) return;
-      requestAnimationFrame(() => {
-        listRef.current?.scrollToIndex({
-          index,
-          animated: true,
-          viewPosition: 0.2,
-          viewOffset: MINI_PLAYER_HEIGHT + 12,
-        });
-      });
+      stopEnsure();
+      const started = Date.now();
+      const tick = () => {
+        const visible = viewableSetRef.current.has(index);
+        if (!visible) {
+          try {
+            listRef.current?.scrollToIndex({
+              index,
+              animated: true,
+              viewPosition: 0.2,
+              viewOffset: VIEW_OFFSET,
+            });
+          } catch {
+            // ignore, retry below
+          }
+          if (Date.now() - started < 3000) {
+            ensureTimerRef.current = setTimeout(tick, 150);
+            return;
+          }
+        }
+        stopEnsure();
+      };
+      ensureTimerRef.current = setTimeout(tick, 50);
     },
-    [MINI_PLAYER_HEIGHT]
+    [VIEW_OFFSET, stopEnsure]
   );
 
   useEffect(() => {
@@ -217,7 +242,12 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   );
 
   const viewabilityConfig = useMemo(() => ({ itemVisiblePercentThreshold: 60 }), []);
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: number }[] }) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: number; index?: number }[] }) => {
+    const set = new Set<number>();
+    viewableItems?.forEach((v) => {
+      if (typeof v.index === "number") set.add(v.index);
+    });
+    viewableSetRef.current = set;
     if (!viewableItems?.length) return;
     const pageNo = viewableItems[0].item;
     if (DEBUG_QURAN_NAV) {
@@ -270,7 +300,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     return desired ?? 1;
   }, [highlightAyah, initialPageNo, jumpToPage]);
 
-  const activeAyahKey = `${playback.surahNumber ?? "none"}:${playback.ayahNumber ?? "none"}:${playback.isPlaying ? "p" : "s"}:${playback.isPaused ? "y" : "n"}`;
+  const activeAyah = playback.surahNumber ? playback.ayahNumber : null;
 
   useEffect(() => {
     if (disableAutoScroll) return;
@@ -279,8 +309,9 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     const targetPage = getPageForAyah(playback.surahNumber, playback.ayahNumber);
     const index = displayPages.indexOf(targetPage);
     if (index < 0) return;
-    revealPageIndex(index);
-  }, [disableAutoScroll, playback.ayahNumber, playback.isPaused, playback.isPlaying, playback.surahNumber, displayPages, revealPageIndex]);
+    ensureVisibleIndex(index);
+    return stopEnsure;
+  }, [disableAutoScroll, playback.ayahNumber, playback.isPaused, playback.isPlaying, playback.surahNumber, displayPages, ensureVisibleIndex, stopEnsure]);
 
   return (
     <View style={styles.container}>
@@ -288,7 +319,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         ref={listRef}
         data={displayPages}
         keyExtractor={(item) => String(item)}
-        extraData={activeAyahKey}
+        extraData={activeAyah}
         initialScrollIndex={
           disableAutoScroll
             ? 0
@@ -302,7 +333,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         windowSize={10}
         initialNumToRender={6}
         maxToRenderPerBatch={6}
-        onScrollToIndexFailed={({ index }) => {
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
           if (disableAutoScroll) {
             if (DEBUG_QURAN_NAV) {
               console.log("[QuranReader][debug] scrollToIndexFailed ignored", index);
@@ -313,13 +344,13 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
             console.log("[QuranReader][debug] scrollToIndexFailed", index);
           }
           pendingIndexRef.current = index;
-          const offset = Math.max(0, pageHeight * index);
+          const offset = Math.max(0, (averageItemLength || pageHeight) * index - VIEW_OFFSET);
           listRef.current?.scrollToOffset({ offset, animated: true });
           setTimeout(() => {
             const target = pendingIndexRef.current;
             if (target == null) return;
             pendingIndexRef.current = null;
-            revealPageIndex(target);
+            ensureVisibleIndex(target);
           }, 250);
         }}
         renderItem={({ item: pageNo }) => {
@@ -348,7 +379,14 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                   : undefined
               }
             >
-              <View style={styles.pageHeaderRow}>
+              <View
+                style={styles.pageHeaderRow}
+                onLayout={(e) => {
+                  if (!headerH) {
+                    setHeaderH(e.nativeEvent.layout.height);
+                  }
+                }}
+              >
                 <Text style={styles.pageHeaderLeft}>{page.surahName}</Text>
                 <Text style={styles.pageHeaderRight}>{`الجزء ${arabicIndic(page.juzNo)}`}</Text>
               </View>
@@ -406,7 +444,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
             </View>
           );
         }}
-        contentContainerStyle={[styles.page, { paddingBottom: MINI_PLAYER_HEIGHT + 24 }]}
+        contentContainerStyle={[styles.page, { paddingBottom: miniPlayerH + 24 }]}
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
         windowSize={10}
@@ -448,7 +486,14 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         onClose={() => setTafsirVisible(false)}
         tafsirList={selectedAyah?.tafsirList ?? []}
       />
-      <QuranMiniPlayer />
+      <View onLayout={(e) => setMiniPlayerH(e.nativeEvent.layout.height)}>
+        <QuranMiniPlayer />
+      </View>
+      <View style={styles.debugOverlay} pointerEvents="none">
+        <Text style={styles.debugText}>
+          {`ACTIVE: ${activeAyah ?? "-"} | headerH:${headerH} | miniH:${miniPlayerH}`}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -545,5 +590,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
     height: 1,
     backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  debugOverlay: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  debugText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontFamily: "Cairo",
   },
 });
