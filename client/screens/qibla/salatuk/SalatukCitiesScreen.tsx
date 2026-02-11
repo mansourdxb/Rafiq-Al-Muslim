@@ -351,6 +351,13 @@ export default function SalatukCitiesScreen() {
         <View style={[styles.headerInner, { width: contentWidth }]}>
           <View style={styles.headerLeftGroup}>
             <Pressable
+              onPress={() => navigation.navigate("PrayerTimes")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.backBtn}
+            >
+              <Ionicons name="chevron-back" size={18} color={COLORS.accent} />
+            </Pressable>
+            <Pressable
               onPress={openMenu}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.kebabBtn}
@@ -483,6 +490,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   kebabBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  backBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
