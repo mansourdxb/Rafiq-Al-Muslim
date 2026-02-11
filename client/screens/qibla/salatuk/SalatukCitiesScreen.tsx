@@ -203,44 +203,14 @@ export default function SalatukCitiesScreen() {
         timeZone: tz,
       });
 
-    const buildPrayerAt = (d: Date, base: dayjs.Dayjs) => {
-      const parts = Object.fromEntries(
-        new Intl.DateTimeFormat("en-US", {
-          timeZone: tz,
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-          .formatToParts(d)
-          .filter((p) => p.type !== "literal")
-          .map((p) => [p.type, p.value])
-      );
-      const hour = Number(parts.hour ?? "0");
-      const minute = Number(parts.minute ?? "0");
-      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
-      const at = dayjs.tz(
-        {
-          year: base.year(),
-          month: base.month(),
-          day: base.date(),
-          hour,
-          minute,
-          second: 0,
-        },
-        tz
-      );
-      return at.isValid() ? at : null;
-    };
-
     const schedule: Array<{ key: PrayerName; at: dayjs.Dayjs }> = times
       ? [
-          { key: "Fajr", at: buildPrayerAt(times.fajr, cityToday) },
-          { key: "Dhuhr", at: buildPrayerAt(times.dhuhr, cityToday) },
-          { key: "Asr", at: buildPrayerAt(times.asr, cityToday) },
-          { key: "Maghrib", at: buildPrayerAt(times.maghrib, cityToday) },
-          { key: "Isha", at: buildPrayerAt(times.isha, cityToday) },
-        ]
-          .filter((p): p is { key: PrayerName; at: dayjs.Dayjs } => !!p.at)
+          { key: "Fajr", at: dayjs(times.fajr).tz(tz) },
+          { key: "Dhuhr", at: dayjs(times.dhuhr).tz(tz) },
+          { key: "Asr", at: dayjs(times.asr).tz(tz) },
+          { key: "Maghrib", at: dayjs(times.maghrib).tz(tz) },
+          { key: "Isha", at: dayjs(times.isha).tz(tz) },
+        ].filter((p) => p.at.isValid())
       : [];
     schedule.sort((a, b) => a.at.valueOf() - b.at.valueOf());
 
@@ -259,8 +229,8 @@ export default function SalatukCitiesScreen() {
           date: tomorrow.toDate(),
           timeZone: tz,
         });
-        const nextAt = buildPrayerAt(tomorrowTimes.fajr, tomorrow);
-        if (nextAt && nextAt.isValid()) {
+        const nextAt = dayjs(tomorrowTimes.fajr).tz(tz);
+        if (nextAt.isValid()) {
           nextPrayerKey = "Fajr";
           nextPrayerAt = nextAt;
         }
@@ -275,7 +245,7 @@ export default function SalatukCitiesScreen() {
     const currentTime = safeFormatTimeLatinInTZ(nowCity.toDate(), tz);
     const countdown =
       nextPrayerAt && nextPrayerAt.isValid()
-        ? formatCountdownSeconds(Math.max(0, nextPrayerAt.diff(nowCity, "second")))
+        ? formatCountdownSeconds(nextPrayerAt.diff(nowCity, "second"))
         : "--:--";
 
     if (__DEV__ && nextPrayerKey && nextPrayerAt) {
