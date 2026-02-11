@@ -21,7 +21,6 @@ import { getAthanPrefs, type AthanMode, type AthanPrefs } from "@/screens/qibla/
 import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import {
   computePrayerTimes,
-  formatTime,
   formatTimeInTZ,
   type PrayerName,
   type PrayerTimesResult,
@@ -36,7 +35,8 @@ function formatCountdown(ms: number): string {
   const total = Math.max(0, Math.floor(Math.abs(ms) / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
-  return ms > 0 ? `-${pad2(h)}:${pad2(m)}` : `+${pad2(h)}:${pad2(m)}`;
+  const s = total % 60;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -68,6 +68,30 @@ function getCityOnlyLabel(city: City | null) {
   const name = city.name.split(",")[0]?.trim();
   return name || "اختر مدينة";
 }
+
+const COLORS = {
+  header: "#799F84",
+  headerLight: "#8EB098",
+  background: "#FDFCF7",
+  primary: "#B4945C",
+  secondary: "#799F84",
+  card: "#FFFFFF",
+  divider: "#EEE8DA",
+  text: "#2E2F2E",
+  textMuted: "#8C8C8C",
+  toggleTrack: "#E6E0D4",
+  toggleThumb: "#FFFFFF",
+  activeRowBg: "rgba(180, 148, 92, 0.12)",
+};
+
+const PRAYER_LABELS: Record<PrayerName, string> = {
+  Fajr: "الفجر",
+  Sunrise: "الشروق",
+  Dhuhr: "الظهر",
+  Asr: "العصر",
+  Maghrib: "المغرب",
+  Isha: "العشاء",
+};
 
 export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
@@ -200,18 +224,8 @@ export default function SalatukPrayerTimesScreen() {
   const countdown =
     isToday && times
       ? formatCountdown(times.nextPrayerTime.getTime() - Date.now())
-      : "--:--";
-
-  const iconForMode = (mode: AthanMode) => {
-    switch (mode) {
-      case "mute":
-        return "volume-x";
-      case "vibrate":
-        return "smartphone";
-      default:
-        return "volume-1";
-    }
-  };
+      : "--:--:--";
+  const nextPrayerLabel = nextPrayer ? PRAYER_LABELS[nextPrayer] : "�";
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
@@ -276,6 +290,8 @@ export default function SalatukPrayerTimesScreen() {
         >
           <View style={[styles.header, { paddingTop: topPad }]}>
             <View style={[styles.headerInner, { width: contentWidth }]}>
+              <View style={styles.headerSpacer} />
+              <Text style={styles.headerTitle}>???? ??????</Text>
               <Pressable
                 onPress={() => {
                   let current: any = navigation;
@@ -291,27 +307,40 @@ export default function SalatukPrayerTimesScreen() {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={styles.menuBtn}
               >
-                <Feather name="menu" size={28} color="#111111" />
+                <Feather name="menu" size={24} color="#FFFFFF" />
               </Pressable>
             </View>
           </View>
 
           <View style={[styles.body, { width: contentWidth }]}>
-            <View style={styles.cityRow}>
-              <Pressable onPress={() => setIsCityPickerOpen(true)} hitSlop={6}>
-                <Feather name="map-pin" size={16} color="#39A9F4" />
-              </Pressable>
-              <Text
-                style={styles.cityName}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-                ellipsizeMode="tail"
+            <View style={styles.hero}>
+              <Text style={styles.currentPrayer}>{nextPrayerLabel}</Text>
+              <View style={styles.countdownRow}>
+                <Text style={styles.countdownText}>{countdown}</Text>
+              </View>
+              <View style={styles.countdownUnits}>
+                <Text style={styles.unitText}>????</Text>
+                <Text style={styles.unitText}>?????</Text>
+                <Text style={styles.unitText}>?????</Text>
+              </View>
+              <Pressable
+                onPress={() => setIsCityPickerOpen(true)}
+                hitSlop={6}
+                style={styles.cityRow}
               >
-                {cityLabel}
-              </Text>
+                <Feather name="map-pin" size={16} color={COLORS.primary} />
+                <Text
+                  style={styles.cityName}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  ellipsizeMode="tail"
+                >
+                  {cityLabel}
+                </Text>
+              </Pressable>
+              <Text style={styles.cityMeta}>{subtitle}</Text>
             </View>
-            <Text style={styles.cityMeta}>{subtitle}</Text>
 
             <View style={styles.dateRow}>
               <Pressable
@@ -321,7 +350,7 @@ export default function SalatukPrayerTimesScreen() {
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 style={styles.chevronBtn}
               >
-                <Feather name={I18nManager.isRTL ? "chevron-right" : "chevron-left"} size={20} color="#2FA8EE" />
+                <Feather name={I18nManager.isRTL ? "chevron-right" : "chevron-left"} size={20} color={COLORS.secondary} />
               </Pressable>
 
               <View style={styles.dateCenter}>
@@ -338,19 +367,45 @@ export default function SalatukPrayerTimesScreen() {
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   style={styles.chevronBtn}
                 >
-                  <Feather name={I18nManager.isRTL ? "chevron-left" : "chevron-right"} size={20} color="#2FA8EE" />
+                  <Feather name={I18nManager.isRTL ? "chevron-left" : "chevron-right"} size={20} color={COLORS.secondary} />
                 </Pressable>
                 <Pressable
                   onPress={() => {}}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   style={styles.calendarBtn}
                 >
-                  <Feather name="calendar" size={20} color="#2FA8EE" />
+                  <Feather name="calendar" size={20} color={COLORS.secondary} />
                 </Pressable>
               </View>
             </View>
 
             <View style={styles.dateDivider} />
+
+            <View style={styles.clockWrap}>
+              <View style={styles.clockGlow} />
+              <View style={styles.clock}>
+                <View style={styles.clockRing} />
+                <View style={[styles.clockHand, styles.clockHandPrimary]} />
+                <View style={[styles.clockHand, styles.clockHandSecondary]} />
+                <View style={styles.clockDot} />
+              </View>
+            </View>
+
+            <View style={styles.quickActions}>
+              {[
+                { key: "times", label: "?????? ??????", icon: "clock", tint: COLORS.secondary },
+                { key: "world", label: "??? ??????", icon: "globe", tint: COLORS.primary },
+                { key: "qibla", label: "??????", icon: "compass", tint: COLORS.secondary },
+                { key: "mosques", label: "???????", icon: "home", tint: COLORS.primary },
+              ].map((item) => (
+                <Pressable key={item.key} style={styles.quickCard}>
+                  <View style={[styles.quickIconWrap, { backgroundColor: `${item.tint}1A` }]}> 
+                    <Feather name={item.icon as any} size={18} color={item.tint} />
+                  </View>
+                  <Text style={styles.quickLabel}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
 
             <View style={styles.list}>
               {rows.map((row, index) => {
@@ -358,27 +413,30 @@ export default function SalatukPrayerTimesScreen() {
                 const timeText =
                   row.time && tz ? formatTimeInTZ(row.time, tz, "ar") : "--:--";
                 const mode = modeForPrayer(row.key);
-                const iconColor = mode === "mute" ? "#9AA2A9" : "#F0A500";
+                const isEnabled = mode !== "mute";
                 return (
                   <View key={row.key}>
                     <View style={[styles.listRow, isNext && styles.listRowActive]}>
-                      <Pressable onPress={openAthanSettings} hitSlop={6} style={styles.speakerBtn}>
-                        <Feather
-                          name={iconForMode(mode)}
-                          size={18}
-                          color={iconColor}
-                        />
-                      </Pressable>
-                      <Text style={styles.nameText}>{row.label}</Text>
+                      <Text style={[styles.nameText, isNext && styles.nameTextActive]}>
+                        {row.label}
+                      </Text>
                       <Text style={[styles.timeText, isNext && styles.timeTextActive]}>{timeText}</Text>
+                      <Pressable
+                        onPress={openAthanSettings}
+                        hitSlop={6}
+                        style={[
+                          styles.toggle,
+                          isEnabled && styles.toggleActive,
+                        ]}
+                      >
+                        <View style={styles.toggleThumb} />
+                      </Pressable>
                     </View>
                     {index < rows.length - 1 ? <View style={styles.divider} /> : null}
                   </View>
                 );
               })}
             </View>
-
-            <Text style={styles.countdown}>{countdown}</Text>
           </View>
         </ScrollView>
       </View>
@@ -396,17 +454,32 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     alignItems: "center",
-    backgroundColor: "#F2F1EA",
+    backgroundColor: COLORS.background,
   },
   header: {
     width: "100%",
-    paddingBottom: 4,
+    paddingBottom: 8,
     alignItems: "center",
+    backgroundColor: COLORS.header,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   headerInner: {
-    minHeight: 40,
-    justifyContent: "center",
-    alignItems: "flex-end",
+    minHeight: 44,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 20,
+    color: "#FFFFFF",
+  },
+  headerSpacer: {
+    width: 28,
   },
   menuBtn: {
     paddingVertical: 2,
@@ -415,11 +488,43 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingTop: 16,
     alignItems: "center",
   },
-  cityRow: {
+  hero: {
     width: "100%",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  currentPrayer: {
+    fontFamily: "CairoBold",
+    fontSize: 30,
+    color: COLORS.primary,
+  },
+  countdownRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  countdownText: {
+    fontFamily: "CairoBold",
+    fontSize: 40,
+    color: COLORS.primary,
+    fontVariant: ["tabular-nums"],
+  },
+  countdownUnits: {
+    marginTop: 4,
+    flexDirection: "row-reverse",
+    gap: 18,
+  },
+  unitText: {
+    fontFamily: "CairoBold",
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  cityRow: {
+    marginTop: 10,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
@@ -427,20 +532,20 @@ const styles = StyleSheet.create({
   },
   cityName: {
     fontFamily: I18nManager.isRTL ? "CairoBold" : undefined,
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#0E0F10",
-    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.text,
+    paddingHorizontal: 6,
   },
   cityMeta: {
     marginTop: 2,
-    color: "#6B6E72",
+    color: COLORS.textMuted,
     fontFamily: "Cairo",
-    fontSize: 15,
+    fontSize: 13,
   },
   dateRow: {
     width: "100%",
-    marginTop: 18,
+    marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -468,74 +573,191 @@ const styles = StyleSheet.create({
   },
   dayName: {
     fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#22272E",
+    fontSize: 16,
+    color: COLORS.text,
   },
   hijriDate: {
     marginTop: 2,
     fontFamily: "Cairo",
-    fontSize: 16,
-    color: "#2FA8EE",
+    fontSize: 14,
+    color: COLORS.primary,
   },
   gregDate: {
     marginTop: 2,
     fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#6B6E72",
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
   dateDivider: {
     width: "100%",
     height: 1,
-    backgroundColor: "rgba(0,0,0,0.08)",
+    backgroundColor: COLORS.divider,
+    marginTop: 10,
+  },
+  clockWrap: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 14,
+    marginBottom: 8,
+  },
+  clockGlow: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(121, 159, 132, 0.08)",
+  },
+  clock: {
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: "#E6F0E9",
+    borderWidth: 6,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  clockRing: {
+    position: "absolute",
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "rgba(121, 159, 132, 0.35)",
+  },
+  clockHand: {
+    position: "absolute",
+    width: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
+    bottom: "50%",
+  },
+  clockHandPrimary: {
+    height: 58,
+    transform: [{ rotate: "45deg" }],
+  },
+  clockHandSecondary: {
+    height: 70,
+    opacity: 0.6,
+    transform: [{ rotate: "140deg" }],
+  },
+  clockDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  quickActions: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    marginTop: 12,
+    gap: 10,
+  },
+  quickCard: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#F0ECE2",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  quickIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  quickLabel: {
+    fontFamily: "CairoBold",
+    fontSize: 11,
+    color: COLORS.text,
+    textAlign: "center",
   },
   list: {
     width: "100%",
-    marginTop: 10,
+    marginTop: 16,
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#F0ECE2",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   listRow: {
-    minHeight: 44,
-    flexDirection: "row",
+    minHeight: 50,
+    flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  speakerBtn: {
-    width: 28,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 16,
   },
   listRowActive: {
-    backgroundColor: "rgba(255, 210, 110, 0.12)",
-    borderRadius: 8,
-    paddingHorizontal: 6,
+    backgroundColor: COLORS.activeRowBg,
+    borderRightWidth: 4,
+    borderRightColor: COLORS.primary,
   },
   nameText: {
-    flex: 1,
-    textAlign: "center",
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#2F435A",
-  },
-  timeText: {
-    minWidth: 86,
+    width: 80,
     textAlign: "right",
     fontFamily: "CairoBold",
     fontSize: 16,
-    color: "#5A7090",
+    color: COLORS.text,
+  },
+  nameTextActive: {
+    color: COLORS.primary,
+  },
+  timeText: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: COLORS.text,
+    fontVariant: ["tabular-nums"],
   },
   timeTextActive: {
-    color: "#2B2F35",
+    color: COLORS.primary,
   },
   divider: {
     height: 1,
-    backgroundColor: "rgba(91,119,146,0.14)",
+    backgroundColor: COLORS.divider,
   },
-  countdown: {
-    marginTop: 12,
-    alignSelf: "flex-start",
-    fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#BE1144",
+  toggle: {
+    width: 46,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.toggleTrack,
+    padding: 3,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: COLORS.primary,
+    alignItems: "flex-end",
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.toggleThumb,
   },
 });
-
