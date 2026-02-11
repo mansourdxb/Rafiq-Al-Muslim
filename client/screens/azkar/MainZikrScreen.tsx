@@ -80,7 +80,7 @@ export default function MainZikrScreen() {
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, 8) }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.header, { paddingTop: topInset + 12 }]}>

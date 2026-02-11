@@ -31,31 +31,6 @@ type EventItem = {
   unavailable?: boolean;
 };
 
-const EVENTS: EventItem[] = [
-  {
-    id: "ramadan",
-    title: "رمضان",
-    date: new Date(2026, 2, 1, 0, 0, 0),
-    dateLabel: "1 مارس 2026",
-    showBell: true,
-    bellText: "التنبيه قبل الحدث",
-  },
-  {
-    id: "last-ten",
-    title: "العشر الأواخر",
-    date: new Date(2026, 2, 20, 0, 0, 0),
-    dateLabel: "20 مارس 2026",
-    showBell: true,
-    bellText: "تذكير عند بداية العشر",
-  },
-  {
-    id: "eid",
-    title: "عيد الفطر",
-    date: new Date(2026, 3, 1, 0, 0, 0),
-    dateLabel: "1 أبريل 2026",
-  },
-];
-
 function clamp0(n: number) {
   return n < 0 ? 0 : n;
 }
@@ -79,7 +54,7 @@ function formatNumber(n: number) {
 
 function getIslamicParts(date: Date): { iy: number; im: number; id: number } | null {
   try {
-    const fmt = new Intl.DateTimeFormat("en-TN-u-ca-islamic", {
+    const fmt = new Intl.DateTimeFormat("en-TN-u-ca-islamic-umalqura", {
       day: "numeric",
       month: "numeric",
       year: "numeric",
@@ -88,8 +63,20 @@ function getIslamicParts(date: Date): { iy: number; im: number; id: number } | n
     const day = Number(parts.find((p) => p.type === "day")?.value);
     const month = Number(parts.find((p) => p.type === "month")?.value);
     const year = Number(parts.find((p) => p.type === "year")?.value);
-    if (!day || !month || !year) return null;
-    return { iy: year, im: month, id: day };
+    if (day && month && year) {
+      return { iy: year, im: month, id: day };
+    }
+    const fallback = new Intl.DateTimeFormat("en-TN-u-ca-islamic", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    });
+    const fallbackParts = fallback.formatToParts(date);
+    const fDay = Number(fallbackParts.find((p) => p.type === "day")?.value);
+    const fMonth = Number(fallbackParts.find((p) => p.type === "month")?.value);
+    const fYear = Number(fallbackParts.find((p) => p.type === "year")?.value);
+    if (!fDay || !fMonth || !fYear) return null;
+    return { iy: fYear, im: fMonth, id: fDay };
   } catch {
     return null;
   }
@@ -187,7 +174,7 @@ export default function CalendarScreen() {
   const HEADER_MIN_HEIGHT = 132;
 
   const footerYear = useMemo(() => formatNumber(new Date().getFullYear()), []);
-  const extraEvents = useMemo<EventItem[]>(() => {
+  const events = useMemo<EventItem[]>(() => {
     const now = new Date();
     const formatter = new Intl.DateTimeFormat("ar-EG", {
       day: "numeric",
@@ -215,6 +202,17 @@ export default function CalendarScreen() {
     };
 
     return [
+      {
+        ...buildEvent("ramadan", "رمضان", 9, 1),
+        showBell: true,
+        bellText: "التنبيه قبل الحدث",
+      },
+      {
+        ...buildEvent("last-ten", "العشر الأواخر", 9, 21),
+        showBell: true,
+        bellText: "تذكير عند بداية العشر",
+      },
+      buildEvent("eid", "عيد الفطر", 10, 1),
       buildEvent("arafah", "يوم عرفة", 12, 9),
       buildEvent("adha", "عيد الأضحى", 12, 10),
       buildEvent("new-hijri", "رأس السنة الهجرية", 1, 1),
@@ -254,10 +252,7 @@ export default function CalendarScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
       >
-        {EVENTS.map((event) => (
-          <EventCard key={event.id} event={event} />
-        ))}
-        {extraEvents.map((event) => (
+        {events.map((event) => (
           <EventCard key={event.id} event={event} />
         ))}
       </ScrollView>

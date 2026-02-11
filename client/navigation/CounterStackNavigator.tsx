@@ -1,6 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import CounterScreen from "@/screens/CounterScreen";
+import CounterScreen from "@/screens/azkar/CounterScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -11,3 +11,4 @@ export default function CounterStackNavigator() {
     </Stack.Navigator>
   );
 }
+

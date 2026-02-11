@@ -1,14 +1,14 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import PresetsScreen from "@/screens/PresetsScreen";
-import CounterScreen from "@/screens/CounterScreen";
-import AddZikrScreen from "@/screens/AddZikrScreen";
+import PresetsScreen from "@/screens/azkar/PresetsScreen";
+import CounterScreen from "@/screens/azkar/CounterScreen";
+import AddZikrScreen from "@/screens/azkar/AddZikrScreen";
 import MainZikrScreen from "@/screens/azkar/MainZikrScreen";
-import CalendarScreen from "@/screens/CalendarScreen";
-import StatsScreen from "@/screens/StatsScreen";
-import HisnAlMuslimScreen from "@/screens/athkar/HisnAlMuslimScreen";
-import HisnCategoryScreen from "@/screens/athkar/HisnCategoryScreen";
+import CalendarScreen from "@/screens/azkar/CalendarScreen";
+import StatsScreen from "@/screens/azkar/StatsScreen";
+import HisnAlMuslimScreen from "@/screens/azkar/HisnAlMuslimScreen";
+import HisnCategoryScreen from "@/screens/azkar/HisnCategoryScreen";
 import AiModelSetupScreen from "@/src/screens/ai/AiModelSetupScreen";
 
 export type PresetsStackParamList = {
@@ -40,3 +40,4 @@ export default function PresetsStackNavigator() {
     </Stack.Navigator>
   );
 }
+
