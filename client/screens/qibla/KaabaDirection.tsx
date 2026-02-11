@@ -133,9 +133,9 @@ export default function KaabaDirection() {
     : null;
   const qiblaDegreeText =
     qiblaBearing === null ? "--°" : `${Math.round(qiblaBearing)}°`;
-  const arrowAngle =
-    qiblaBearing !== null && headingDeg !== null
-      ? (qiblaBearing - headingDeg + 360) % 360
+  const needleRotation =
+    qiblaBearing !== null
+      ? (qiblaBearing - (headingDeg ?? 0) + 360) % 360
       : 0;
 
   const compassSize = Math.min(contentWidth - 40, 290);
@@ -202,7 +202,7 @@ export default function KaabaDirection() {
                   source={COMPASS_NEEDLE}
                   style={[
                     styles.compassNeedle,
-                    { transform: [{ rotate: `${arrowAngle}deg` }] },
+                    { transform: [{ rotate: `${needleRotation}deg` }] },
                   ]}
                 />
               </View>
@@ -215,7 +215,9 @@ export default function KaabaDirection() {
               </View>
               <Text style={styles.qiblaLabel}>القبلة</Text>
               {headingDeg === null && Platform.OS === "web" ? (
-                <Text style={styles.webHint}>ميزة البوصلة غير متاحة على الويب.</Text>
+                <Text style={styles.webHint}>
+                  Compass sensor not available on web. Use phone for live compass.
+                </Text>
               ) : null}
               {__DEV__ ? (
                 <Text style={styles.debugText}>
