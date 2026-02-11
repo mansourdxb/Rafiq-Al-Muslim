@@ -1,6 +1,7 @@
 ﻿// client/screens/salatuk/SalatukCitiesScreen.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  BackHandler,
   FlatList,
   Modal,
   Pressable,
@@ -11,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -90,6 +92,7 @@ function formatCountdownSeconds(seconds: number): string {
 }
 
 export default function SalatukCitiesScreen() {
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -103,6 +106,10 @@ export default function SalatukCitiesScreen() {
 
   const contentWidth = Math.min(width, 430);
   const headerPadTop = useMemo(() => insets.top + 8, [insets.top]);
+  const goToPrayerTimes = useMemo(
+    () => () => navigation.navigate("PrayerTimes"),
+    [navigation]
+  );
 
   const formatCountdown = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
@@ -129,6 +136,18 @@ export default function SalatukCitiesScreen() {
       mounted = false;
     };
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Always return to Prayer Times from this screen (hardware back override).
+      const onBack = () => {
+        goToPrayerTimes();
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
+      return () => sub.remove();
+    }, [goToPrayerTimes])
+  );
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -351,7 +370,7 @@ export default function SalatukCitiesScreen() {
         <View style={[styles.headerInner, { width: contentWidth }]}>
           <View style={styles.headerLeftGroup}>
             <Pressable
-              onPress={() => navigation.navigate("PrayerTimes")}
+              onPress={goToPrayerTimes}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.backBtn}
             >
