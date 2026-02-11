@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
@@ -31,7 +30,6 @@ const COLORS = {
 export default function KaabaDirection() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { width } = useWindowDimensions();
   const { isDarkMode } = useTheme();
 
@@ -151,7 +149,7 @@ export default function KaabaDirection() {
 
       <ScrollView
         style={{ width: contentWidth }}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.header, { paddingTop: headerPadTop }]}> 
