@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import {
   I18nManager,
   Platform,
@@ -200,9 +200,9 @@ export default function SalatukPrayerTimesScreen() {
   const cityLabel = getCityOnlyLabel(city);
   const subtitle =
     city?.source === "manual"
-      ? "الموقع مثبت يدويًا"
+      ? "الموقع مثبت يدوياً"
       : city?.source === "gps"
-        ? "تم تحديد الموقع تلقائيًا"
+        ? "تم تحديد الموقع تلقائياً"
         : loadingCity
           ? "جارٍ تحديد المدينة..."
           : "الموقع غير محدد";
@@ -225,7 +225,7 @@ export default function SalatukPrayerTimesScreen() {
     isToday && times
       ? formatCountdown(times.nextPrayerTime.getTime() - Date.now())
       : "--:--:--";
-  const nextPrayerLabel = nextPrayer ? PRAYER_LABELS[nextPrayer] : "�";
+  const nextPrayerLabel = nextPrayer ? PRAYER_LABELS[nextPrayer] : "—";
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
@@ -291,7 +291,7 @@ export default function SalatukPrayerTimesScreen() {
           <View style={[styles.header, { paddingTop: topPad }]}>
             <View style={[styles.headerInner, { width: contentWidth }]}>
               <View style={styles.headerSpacer} />
-              <Text style={styles.headerTitle}>???? ??????</Text>
+              <Text style={styles.headerTitle}>رفيق المسلم</Text>
               <Pressable
                 onPress={() => {
                   let current: any = navigation;
@@ -319,9 +319,9 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.countdownText}>{countdown}</Text>
               </View>
               <View style={styles.countdownUnits}>
-                <Text style={styles.unitText}>????</Text>
-                <Text style={styles.unitText}>?????</Text>
-                <Text style={styles.unitText}>?????</Text>
+                <Text style={styles.unitText}>ساعة</Text>
+                <Text style={styles.unitText}>دقيقة</Text>
+                <Text style={styles.unitText}>ثانية</Text>
               </View>
               <Pressable
                 onPress={() => setIsCityPickerOpen(true)}
@@ -393,10 +393,10 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.quickActions}>
               {[
-                { key: "times", label: "?????? ??????", icon: "clock", tint: COLORS.secondary },
-                { key: "world", label: "??? ??????", icon: "globe", tint: COLORS.primary },
-                { key: "qibla", label: "??????", icon: "compass", tint: COLORS.secondary },
-                { key: "mosques", label: "???????", icon: "home", tint: COLORS.primary },
+                { key: "times", label: "مواقيت الصلاة", icon: "clock", tint: COLORS.secondary },
+                { key: "world", label: "مدن العالم", icon: "globe", tint: COLORS.primary },
+                { key: "qibla", label: "القبلة", icon: "compass", tint: COLORS.secondary },
+                { key: "mosques", label: "المساجد", icon: "home", tint: COLORS.primary },
               ].map((item) => (
                 <Pressable key={item.key} style={styles.quickCard}>
                   <View style={[styles.quickIconWrap, { backgroundColor: `${item.tint}1A` }]}> 
