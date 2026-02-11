@@ -1,7 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
-import SalatukEntryScreen from "@/screens/qibla/salatuk/SalatukEntryScreen";
+import PrayerStackNavigator from "@/navigation/PrayerStackNavigator";
 import PresetsStackNavigator from "@/navigation/PresetsStackNavigator";
 import QuranTabNavigator from "@/navigation/QuranTabNavigator";
 import HadithStackNavigator from "@/navigation/HadithStackNavigator";
@@ -26,7 +26,7 @@ export default function MainTabNavigator() {
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <StitchTabBar {...props} />}
     >
-      <Tab.Screen name="PrayerTab" component={SalatukEntryScreen} />
+      <Tab.Screen name="PrayerTab" component={PrayerStackNavigator} />
       <Tab.Screen name="QuranTab" component={QuranTabNavigator} />
       <Tab.Screen name="HadithTab" component={HadithStackNavigator} />
       <Tab.Screen name="AthkarTab" component={PresetsStackNavigator} />

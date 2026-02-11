@@ -449,13 +449,13 @@ export default function SalatukPrayerTimesScreen() {
                   style={styles.quickCard}
                   onPress={() => {
                     if (item.key === "world") {
-                      navigation.navigate("SalatukCities");
+                      navigation.navigate("WorldCities");
                     }
                     if (item.key === "qibla") {
-                      navigation.navigate("SalatukHome");
+                      navigation.navigate("QiblaDirection");
                     }
                     if (item.key === "times") {
-                      navigation.navigate("SalatukSettings");
+                      navigation.navigate("PrayerSettings");
                     }
                   }}
                 >
