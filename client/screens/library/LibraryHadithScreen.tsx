@@ -21,37 +21,6 @@ import { typography } from "@/theme/typography";
 import type { LibraryStackParamList } from "@/navigation/LibraryStackNavigator";
 import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 
-import riyad from "@/constants/library/Riyad_Salheen.json";
-import bulugh from "@/constants/library/bulugh_almaram.json";
-import adab from "@/constants/library/aladab_almufrad.json";
-import qudsi from "@/constants/library/qudsi40.json";
-
-function Card({
-  children,
-  outerStyle,
-  innerStyle,
-}: {
-  children: React.ReactNode;
-  outerStyle?: any;
-  innerStyle?: any;
-}) {
-  return (
-    <View style={[styles.cardOuter, outerStyle]}>
-      <View style={[styles.cardInner, innerStyle]}>{children}</View>
-    </View>
-  );
-}
-
-function getCount(data: any) {
-  if (Array.isArray(data)) return data.length;
-  if (!data || typeof data !== "object") return 0;
-  if (Array.isArray((data as any).items)) return (data as any).items.length;
-  if (Array.isArray((data as any).hadiths)) return (data as any).hadiths.length;
-  if (Array.isArray((data as any).ahadith)) return (data as any).ahadith.length;
-  if (Array.isArray((data as any).chapters)) return (data as any).chapters.length;
-  return Object.keys(data).length;
-}
-
 const hadithBooks = [
   {
     id: "bukhari",
@@ -106,16 +75,6 @@ export default function LibraryHadithScreen() {
   const { width } = useWindowDimensions();
   const { colors, isDarkMode } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<LibraryStackParamList>>();
-
-  const books = useMemo(
-    () => [
-      { key: "riyad" as const, label: "\u0631\u064a\u0627\u0636 \u0627\u0644\u0635\u0627\u0644\u062d\u064a\u0646", data: riyad },
-      { key: "bulugh" as const, label: "\u0628\u0644\u0648\u063a \u0627\u0644\u0645\u0631\u0627\u0645", data: bulugh },
-      { key: "adab" as const, label: "\u0627\u0644\u0623\u062f\u0628 \u0627\u0644\u0645\u0641\u0631\u062f", data: adab },
-      { key: "qudsi" as const, label: "\u0627\u0644\u0623\u062d\u0627\u062f\u064a\u062b \u0627\u0644\u0642\u062f\u0633\u064a\u0629", data: qudsi },
-    ],
-    []
-  );
 
   const contentWidth = Math.min(width, 430);
   const headerGradientColors = colors.headerGradient as [string, string, ...string[]];
@@ -205,22 +164,6 @@ export default function LibraryHadithScreen() {
             )}
           />
 
-          <Card
-            outerStyle={{ backgroundColor: cardOuterBackground, marginTop: 12 }}
-            innerStyle={{ backgroundColor: cardInnerBackground }}
-          >
-            <Text style={[styles.cardTitle, { color: primaryText }, typography.sectionTitle]}>
-              {"\u0643\u062a\u0628 \u0627\u0644\u062d\u062f\u064a\u062b \u0627\u0644\u0645\u062d\u0644\u064a\u0629"}
-            </Text>
-            <Text style={[styles.cardSub, { color: secondaryText }, typography.itemSubtitle]}>
-              {"\u0631\u064a\u0627\u0636 \u0627\u0644\u0635\u0627\u0644\u062d\u064a\u0646\u060c \u0628\u0644\u0648\u063a \u0627\u0644\u0645\u0631\u0627\u0645\u060c \u0627\u0644\u0623\u062f\u0628 \u0627\u0644\u0645\u0641\u0631\u062f\u060c \u0627\u0644\u0623\u062d\u0627\u062f\u064a\u062b \u0627\u0644\u0642\u062f\u0633\u064a\u0629"}
-            </Text>
-            <View style={styles.statRow}>
-              <Text style={[styles.statValue, { color: primaryText }, typography.numberText]}>
-                {books.reduce((acc, b) => acc + getCount(b.data), 0)}
-              </Text>
-            </View>
-          </Card>
         </View>
       </ScrollView>
     </View>
@@ -260,34 +203,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     paddingTop: 16,
     paddingHorizontal: 14,
-  },
-  cardOuter: {
-    borderRadius: 28,
-    padding: 10,
-    ...(Platform.OS === "web" ? ({ boxShadow: "0 12px 30px rgba(0,0,0,0.12)" } as any) : null),
-  },
-  cardInner: {
-    borderRadius: 22,
-    padding: 16,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    textAlign: "right",
-  },
-  cardSub: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "right",
-  },
-  statRow: {
-    marginTop: 16,
-    alignItems: "flex-end",
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: "900",
   },
   hadithList: {
     gap: 12,
