@@ -359,7 +359,9 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                   style={styles.frame}
                   imageStyle={styles.frameImage}
                 >
+                  <View style={styles.frameInner}>
                   <Text style={styles.frameTitle}>{`سورة ${bannerName.replace(/^سورة\s*/i, "")}`}</Text>
+                </View>
                 </ImageBackground>
               ) : null}
 
@@ -476,16 +478,26 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderRadius: 8,
   },
+  frameInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   frameImage: {
     resizeMode: "cover",
     alignSelf: "center",
   },
   frameTitle: {
-    ...typography.itemTitle,
-    fontSize: 20,
+    fontFamily: "KFGQPCUthmanicScript",
+    fontSize: 28,
+    lineHeight: 34,
     color: "#6E5A46",
     textAlign: "center",
+    alignSelf: "center",
+    width: "100%",
     writingDirection: "rtl",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   pageSection: {
     paddingBottom: 18,
@@ -547,3 +559,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.08)",
   },
 });
+
+
+
+
