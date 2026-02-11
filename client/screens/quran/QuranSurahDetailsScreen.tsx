@@ -41,6 +41,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   } | null>(null);
 
   const listRef = useRef<FlatList<number>>(null);
+  const pendingIndexRef = useRef<number | null>(null);
   const initialTargetRef = useRef<number | null>(null);
   const lockedPageRef = useRef<number | null>(null);
   const hasSettledRef = useRef(false);
@@ -48,6 +49,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const { height: windowHeight } = useWindowDimensions();
   const estimatedPageHeight = Math.max(640, windowHeight + 120);
   const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
+  const MINI_PLAYER_HEIGHT = 150;
   const getItemLayout = useCallback(
     (_: ArrayLike<number> | null | undefined, index: number) => ({
       length: pageHeight,
@@ -66,6 +68,21 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
       return () => clearTimeout(t);
     },
     [pageHeight]
+  );
+
+  const revealPageIndex = useCallback(
+    (index: number) => {
+      if (index < 0) return;
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToIndex({
+          index,
+          animated: true,
+          viewPosition: 0.2,
+          viewOffset: MINI_PLAYER_HEIGHT + 12,
+        });
+      });
+    },
+    [MINI_PLAYER_HEIGHT]
   );
 
   useEffect(() => {
@@ -255,12 +272,16 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     const targetPage = getPageForAyah(playback.surahNumber, playback.ayahNumber);
     const index = displayPages.indexOf(targetPage);
     if (index < 0) return;
-    try {
-      listRef.current?.scrollToIndex({ index, viewPosition: 0.25, animated: true });
-    } catch {
-      scrollToPageIndex(index);
-    }
-  }, [disableAutoScroll, playback.ayahNumber, playback.isPaused, playback.isPlaying, playback.surahNumber, displayPages, scrollToPageIndex]);
+    revealPageIndex(index);
+  }, [
+    disableAutoScroll,
+    playback.ayahNumber,
+    playback.isPaused,
+    playback.isPlaying,
+    playback.surahNumber,
+    displayPages,
+    revealPageIndex,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -291,7 +312,15 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
           if (DEBUG_QURAN_NAV) {
             console.log("[QuranReader][debug] scrollToIndexFailed", index);
           }
-          scrollToPageIndex(index);
+          pendingIndexRef.current = index;
+          const offset = Math.max(0, pageHeight * index);
+          listRef.current?.scrollToOffset({ offset, animated: true });
+          setTimeout(() => {
+            const target = pendingIndexRef.current;
+            if (target == null) return;
+            pendingIndexRef.current = null;
+            revealPageIndex(target);
+          }, 250);
         }}
         renderItem={({ item: pageNo }) => {
           const page = getPageData(pageNo);
@@ -377,7 +406,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
             </View>
           );
         }}
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, { paddingBottom: MINI_PLAYER_HEIGHT + 24 }]}
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
         windowSize={6}
@@ -497,10 +526,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(30,139,90,0.18)",
   },
   activeRecitation: {
-    backgroundColor: "rgba(47,110,82,0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(47,110,82,0.6)",
-    borderRadius: 6,
+    backgroundColor: "rgba(47,110,82,0.16)",
   },
   bookmarkDot: {
     fontFamily: "KFGQPCUthmanicScript",
