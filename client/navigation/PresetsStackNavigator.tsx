@@ -9,7 +9,6 @@ import CalendarScreen from "@/screens/CalendarScreen";
 import StatsScreen from "@/screens/StatsScreen";
 import HisnAlMuslimScreen from "@/screens/athkar/HisnAlMuslimScreen";
 import HisnCategoryScreen from "@/screens/athkar/HisnCategoryScreen";
-import AiChatTestScreen from "@/src/screens/ai/AiChatTestScreen";
 import AiModelSetupScreen from "@/src/screens/ai/AiModelSetupScreen";
 
 export type PresetsStackParamList = {
@@ -21,7 +20,6 @@ export type PresetsStackParamList = {
   Stats: undefined;
   HisnAlMuslim: undefined;
   HisnCategory: { categoryId?: number; categoryTitle?: string };
-  AiChatTest: undefined;
   AiModelSetup: undefined;
 };
 
@@ -38,7 +36,6 @@ export default function PresetsStackNavigator() {
       <Stack.Screen name="Stats" component={StatsScreen} />
       <Stack.Screen name="HisnAlMuslim" component={HisnAlMuslimScreen} />
       <Stack.Screen name="HisnCategory" component={HisnCategoryScreen} />
-      <Stack.Screen name="AiChatTest" component={AiChatTestScreen} />
       <Stack.Screen name="AiModelSetup" component={AiModelSetupScreen} />
     </Stack.Navigator>
   );
