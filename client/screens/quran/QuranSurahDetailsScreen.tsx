@@ -49,7 +49,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const { height: windowHeight } = useWindowDimensions();
   const estimatedPageHeight = Math.max(640, windowHeight + 120);
   const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
-  const MINI_PLAYER_HEIGHT = 150;
+  const MINI_PLAYER_HEIGHT = 140;
   const getItemLayout = useCallback(
     (_: ArrayLike<number> | null | undefined, index: number) => ({
       length: pageHeight,
@@ -91,6 +91,11 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   }, []);
 
   useEffect(() => subscribeQuranPlayback(setPlayback), []);
+
+  useEffect(() => {
+    if (!playback.surahNumber || !playback.ayahNumber) return;
+    console.log("PLAYING", playback.surahNumber, playback.ayahNumber, playback.isPlaying);
+  }, [playback.ayahNumber, playback.isPlaying, playback.surahNumber]);
 
   useEffect(() => {
     if (!jumpToPage) return;
@@ -265,6 +270,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     return desired ?? 1;
   }, [highlightAyah, initialPageNo, jumpToPage]);
 
+  const activeAyahKey = `${playback.surahNumber ?? "none"}:${playback.ayahNumber ?? "none"}:${playback.isPlaying ? "p" : "s"}:${playback.isPaused ? "y" : "n"}`;
+
   useEffect(() => {
     if (disableAutoScroll) return;
     if (!playback.surahNumber || !playback.ayahNumber) return;
@@ -273,15 +280,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     const index = displayPages.indexOf(targetPage);
     if (index < 0) return;
     revealPageIndex(index);
-  }, [
-    disableAutoScroll,
-    playback.ayahNumber,
-    playback.isPaused,
-    playback.isPlaying,
-    playback.surahNumber,
-    displayPages,
-    revealPageIndex,
-  ]);
+  }, [disableAutoScroll, playback.ayahNumber, playback.isPaused, playback.isPlaying, playback.surahNumber, displayPages, revealPageIndex]);
 
   return (
     <View style={styles.container}>
@@ -289,6 +288,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         ref={listRef}
         data={displayPages}
         keyExtractor={(item) => String(item)}
+        extraData={activeAyahKey}
         initialScrollIndex={
           disableAutoScroll
             ? 0
@@ -409,9 +409,9 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         contentContainerStyle={[styles.page, { paddingBottom: MINI_PLAYER_HEIGHT + 24 }]}
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
-        windowSize={6}
-        initialNumToRender={3}
-        maxToRenderPerBatch={4}
+        windowSize={10}
+        initialNumToRender={20}
+        maxToRenderPerBatch={20}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
       />
