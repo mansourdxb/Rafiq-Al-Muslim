@@ -1,5 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Image,
+  ImageBackground,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,9 +13,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
-import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import { useTheme } from "@/context/ThemeContext";
 import type { City } from "@/screens/qibla/services/preferences";
@@ -20,18 +23,12 @@ import { getSelectedCity, setSelectedCity } from "@/screens/qibla/services/prefe
 import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 import { useDeviceHeading } from "@/src/hooks/useDeviceHeading";
 
-const DIRECTION_LABELS = [
-  { label: "N", angle: 0 },
-  { label: "NE", angle: 45 },
-  { label: "E", angle: 90 },
-  { label: "SE", angle: 135 },
-  { label: "S", angle: 180 },
-  { label: "SW", angle: 225 },
-  { label: "W", angle: 270 },
-  { label: "NW", angle: 315 },
-];
+const BG_IMAGE = require("@/assets/qibla/qibla-bg.png");
+const COMPASS_BASE = require("@/assets/qibla/compass-base.png");
+const COMPASS_NEEDLE = require("@/assets/qibla/compass-needle.png");
 
 export default function KaabaDirection() {
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { width } = useWindowDimensions();
@@ -46,6 +43,7 @@ export default function KaabaDirection() {
   const [loadingCity, setLoadingCity] = useState(false);
   const [cityLookupFailed, setCityLookupFailed] = useState(false);
   const [autoOpenedPickerOnWeb, setAutoOpenedPickerOnWeb] = useState(false);
+  const [showCalibration, setShowCalibration] = useState(false);
   const { headingDeg, accuracy, source } = useDeviceHeading();
   const hasLoadedRef = useRef(false);
   const cityVersionRef = useRef(0);
@@ -133,130 +131,128 @@ export default function KaabaDirection() {
   const qiblaBearing = selectedCity
     ? computeQiblaBearing(selectedCity.lat, selectedCity.lon)
     : null;
-  const headingText =
-    headingDeg === null ? "--°" : `${Math.round(headingDeg)}°`;
   const qiblaDegreeText =
     qiblaBearing === null ? "--°" : `${Math.round(qiblaBearing)}°`;
-  const qiblaCityLine =
-    selectedCity && qiblaBearing !== null
-      ? `${selectedCity.name} ${Math.round(qiblaBearing)}°`
-      : "";
   const arrowAngle =
     qiblaBearing !== null && headingDeg !== null
       ? (qiblaBearing - headingDeg + 360) % 360
       : 0;
 
-  const compassSize = 230;
-  const ringRadius = compassSize / 2;
+  const compassSize = Math.min(contentWidth - 40, 290);
 
   return (
-    <View style={[styles.root, { backgroundColor: isDarkMode ? "#15140F" : "#FFFFFF" }]}>
-      <ScrollView
-        style={{ width: contentWidth }}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
-        showsVerticalScrollIndicator={false}
+    <View style={[styles.root, { backgroundColor: isDarkMode ? "#15140F" : "#F7F2E7" }]}>
+      <ImageBackground
+        source={BG_IMAGE}
+        resizeMode="cover"
+        style={styles.bg}
+        imageStyle={styles.bgImage}
       >
-        <View style={[styles.topRow, { paddingTop: headerPadTop }]}>
-          <View style={styles.menuButton}>
-            <DrawerMenuButton />
-          </View>
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.cityRow}>
-            <Text
-              style={styles.cityName}
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.6}
-            >
-              {loadingCity ? "..." : cityTitle}
-            </Text>
-            <Pressable style={styles.pinButton} onPress={() => setIsCityPickerOpen(true)}>
-              <Feather name="map-pin" size={18} color="#3D6FA3" />
-            </Pressable>
-          </View>
-          {citySourceText ? <Text style={styles.citySource}>{citySourceText}</Text> : null}
-
-          <View style={styles.compassSection}>
-            <View style={styles.kaabaWrap}>
-              <FontAwesome5 name="kaaba" size={34} color="#7B7B7B" />
+        <ScrollView
+          style={{ width: contentWidth }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.header, { paddingTop: headerPadTop }]}>
+            <View style={styles.headerRow}>
+              <Pressable
+                onPress={() => {
+                  if (navigation.canGoBack?.()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate("PrayerTimes");
+                  }
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.headerBtn}
+              >
+                <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
+              </Pressable>
+              <Text style={styles.headerTitle}>بوصلة اتجاه القبلة</Text>
+              <Pressable
+                onPress={() => navigation.navigate("SalatukSettings")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.headerBtn}
+              >
+                <Ionicons name="settings" size={18} color="#FFFFFF" />
+              </Pressable>
             </View>
+          </View>
 
-            <View style={[styles.compassWrap, { width: compassSize, height: compassSize }]}>
-              <View style={[styles.ring, { width: compassSize, height: compassSize }]} />
+          <View style={styles.content}>
+            <View style={styles.cityRow}>
+              <Text
+                style={styles.cityName}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {loadingCity ? "..." : cityTitle}
+              </Text>
+              <Pressable style={styles.pinButton} onPress={() => setIsCityPickerOpen(true)}>
+                <Feather name="map-pin" size={18} color="#2F6E52" />
+              </Pressable>
+            </View>
+            {citySourceText ? <Text style={styles.citySource}>{citySourceText}</Text> : null}
 
-              {DIRECTION_LABELS.map((item) => (
-                <View
-                  key={item.label}
+            <View style={styles.compassSection}>
+              <View style={[styles.compassWrap, { width: compassSize, height: compassSize }]}>
+                <Image source={COMPASS_BASE} style={styles.compassBase} />
+                <Image
+                  source={COMPASS_NEEDLE}
                   style={[
-                    styles.directionLabelWrap,
-                    {
-                      width: compassSize,
-                      height: compassSize,
-                      transform: [
-                        { rotate: `${item.angle}deg` },
-                        { translateY: -(ringRadius - 34) },
-                        { rotate: `${-item.angle}deg` },
-                      ],
-                    },
-                  ]}
-                >
-                  <Text style={styles.directionLabel}>{item.label}</Text>
-                </View>
-              ))}
-
-              {Array.from({ length: 12 }).map((_, idx) => (
-                <View
-                  key={`tick-${idx}`}
-                  style={[
-                    styles.tick,
-                    {
-                      transform: [
-                        { rotate: `${idx * 30}deg` },
-                        { translateY: -(ringRadius - 6) },
-                      ],
-                    },
+                    styles.compassNeedle,
+                    { transform: [{ rotate: `${arrowAngle}deg` }] },
                   ]}
                 />
-              ))}
-
-              <View style={styles.centerDot} />
-
-              <View
-                style={[
-                  styles.pointerWrap,
-                  {
-                    transform: [
-                      { rotate: `${arrowAngle}deg` },
-                      { translateY: -(ringRadius - 14) },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.pointerTriangle} />
               </View>
             </View>
-          </View>
 
-          <View style={styles.qiblaInfoWrap}>
-            <Text style={styles.qiblaDegree}>{headingText}</Text>
-            <Text style={styles.qiblaSubtitle}>اتجاه القبلة التقريبي في موقعك</Text>
-            {qiblaCityLine ? <Text style={styles.qiblaCityLine}>{qiblaCityLine}</Text> : null}
-            {__DEV__ ? (
-              <Text style={styles.debugText}>
-                {`Heading: ${headingDeg == null ? "--" : Math.round(headingDeg)}° (${source}) acc: ${accuracy ?? "--"}`}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-      </ScrollView>
+            <View style={styles.qiblaInfoWrap}>
+              <View style={styles.degreeRow}>
+                <Text style={styles.qiblaDegree}>{qiblaDegreeText}</Text>
+                <Ionicons name="arrow-undo" size={20} color="#2F6E52" />
+              </View>
+              <Text style={styles.qiblaLabel}>القبلة</Text>
+              {headingDeg === null && Platform.OS === "web" ? (
+                <Text style={styles.webHint}>ميزة البوصلة غير متاحة على الويب.</Text>
+              ) : null}
+              {__DEV__ ? (
+                <Text style={styles.debugText}>
+                  {`Heading: ${headingDeg == null ? "--" : Math.round(headingDeg)}° (${source}) acc: ${accuracy ?? "--"}`}
+                </Text>
+              ) : null}
+            </View>
 
-      <CityPickerModal
-        visible={isCityPickerOpen}
-        onClose={() => setIsCityPickerOpen(false)}
-        onSelect={handleCitySelect}
-      />
+            <Pressable
+              onPress={() => setShowCalibration(true)}
+              style={styles.calibrateBtn}
+            >
+              <Text style={styles.calibrateText}>معايرة</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+
+        <CityPickerModal
+          visible={isCityPickerOpen}
+          onClose={() => setIsCityPickerOpen(false)}
+          onSelect={handleCitySelect}
+        />
+        <Modal transparent visible={showCalibration} animationType="fade">
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowCalibration(false)}>
+            <Pressable style={styles.modalCard} onPress={() => {}}>
+              <Text style={styles.modalTitle}>معايرة البوصلة</Text>
+              <Text style={styles.modalText}>حرّك الهاتف بحركة رقم ٨ حتى تتحسن الدقة.</Text>
+              <Pressable
+                onPress={() => setShowCalibration(false)}
+                style={styles.modalButton}
+              >
+                <Text style={styles.modalButtonText}>حسنًا</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </ImageBackground>
     </View>
   );
 }
@@ -294,27 +290,44 @@ function isUnknownCityName(name?: string | null): boolean {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  bg: {
+    flex: 1,
     alignItems: "center",
   },
-  topRow: {
-    width: "100%",
-    alignItems: "flex-end",
-    paddingHorizontal: 14,
-    marginBottom: 6,
+  bgImage: {
+    opacity: 0.16,
   },
-  menuButton: {
-    zIndex: 5,
+  header: {
+    width: "100%",
+    backgroundColor: "#1E5A47",
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    paddingBottom: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  headerTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: "#FFFFFF",
   },
   content: {
     alignItems: "center",
     paddingHorizontal: 18,
-    paddingTop: 18,
-  },
-  compassSection: {
-    width: "100%",
-    alignItems: "center",
-    marginTop: 22,
-    paddingTop: 6,
+    paddingTop: 20,
   },
   cityRow: {
     flexDirection: "row",
@@ -323,98 +336,68 @@ const styles = StyleSheet.create({
   },
   cityName: {
     fontFamily: "CairoBold",
-    fontSize: 28,
-    lineHeight: 34,
-    color: "#0D1015",
+    fontSize: 20,
+    lineHeight: 26,
+    color: "#2B2B2B",
     textAlign: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
   },
   pinButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
   },
   citySource: {
-    marginTop: -2,
+    marginTop: 4,
     fontFamily: "Cairo",
-    fontSize: 18,
-    color: "#737373",
+    fontSize: 14,
+    color: "#7C7C7C",
     textAlign: "center",
   },
-  kaabaWrap: {
-    marginTop: 14,
-    marginBottom: 14,
+  compassSection: {
+    width: "100%",
     alignItems: "center",
+    marginTop: 20,
   },
   compassWrap: {
     alignItems: "center",
     justifyContent: "center",
   },
-  ring: {
+  compassBase: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "contain",
+  },
+  compassNeedle: {
     position: "absolute",
-    borderWidth: 1,
-    borderColor: "#E4E6EA",
-    borderRadius: 999,
-  },
-  directionLabelWrap: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-  directionLabel: {
-    fontSize: 12,
-    fontFamily: "CairoBold",
-    color: "#3D9AD9",
-  },
-  tick: {
-    position: "absolute",
-    width: 3,
-    height: 12,
-    backgroundColor: "#111111",
-    borderRadius: 2,
-  },
-  centerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#F0A500",
-  },
-  pointerWrap: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pointerTriangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 12,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#111111",
+    width: "80%",
+    height: "80%",
+    resizeMode: "contain",
   },
   qiblaInfoWrap: {
     alignItems: "center",
-    marginTop: 28,
-    marginBottom: 18,
+    marginTop: 14,
+  },
+  degreeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   qiblaDegree: {
     fontFamily: "CairoBold",
-    fontSize: 48,
-    color: "#111111",
-    marginBottom: 6,
+    fontSize: 28,
+    color: "#1F1F1F",
   },
-  qiblaSubtitle: {
-    fontFamily: "Cairo",
-    fontSize: 16,
-    color: "#6B6E72",
-    textAlign: "center",
-  },
-  qiblaCityLine: {
-    marginTop: 2,
+  qiblaLabel: {
+    marginTop: 4,
     fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#3B3F45",
+    fontSize: 16,
+    color: "#2F6E52",
+  },
+  webHint: {
+    marginTop: 4,
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#8A8A8A",
   },
   debugText: {
     marginTop: 6,
@@ -422,5 +405,57 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#7B7F86",
   },
+  calibrateBtn: {
+    marginTop: 18,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#C6A86A",
+    backgroundColor: "#F6EFE1",
+  },
+  calibrateText: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: "#3F3B2F",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 18,
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: "#2B2B2B",
+    marginBottom: 6,
+  },
+  modalText: {
+    fontFamily: "Cairo",
+    fontSize: 14,
+    color: "#6B6B6B",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  modalButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "#1E5A47",
+  },
+  modalButtonText: {
+    fontFamily: "CairoBold",
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
 });
-
