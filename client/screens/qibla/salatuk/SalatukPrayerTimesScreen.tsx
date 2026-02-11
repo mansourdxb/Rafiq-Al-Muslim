@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DrawerActions, useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import Svg, { Line } from "react-native-svg";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import tzLookup from "tz-lookup";
 
@@ -120,6 +121,11 @@ const PRAYER_LABELS: Record<PrayerName, string> = {
   Maghrib: "المغرب",
   Isha: "العشاء",
 };
+
+const CLOCK_SIZE = 170;
+const CLOCK_CENTER = CLOCK_SIZE / 2;
+const HOUR_HAND_LEN = 48;
+const MIN_HAND_LEN = 64;
 
 export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
@@ -420,20 +426,29 @@ export default function SalatukPrayerTimesScreen() {
               <View style={styles.clockGlow} />
               <View style={styles.clock}>
                 <View style={styles.clockRing} />
-                <View
-                  style={[
-                    styles.clockHand,
-                    styles.clockHandHour,
-                    { transform: [{ rotate: `${hourAngle}deg` }] },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.clockHand,
-                    styles.clockHandMinute,
-                    { transform: [{ rotate: `${minuteAngle}deg` }] },
-                  ]}
-                />
+                <Svg width={CLOCK_SIZE} height={CLOCK_SIZE} style={styles.clockSvg}>
+                  <Line
+                    x1={CLOCK_CENTER}
+                    y1={CLOCK_CENTER}
+                    x2={CLOCK_CENTER}
+                    y2={CLOCK_CENTER - HOUR_HAND_LEN}
+                    stroke={COLORS.primary}
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    transform={`rotate(${hourAngle} ${CLOCK_CENTER} ${CLOCK_CENTER})`}
+                  />
+                  <Line
+                    x1={CLOCK_CENTER}
+                    y1={CLOCK_CENTER}
+                    x2={CLOCK_CENTER}
+                    y2={CLOCK_CENTER - MIN_HAND_LEN}
+                    stroke={COLORS.primary}
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    strokeOpacity={0.6}
+                    transform={`rotate(${minuteAngle} ${CLOCK_CENTER} ${CLOCK_CENTER})`}
+                  />
+                </Svg>
                 <View style={styles.clockDot} />
               </View>
             </View>
@@ -675,6 +690,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
+  clockSvg: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
   clockRing: {
     position: "absolute",
     width: 150,
@@ -683,20 +703,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: "dashed",
     borderColor: "rgba(121, 159, 132, 0.35)",
-  },
-  clockHand: {
-    position: "absolute",
-    width: 4,
-    borderRadius: 999,
-    backgroundColor: COLORS.primary,
-    bottom: "50%",
-  },
-  clockHandHour: {
-    height: 46,
-  },
-  clockHandMinute: {
-    height: 64,
-    opacity: 0.6,
   },
   clockDot: {
     width: 10,
