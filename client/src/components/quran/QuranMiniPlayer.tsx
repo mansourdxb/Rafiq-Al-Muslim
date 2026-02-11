@@ -118,6 +118,7 @@ export default function QuranMiniPlayer() {
             ayah: state.ayah,
             surahName: state.surahName,
             reciterKey: key,
+            ayahCount: currentAyahCount,
           });
         }}
         currentSurahNumber={state.surah ?? 0}

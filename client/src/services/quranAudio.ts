@@ -10,13 +10,12 @@ export const RECITERS = [
   { key: "Ahmed_Neana_128kbps", label: "أحمد نعينع", folder: "Ahmed_Neana_128kbps" },
   { key: "Akram_AlAlaqimy_128kbps", label: "أكرم العلقيمي", folder: "Akram_AlAlaqimy_128kbps" },
   { key: "Ayman_Sowaid_64kbps", label: "أيمن سويد", folder: "Ayman_Sowaid_64kbps" },
-  { key: "Ibrahim_Akhdar_64kbps", label: "إبراهيم الأخضر", folder: "Ibrahim_Akhdar_64kbps" },
+  { key: "Ibrahim_Akhdar_32kbps", label: "إبراهيم الأخضر", folder: "Ibrahim_Akhdar_32kbps" },
   { key: "Abdullah_Basfar_192kbps", label: "عبد الله بصفر", folder: "Abdullah_Basfar_192kbps" },
   { key: "Abdullah_Matroud_128kbps", label: "عبد الله المطرود", folder: "Abdullah_Matroud_128kbps" },
   { key: "Abdullaah_3awwaad_Al-Juhaynee_128kbps", label: "عبد الله عوّاد الجهني", folder: "Abdullaah_3awwaad_Al-Juhaynee_128kbps" },
   { key: "Abdul_Basit_Mujawwad_128kbps", label: "عبد الباسط عبد الصمد (مجود)", folder: "Abdul_Basit_Mujawwad_128kbps" },
   { key: "Abdul_Basit_Murattal_192kbps", label: "عبد الباسط عبد الصمد (مرتل)", folder: "Abdul_Basit_Murattal_192kbps" },
-  { key: "AbdulSamad_64kbps_QuranExplorer.Com", label: "عبد الباسط عبد الصمد", folder: "AbdulSamad_64kbps_QuranExplorer.Com" },
   { key: "Ali_Hajjaj_AlSuesy_128kbps", label: "علي حجاج السويسي", folder: "Ali_Hajjaj_AlSuesy_128kbps" },
   { key: "Ali_Jaber_64kbps", label: "علي جابر", folder: "Ali_Jaber_64kbps" },
   { key: "Hudhaify_128kbps", label: "علي الحذيفي", folder: "Hudhaify_128kbps" },
@@ -51,8 +50,6 @@ export const RECITERS = [
   { key: "Yasser_Ad-Dussary_128kbps", label: "ياسر الدوسري", folder: "Yasser_Ad-Dussary_128kbps" },
   { key: "Yaser_Salamah_128kbps", label: "ياسر سلامة", folder: "Yaser_Salamah_128kbps" },
 
-  // keep Latin for this one (name usually written in Persian/English)
-  { key: "Parhizgar_48kbps", label: "Shahriar Parhizgar", folder: "Parhizgar_48kbps" },
 ] as const;
 
 
@@ -192,12 +189,10 @@ const AR_LABELS: Record<string, string> = {
   "Minshawy_Teacher_128kbps": "محمد صديق المنشاوي (معلّم)",
 
   // Tablaway
-  "Mohammad_al_Tablaway": "محمد الطبلاوي",
-  "Mohammad_al_Tablaway_128kbps": "محمد الطبلاوي",
+  "Mohammad_al_Tablaway_128kbps": "محمد محمود الطبلاوي",
   "Mohammad_al_Tablaway_64kbps": "محمد الطبلاوي",
 
   // Muhammad AbdulKareem
-  "Muhammad_AbdulKareem": "محمد عبد الكريم",
   "Muhammad_AbdulKareem_128kbps": "محمد عبد الكريم",
 
   // Muhammad Ayyoub
@@ -261,8 +256,6 @@ const AR_LABELS: Record<string, string> = {
   // Mahmoud Ali Al Banna
   "mahmoud_ali_al_banna_32kbps": "محمود علي البنا",
 
-  // Parhizgar (keep as you prefer)
-  "Parhizgar_48kbps": "Shahriar Parhizgar",
 
   // Warsh
   "warsh": "ورش",
@@ -388,6 +381,16 @@ export type PlayerState = {
   repeatOne: boolean;
 };
 
+export type QuranPlaybackState = {
+  isPlaying: boolean;
+  isPaused: boolean;
+  surahNumber: number | null;
+  ayahNumber: number | null;
+  reciterKey: ReciterKey | null;
+  positionMillis?: number;
+  durationMillis?: number;
+};
+
 const DEFAULT_STATE: PlayerState = {
   visible: false,
   isLoading: false,
@@ -405,8 +408,23 @@ const DEFAULT_STATE: PlayerState = {
 const SUBSCRIBERS = new Set<(s: PlayerState) => void>();
 let playerState: PlayerState = { ...DEFAULT_STATE };
 
+const PLAYBACK_SUBSCRIBERS = new Set<(s: QuranPlaybackState) => void>();
+let playbackState: QuranPlaybackState = {
+  isPlaying: false,
+  isPaused: false,
+  surahNumber: null,
+  ayahNumber: null,
+  reciterKey: null,
+  positionMillis: 0,
+  durationMillis: 0,
+};
+
 export function getPlayerState(): PlayerState {
   return playerState;
+}
+
+export function getQuranPlaybackState(): QuranPlaybackState {
+  return playbackState;
 }
 
 const emitState = (next: Partial<PlayerState>) => {
@@ -414,11 +432,24 @@ const emitState = (next: Partial<PlayerState>) => {
   SUBSCRIBERS.forEach((cb) => cb(playerState));
 };
 
+const emitPlaybackState = (next: Partial<QuranPlaybackState>) => {
+  playbackState = { ...playbackState, ...next };
+  PLAYBACK_SUBSCRIBERS.forEach((cb) => cb(playbackState));
+};
+
 export function subscribePlayer(cb: (s: PlayerState) => void): () => void {
   SUBSCRIBERS.add(cb);
   cb(playerState);
   return () => {
     SUBSCRIBERS.delete(cb);
+  };
+}
+
+export function subscribeQuranPlayback(cb: (s: QuranPlaybackState) => void): () => void {
+  PLAYBACK_SUBSCRIBERS.add(cb);
+  cb(playbackState);
+  return () => {
+    PLAYBACK_SUBSCRIBERS.delete(cb);
   };
 }
 
@@ -463,6 +494,35 @@ let sound: ExpoAudio.Sound | null = null;
 let currentKey: string | null = null;
 let webAudio: HTMLAudioElement | null = null;
 let webKey: string | null = null;
+let currentAyahCount: number | null = null;
+let webStatusTimer: ReturnType<typeof setInterval> | null = null;
+
+const stopWebPolling = () => {
+  if (webStatusTimer) {
+    clearInterval(webStatusTimer);
+    webStatusTimer = null;
+  }
+};
+
+const startWebPolling = () => {
+  if (webStatusTimer) return;
+  webStatusTimer = setInterval(() => {
+    if (!webAudio) return;
+    const duration = Math.floor((webAudio.duration || 0) * 1000) || 0;
+    const position = Math.floor((webAudio.currentTime || 0) * 1000) || 0;
+    emitPlaybackState({
+      isPlaying: !webAudio.paused,
+      isPaused: webAudio.paused,
+      positionMillis: position,
+      durationMillis: duration,
+    });
+    if (webAudio.ended) {
+      stopWebPolling();
+      emitPlaybackState({ isPlaying: false, isPaused: false });
+      void handleEnded();
+    }
+  }, 500);
+};
 
 const ensureAudioMode = async () => {
   if (Platform.OS === "web") return;
@@ -489,6 +549,7 @@ const handleEnded = async () => {
       ayah: playerState.ayah,
       surahName: playerState.surahName,
       reciterKey: playerState.reciterKey,
+      ayahCount: currentAyahCount ?? undefined,
     });
     return;
   }
@@ -499,24 +560,32 @@ const attachWebEvents = (audio: HTMLAudioElement, url: string) => {
   audio.onplaying = () => {
     console.log("[QuranAudio][web] playing", url);
     emitState({ isPlaying: true, isLoading: false });
+    emitPlaybackState({ isPlaying: true, isPaused: false });
   };
   audio.onpause = () => {
     console.log("[QuranAudio][web] paused", url);
     emitState({ isPlaying: false });
+    emitPlaybackState({ isPlaying: false, isPaused: true });
   };
   audio.onloadedmetadata = () => {
-    emitState({ durationMillis: Math.floor(audio.duration * 1000) || 0 });
+    const duration = Math.floor(audio.duration * 1000) || 0;
+    emitState({ durationMillis: duration });
+    emitPlaybackState({ durationMillis: duration });
   };
   audio.ontimeupdate = () => {
-    emitState({ positionMillis: Math.floor(audio.currentTime * 1000) || 0 });
+    const position = Math.floor(audio.currentTime * 1000) || 0;
+    emitState({ positionMillis: position });
+    emitPlaybackState({ positionMillis: position });
   };
   audio.onended = () => {
     emitState({ isPlaying: false });
+    emitPlaybackState({ isPlaying: false, isPaused: false });
     void handleEnded();
   };
   audio.onerror = (e) => {
     console.error("[QuranAudio][web] error", url, e);
     emitState({ isPlaying: false, isLoading: false });
+    emitPlaybackState({ isPlaying: false, isPaused: false });
   };
 };
 
@@ -531,6 +600,7 @@ const startWebPlayback = async (surah: number, ayah: number, reciterKey: Reciter
   webAudio = HtmlAudioCtor ? new HtmlAudioCtor(url) : null;
   if (!webAudio) {
     emitState({ isPlaying: false, isLoading: false });
+    emitPlaybackState({ isPlaying: false, isPaused: false });
     return;
   }
   webAudio.preload = "auto";
@@ -538,6 +608,7 @@ const startWebPlayback = async (surah: number, ayah: number, reciterKey: Reciter
   webAudio.playbackRate = playerState.rate || 1;
   attachWebEvents(webAudio, url);
   webKey = makeKey(surah, ayah, reciterKey);
+  startWebPolling();
   await webAudio.play();
 };
 
@@ -550,6 +621,12 @@ const startNativePlayback = async (surah: number, ayah: number, reciterKey: Reci
   await newSound.playAsync();
   newSound.setOnPlaybackStatusUpdate((status) => {
     if (!status.isLoaded) return;
+    emitPlaybackState({
+      isPlaying: status.isPlaying,
+      isPaused: !status.isPlaying,
+      positionMillis: status.positionMillis ?? 0,
+      durationMillis: status.durationMillis ?? 0,
+    });
     emitState({
       isPlaying: status.isPlaying,
       positionMillis: status.positionMillis ?? 0,
@@ -572,6 +649,7 @@ const stopInternal = async (hide: boolean) => {
       webAudio = null;
       webKey = null;
     }
+    stopWebPolling();
   } else if (sound) {
     await sound.stopAsync();
     await sound.unloadAsync();
@@ -585,6 +663,13 @@ const stopInternal = async (hide: boolean) => {
     durationMillis: 0,
     ...(hide ? { visible: false, surah: null, ayah: null, surahName: undefined } : null),
   });
+  emitPlaybackState({
+    isPlaying: false,
+    isPaused: false,
+    positionMillis: 0,
+    durationMillis: 0,
+    ...(hide ? { surahNumber: null, ayahNumber: null, reciterKey: null } : null),
+  });
 };
 
 export async function playAyah(opts: {
@@ -592,13 +677,15 @@ export async function playAyah(opts: {
   ayah: number;
   surahName?: string;
   reciterKey?: ReciterKey;
+  ayahCount?: number;
 }): Promise<void> {
-  const { surah, ayah, surahName, reciterKey } = opts;
+  const { surah, ayah, surahName, reciterKey, ayahCount } = opts;
   const storedReciter = await loadReciterKey();
   const nextReciter = reciterKey ?? storedReciter;
   if (reciterKey) {
     await persistReciterKey(reciterKey);
   }
+  currentAyahCount = ayahCount ?? SURAH_MAP.get(surah)?.ayahCount ?? null;
   const key = makeKey(surah, ayah, nextReciter);
   currentKey = key;
   emitState({
@@ -608,6 +695,15 @@ export async function playAyah(opts: {
     ayah,
     surahName: resolveSurahName(surah, surahName),
     reciterKey: nextReciter,
+  });
+  emitPlaybackState({
+    isPlaying: false,
+    isPaused: false,
+    surahNumber: surah,
+    ayahNumber: ayah,
+    reciterKey: nextReciter,
+    positionMillis: 0,
+    durationMillis: 0,
   });
   if (Platform.OS === "web") {
     await startWebPlayback(surah, ayah, nextReciter);
@@ -623,9 +719,11 @@ export async function togglePlayPause(): Promise<void> {
     if (webAudio.paused) {
       await webAudio.play();
       emitState({ isPlaying: true });
+      emitPlaybackState({ isPlaying: true, isPaused: false });
     } else {
       webAudio.pause();
       emitState({ isPlaying: false });
+      emitPlaybackState({ isPlaying: false, isPaused: true });
     }
     return;
   }
@@ -635,9 +733,11 @@ export async function togglePlayPause(): Promise<void> {
   if (status.isPlaying) {
     await sound.pauseAsync();
     emitState({ isPlaying: false });
+    emitPlaybackState({ isPlaying: false, isPaused: true });
   } else {
     await sound.playAsync();
     emitState({ isPlaying: true });
+    emitPlaybackState({ isPlaying: true, isPaused: false });
   }
 }
 
@@ -677,13 +777,14 @@ export async function nextAyah(): Promise<void> {
   const ayah = playerState.ayah;
   if (!surah || !ayah) return;
   const meta = SURAH_MAP.get(surah);
-  const count = meta?.ayahCount ?? 0;
+  const count = currentAyahCount ?? meta?.ayahCount ?? 0;
   if (ayah < count) {
     await playAyah({
       surah,
       ayah: ayah + 1,
       surahName: meta?.name_ar,
       reciterKey: playerState.reciterKey,
+      ayahCount: currentAyahCount ?? meta?.ayahCount,
     });
     return;
   }
@@ -694,6 +795,7 @@ export async function nextAyah(): Promise<void> {
       ayah: 1,
       surahName: nextMeta?.name_ar,
       reciterKey: playerState.reciterKey,
+      ayahCount: nextMeta?.ayahCount,
     });
     return;
   }
@@ -711,6 +813,7 @@ export async function prevAyah(): Promise<void> {
       ayah: ayah - 1,
       surahName: meta?.name_ar,
       reciterKey: playerState.reciterKey,
+      ayahCount: currentAyahCount ?? meta?.ayahCount,
     });
     return;
   }
@@ -722,6 +825,7 @@ export async function prevAyah(): Promise<void> {
       ayah: lastAyah,
       surahName: prevMeta?.name_ar,
       reciterKey: playerState.reciterKey,
+      ayahCount: prevMeta?.ayahCount,
     });
     return;
   }

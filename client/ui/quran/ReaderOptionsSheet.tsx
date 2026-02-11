@@ -14,6 +14,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { quranTheme } from "./theme";
 import { loadMarks } from "@/src/lib/quran/ayahMarks";
 import { quranFiles } from "@/lib/quran/quranFiles";
+import { SURAH_META } from "@/constants/quran/surahMeta";
 import { buildEveryAyahUrl, playAyah } from "@/src/services/quranAudio";
 
 function arabicIndic(value: number) {
@@ -200,13 +201,14 @@ export default function ReaderOptionsSheet({
                 try {
                   if (!surahNumber) return;
                   console.log("PLAY pressed", surahNumber, ayahNumber);
-                  const url = buildEveryAyahUrl(surahNumber, ayahNumber, "alafasy");
+                  const url = buildEveryAyahUrl(surahNumber, ayahNumber, "Abu Bakr Ash-Shaatree_128kbps");
                   console.log("[QuranAudio] play", url);
                   await playAyah({
                     surah: surahNumber,
                     ayah: ayahNumber,
                     surahName,
-                    reciterKey: "alafasy",
+                    reciterKey: "Abu Bakr Ash-Shaatree_128kbps",
+                    ayahCount: SURAH_META.find((s) => s.number === surahNumber)?.ayahCount ?? 0,
                   });
                   setIsPlaying(true);
                   onClose();
