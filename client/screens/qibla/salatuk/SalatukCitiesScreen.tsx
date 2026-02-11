@@ -69,6 +69,17 @@ const safeFormatTimeLatinInTZ = (date: Date, tz: string) => {
   }
 };
 
+function safeTzLookup(lat: number, lon: number): string {
+  const latNum = Number(lat);
+  const lonNum = Number(lon);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return "UTC";
+  try {
+    return tzLookup(latNum, lonNum) || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 function formatCountdownSeconds(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const h = Math.floor(total / 3600);
@@ -170,7 +181,7 @@ export default function SalatukCitiesScreen() {
     void tick;
     const cityKey = `${item.lat}:${item.lon}`;
     const isExpanded = !!expandedCityIds[cityKey];
-    const tz = tzLookup(item.lat, item.lon) || "UTC";
+    const tz = safeTzLookup(item.lat, item.lon);
     const nowCity = dayjs().tz(tz);
     const deviceOffset = dayjs().utcOffset();
     const cityOffset = nowCity.utcOffset();
@@ -182,54 +193,47 @@ export default function SalatukCitiesScreen() {
         ? `متقدم ${Math.abs(diffHours)} ساعة`
         : `سابق ${Math.abs(diffHours)} ساعة`;
 
+    const cityToday = nowCity.startOf("day");
     const times =
       settings &&
       computePrayerTimes({
-        city: { lat: item.lat, lon: item.lon },
+        city: { lat: Number(item.lat), lon: Number(item.lon) },
         settings,
+        date: cityToday.toDate(),
         timeZone: tz,
       });
 
-    const nowCityDate = nowCity.toDate();
-    const timesMs = times
-      ? {
-          Fajr: times.fajr?.getTime?.() ?? NaN,
-          Dhuhr: times.dhuhr?.getTime?.() ?? NaN,
-          Asr: times.asr?.getTime?.() ?? NaN,
-          Maghrib: times.maghrib?.getTime?.() ?? NaN,
-          Isha: times.isha?.getTime?.() ?? NaN,
-        }
-      : null;
+    const schedule: Array<{ key: PrayerName; at: dayjs.Dayjs }> = times
+      ? [
+          { key: "Fajr", at: dayjs(times.fajr).tz(tz) },
+          { key: "Dhuhr", at: dayjs(times.dhuhr).tz(tz) },
+          { key: "Asr", at: dayjs(times.asr).tz(tz) },
+          { key: "Maghrib", at: dayjs(times.maghrib).tz(tz) },
+          { key: "Isha", at: dayjs(times.isha).tz(tz) },
+        ].filter((p) => p.at.isValid())
+      : [];
+    schedule.sort((a, b) => a.at.valueOf() - b.at.valueOf());
 
     let nextPrayerKey: PrayerName | null = null;
-    let nextPrayerAt = times ? dayjs(times.fajr).tz(tz) : null;
-
-    if (timesMs) {
-      const nowRef = nowCity;
-      const candidates: Array<{ key: PrayerName; at: dayjs.Dayjs }> = [
-        { key: "Fajr", at: dayjs(times.fajr).tz(tz) },
-        { key: "Dhuhr", at: dayjs(times.dhuhr).tz(tz) },
-        { key: "Asr", at: dayjs(times.asr).tz(tz) },
-        { key: "Maghrib", at: dayjs(times.maghrib).tz(tz) },
-        { key: "Isha", at: dayjs(times.isha).tz(tz) },
-      ];
-      for (const itemTime of candidates) {
-        if (itemTime.at.isAfter(nowRef)) {
-          nextPrayerKey = itemTime.key;
-          nextPrayerAt = itemTime.at;
-          break;
-        }
-      }
-      if (!nextPrayerKey && settings) {
-        const tomorrow = nowCity.add(1, "day");
+    let nextPrayerAt: dayjs.Dayjs | null = null;
+    if (schedule.length) {
+      const next = schedule.find((p) => p.at.isAfter(nowCity));
+      if (next) {
+        nextPrayerKey = next.key;
+        nextPrayerAt = next.at;
+      } else if (settings) {
+        const tomorrow = nowCity.add(1, "day").startOf("day");
         const tomorrowTimes = computePrayerTimes({
-          city: { lat: item.lat, lon: item.lon },
+          city: { lat: Number(item.lat), lon: Number(item.lon) },
           settings,
           date: tomorrow.toDate(),
           timeZone: tz,
         });
-        nextPrayerKey = "Fajr";
-        nextPrayerAt = dayjs(tomorrowTimes.fajr).tz(tz);
+        const nextAt = dayjs(tomorrowTimes.fajr).tz(tz);
+        if (nextAt.isValid()) {
+          nextPrayerKey = "Fajr";
+          nextPrayerAt = nextAt;
+        }
       }
     }
 
@@ -238,21 +242,24 @@ export default function SalatukCitiesScreen() {
       nextPrayerAt && nextPrayerAt.isValid()
         ? safeFormatTimeLatinInTZ(nextPrayerAt.toDate(), tz)
         : "--:--";
-    const currentTime = safeFormatTimeLatinInTZ(nowCityDate, tz);
+    const currentTime = safeFormatTimeLatinInTZ(nowCity.toDate(), tz);
     const countdown =
       nextPrayerAt && nextPrayerAt.isValid()
         ? formatCountdownSeconds(nextPrayerAt.diff(nowCity, "second"))
         : "--:--";
 
-    console.log(
-      "[WorldCities]",
-      item.name,
-      tz,
-      "now",
-      nowCity.format(),
-      "next",
-      nextPrayerKey
-    );
+    if (__DEV__ && nextPrayerKey && nextPrayerAt) {
+      console.log(
+        "[WorldCities]",
+        item.name,
+        tz,
+        "now",
+        nowCity.format(),
+        "next",
+        nextPrayerKey,
+        nextPrayerAt.format()
+      );
+    }
 
     return (
       <View style={styles.cityItem}>
@@ -303,7 +310,7 @@ export default function SalatukCitiesScreen() {
         </View>
 
         {!isExpanded ? (
-            <View style={styles.prayerRow}>
+          <View style={styles.prayerRow}>
             <View style={styles.leftValueWrap}>
               <Text style={styles.countdown}>{countdown}</Text>
             </View>
