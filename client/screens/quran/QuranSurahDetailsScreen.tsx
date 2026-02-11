@@ -320,7 +320,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                   const prefix = idx === 0 ? "" : a.aya === 1 ? "\n\n" : " ";
                   const number = arabicIndic(a.aya);
                   const mark = markFor(a.sura, a.aya);
-                  const bookmarkDot = mark?.bookmarkColor ? " \u25cf" : "";
+                  const bookmarkDot = mark?.bookmarkColor ?? null;
                   const isHighlighted =
                     highlightAyah && highlightAyah.sura === a.sura && highlightAyah.aya === a.aya;
                   return (
@@ -337,7 +337,10 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                         isHighlighted ? styles.ayahHighlight : null,
                       ]}
                     >
-                      {`${prefix}${a.text} ${number}${bookmarkDot}`}
+                      {`${prefix}${a.text} ${number}`}
+                      {bookmarkDot ? (
+                        <Text style={[styles.bookmarkDot, { color: bookmarkDot }]}>{" \u25cf"}</Text>
+                      ) : null}
                     </Text>
                   );
                 })}
@@ -360,11 +363,13 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         onViewableItemsChanged={onViewableItemsChanged}
       />
 
-      <ReaderOptionsSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        ayahNumber={selectedAyah?.ayahNumber ?? 1}
-        bookmarkColor={
+        <ReaderOptionsSheet
+          visible={sheetVisible}
+          onClose={() => setSheetVisible(false)}
+          ayahNumber={selectedAyah?.ayahNumber ?? 1}
+          surahName={selectedAyah?.surahName}
+          surahNumber={selectedAyah?.surahNumber}
+          bookmarkColor={
           selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.bookmarkColor ?? null : null
         }
         highlightColor={
@@ -465,6 +470,9 @@ const styles = StyleSheet.create({
   },
   ayahHighlight: {
     backgroundColor: "rgba(30,139,90,0.18)",
+  },
+  bookmarkDot: {
+    fontFamily: "KFGQPCUthmanicScript",
   },
   pageFooter: {
     marginTop: 12,
