@@ -457,6 +457,9 @@ export default function SalatukPrayerTimesScreen() {
                     if (item.key === "times") {
                       navigation.navigate("PrayerSettings");
                     }
+                    if (item.key === "mosques") {
+                      navigation.navigate("NearbyMasjids");
+                    }
                   }}
                 >
                   <View style={[styles.quickIconWrap, { backgroundColor: `${item.tint}1A` }]}> 
