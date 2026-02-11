@@ -60,8 +60,23 @@ const NEXT_PRAYER_ARABIC: Record<PrayerName, string> = {
 
 const formatTimeLatin = (date: Date) =>
   formatTime(date, "en").replace(/AM/i, "ص").replace(/PM/i, "م");
-const formatTimeLatinInTZ = (date: Date, tz: string) =>
-  formatTimeInTZ(date, tz, "en-US").replace(/AM/i, "ص").replace(/PM/i, "م");
+const safeFormatTimeLatinInTZ = (date: Date, tz: string) => {
+  if (!date || Number.isNaN(date.getTime())) return "--:--";
+  try {
+    return formatTimeInTZ(date, tz, "en-US").replace(/AM/i, "ص").replace(/PM/i, "م");
+  } catch {
+    return "--:--";
+  }
+};
+
+function formatCountdownSeconds(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (v: number) => String(v).padStart(2, "0");
+  return `-${pad(h)}:${pad(m)}:${pad(s)}`;
+}
 
 export default function SalatukCitiesScreen() {
   const insets = useSafeAreaInsets();
@@ -73,6 +88,7 @@ export default function SalatukCitiesScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [expandedCityIds, setExpandedCityIds] = useState<Record<string, boolean>>({});
   const [menuVisible, setMenuVisible] = useState(false);
+  const [tick, setTick] = useState(0);
 
   const contentWidth = Math.min(width, 430);
   const headerPadTop = useMemo(() => insets.top + 8, [insets.top]);
@@ -101,6 +117,13 @@ export default function SalatukCitiesScreen() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick((prev) => prev + 1);
+    }, 60000);
+    return () => clearInterval(timer);
   }, []);
 
   const onSelect = async (selected: City) => {
@@ -144,9 +167,10 @@ export default function SalatukCitiesScreen() {
   };
 
   const renderItem = ({ item }: { item: WorldCity }) => {
+    void tick;
     const cityKey = `${item.lat}:${item.lon}`;
     const isExpanded = !!expandedCityIds[cityKey];
-    const tz = tzLookup(item.lat, item.lon);
+    const tz = tzLookup(item.lat, item.lon) || "UTC";
     const nowCity = dayjs().tz(tz);
     const deviceOffset = dayjs().utcOffset();
     const cityOffset = nowCity.utcOffset();
@@ -167,45 +191,57 @@ export default function SalatukCitiesScreen() {
       });
 
     const nowCityDate = nowCity.toDate();
-    const sequence = times
-      ? [
-          { key: "Fajr" as const, time: times.fajr },
-          { key: "Dhuhr" as const, time: times.dhuhr },
-          { key: "Asr" as const, time: times.asr },
-          { key: "Maghrib" as const, time: times.maghrib },
-          { key: "Isha" as const, time: times.isha },
-        ]
-      : [];
+    const timesMs = times
+      ? {
+          Fajr: times.fajr?.getTime?.() ?? NaN,
+          Dhuhr: times.dhuhr?.getTime?.() ?? NaN,
+          Asr: times.asr?.getTime?.() ?? NaN,
+          Maghrib: times.maghrib?.getTime?.() ?? NaN,
+          Isha: times.isha?.getTime?.() ?? NaN,
+        }
+      : null;
+
     let nextPrayerKey: PrayerName | null = null;
-    let nextPrayerTimeValue: Date | null = null;
-    for (const entry of sequence) {
-      const entryTime = dayjs(entry.time).tz(tz);
-      if (entryTime.isAfter(nowCity)) {
-        nextPrayerKey = entry.key;
-        nextPrayerTimeValue = entry.time;
-        break;
+    let nextPrayerAt = times ? dayjs(times.fajr).tz(tz) : null;
+
+    if (timesMs) {
+      const nowRef = nowCity;
+      const candidates: Array<{ key: PrayerName; at: dayjs.Dayjs }> = [
+        { key: "Fajr", at: dayjs(times.fajr).tz(tz) },
+        { key: "Dhuhr", at: dayjs(times.dhuhr).tz(tz) },
+        { key: "Asr", at: dayjs(times.asr).tz(tz) },
+        { key: "Maghrib", at: dayjs(times.maghrib).tz(tz) },
+        { key: "Isha", at: dayjs(times.isha).tz(tz) },
+      ];
+      for (const itemTime of candidates) {
+        if (itemTime.at.isAfter(nowRef)) {
+          nextPrayerKey = itemTime.key;
+          nextPrayerAt = itemTime.at;
+          break;
+        }
       }
-    }
-    if (!nextPrayerKey && settings) {
-      const tomorrow = nowCity.add(1, "day").toDate();
-      const tomorrowTimes = computePrayerTimes({
-        city: { lat: item.lat, lon: item.lon },
-        settings,
-        date: tomorrow,
-        timeZone: tz,
-      });
-      nextPrayerKey = "Fajr";
-      nextPrayerTimeValue = tomorrowTimes.fajr;
+      if (!nextPrayerKey && settings) {
+        const tomorrow = nowCity.add(1, "day");
+        const tomorrowTimes = computePrayerTimes({
+          city: { lat: item.lat, lon: item.lon },
+          settings,
+          date: tomorrow.toDate(),
+          timeZone: tz,
+        });
+        nextPrayerKey = "Fajr";
+        nextPrayerAt = dayjs(tomorrowTimes.fajr).tz(tz);
+      }
     }
 
     const nextPrayerName = nextPrayerKey ? NEXT_PRAYER_ARABIC[nextPrayerKey] : "--";
-    const nextPrayerTime = nextPrayerTimeValue
-      ? formatTimeLatin(nextPrayerTimeValue)
-      : "--:--";
-    const currentTime = formatTimeLatinInTZ(nowCityDate, tz);
+    const nextPrayerTime =
+      nextPrayerAt && nextPrayerAt.isValid()
+        ? safeFormatTimeLatinInTZ(nextPrayerAt.toDate(), tz)
+        : "--:--";
+    const currentTime = safeFormatTimeLatinInTZ(nowCityDate, tz);
     const countdown =
-      nextPrayerTimeValue && nextPrayerKey
-        ? formatCountdown(nextPrayerTimeValue.getTime() - nowCityDate.getTime())
+      nextPrayerAt && nextPrayerAt.isValid()
+        ? formatCountdownSeconds(nextPrayerAt.diff(nowCity, "second"))
         : "--:--";
 
     console.log(
