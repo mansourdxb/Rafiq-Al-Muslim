@@ -16,6 +16,7 @@ import {
   playAyah,
 } from "@/src/services/quranAudio";
 import ReciterPickerModal from "@/src/components/quran/ReciterPickerModal";
+import { SURAH_META } from "@/constants/quran/surahMeta";
 
 const SPEEDS = [1, 1.25, 1.5, 2];
 
@@ -42,6 +43,8 @@ export default function QuranMiniPlayer() {
   const speedLabel = useMemo(() => `${state.rate}x`, [state.rate]);
 
   const remaining = Math.max(0, (state.durationMillis || 0) - (state.positionMillis || 0));
+  const currentAyahCount =
+    state.surah != null ? SURAH_META.find((surah) => surah.number === state.surah)?.ayahCount ?? 0 : 0;
 
   if (!state.visible) return null;
 
@@ -119,6 +122,7 @@ export default function QuranMiniPlayer() {
         }}
         currentSurahNumber={state.surah ?? 0}
         currentAyahNumber={state.ayah ?? 0}
+        currentSurahAyahCount={currentAyahCount}
       />
     </>
   );
