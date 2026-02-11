@@ -1,15 +1,17 @@
-// client/screens/salatuk/SalatukCitiesScreen.tsx
+﻿// client/screens/salatuk/SalatukCitiesScreen.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import { Feather, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 
 import dayjs from "dayjs";
@@ -26,11 +28,6 @@ import {
   formatTimeInTZ,
   type PrayerName,
 } from "@/screens/qibla/services/prayerTimes";
-
-const formatTimeLatin = (date: Date) =>
-  formatTime(date, "en").replace(/AM/i, "ص").replace(/PM/i, "م");
-const formatTimeLatinInTZ = (date: Date, tz: string) =>
-  formatTimeInTZ(date, tz, "en-US").replace(/AM/i, "ص").replace(/PM/i, "م");
 import {
   addWorldCity,
   getWorldCities,
@@ -41,6 +38,19 @@ import {
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+const COLORS = {
+  background: "#F7F7F4",
+  headerText: "#2F6E52",
+  accent: "#2F6E52",
+  accentSoft: "#E6F0EA",
+  card: "#FFFFFF",
+  text: "#1F2933",
+  muted: "#8B9196",
+  border: "#E9E5DA",
+  shadow: "rgba(0,0,0,0.08)",
+  searchBg: "#EFEFEA",
+};
+
 const NEXT_PRAYER_ARABIC: Record<PrayerName, string> = {
   Fajr: "الفجر",
   Sunrise: "الشروق",
@@ -49,6 +59,11 @@ const NEXT_PRAYER_ARABIC: Record<PrayerName, string> = {
   Maghrib: "المغرب",
   Isha: "العشاء",
 };
+
+const formatTimeLatin = (date: Date) =>
+  formatTime(date, "en").replace(/AM/i, "ص").replace(/PM/i, "م");
+const formatTimeLatinInTZ = (date: Date, tz: string) =>
+  formatTimeInTZ(date, tz, "en-US").replace(/AM/i, "ص").replace(/PM/i, "م");
 
 export default function SalatukCitiesScreen() {
   const navigation = useNavigation<any>();
@@ -59,9 +74,9 @@ export default function SalatukCitiesScreen() {
   const [worldCities, setWorldCities] = useState<WorldCity[]>([]);
   const [draftCities, setDraftCities] = useState<WorldCity[]>([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [expandedCityIds, setExpandedCityIds] = useState<Record<string, boolean>>(
-    {}
-  );
+  const [expandedCityIds, setExpandedCityIds] = useState<Record<string, boolean>>({});
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [query, setQuery] = useState("");
 
   const contentWidth = Math.min(width, 430);
   const headerPadTop = useMemo(() => insets.top + 8, [insets.top]);
@@ -106,6 +121,37 @@ export default function SalatukCitiesScreen() {
     setPickerVisible(false);
   };
 
+  const visibleCities = useMemo(() => {
+    const list = isEditing ? draftCities : worldCities;
+    const term = query.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter((city) => {
+      const name = `${city.name ?? ""} ${city.country ?? ""}`.toLowerCase();
+      return name.includes(term);
+    });
+  }, [isEditing, draftCities, worldCities, query]);
+
+  const openMenu = () => setMenuVisible(true);
+  const closeMenu = () => setMenuVisible(false);
+
+  const handleStartEdit = () => {
+    setIsEditing(true);
+    closeMenu();
+  };
+
+  const handleSave = async () => {
+    await persistWorldCities(draftCities);
+    setWorldCities(draftCities);
+    setIsEditing(false);
+    closeMenu();
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setDraftCities(worldCities);
+    closeMenu();
+  };
+
   const renderItem = ({ item }: { item: WorldCity }) => {
     const cityKey = `${item.lat}:${item.lon}`;
     const isExpanded = !!expandedCityIds[cityKey];
@@ -134,21 +180,6 @@ export default function SalatukCitiesScreen() {
     const currentTime = formatTimeLatinInTZ(new Date(), tz);
     const countdown = times ? formatCountdown(times.timeToNextMs) : "--:--";
 
-    console.log(
-      "[WorldCity]",
-      item.name,
-      "tz=",
-      tz,
-      "deviceNow=",
-      new Date().toString(),
-      "cityNow=",
-      formatTimeInTZ(new Date(), tz, "en"),
-      "fajrCity=",
-      times ? formatTime(times.fajr, "en") : "n/a",
-      "fajrDevice=",
-      times ? formatTime(times.fajr, "en") : "n/a"
-    );
-
     return (
       <View style={styles.cityItem}>
         <View style={styles.cityHeaderRow}>
@@ -166,7 +197,7 @@ export default function SalatukCitiesScreen() {
               <Feather
                 name={isExpanded ? "chevron-up" : "chevron-down"}
                 size={18}
-                color="#9AA2A9"
+                color={COLORS.muted}
               />
             </Pressable>
             {isEditing ? (
@@ -188,52 +219,36 @@ export default function SalatukCitiesScreen() {
             ) : null}
           </View>
 
-          <View style={styles.cityTitleWrap}>
-            <Text style={styles.cityTitleText}>{item.name}</Text>
-            <Text style={styles.cityMetaText}>{diffText}</Text>
-          </View>
-        </View>
-
-        {/* current time row: icon fixed FAR RIGHT, text padded so it never overlaps */}
-        <View style={styles.timeRow}>
-          <View style={styles.rightValueWrap}>
-            <View style={styles.rightValueRow}>
-              <Text style={styles.timeText}>{currentTime}</Text>
-              <View style={styles.iconBox}>
-                <Feather name="clock" size={16} color="#F0A500" />
-              </View>
+          <View style={styles.cityHeaderContent}>
+            <View style={styles.cityTitleWrap}>
+              <Text style={styles.cityTitleText}>{item.name}</Text>
+              <Text style={styles.cityMetaText}>{diffText}</Text>
             </View>
+            <Text style={styles.cityTimeText}>{currentTime}</Text>
           </View>
         </View>
 
-        {/* next prayer row: prayer name centered, time column unchanged */}
         {!isExpanded ? (
-          <View style={styles.prayerRow}>
-            {/* Left fixed column (same width as right) */}
+          <View style={styles.prayerRow}> 
             <View style={styles.leftValueWrap}>
               <Text style={styles.countdown}>{countdown}</Text>
             </View>
-
-            {/* Center column */}
             <View style={styles.centerLabelWrap}>
               <Text style={styles.prayerNameCentered}>{nextPrayerName}</Text>
             </View>
-
-            {/* Right fixed column (unchanged alignment) */}
             <View style={styles.rightValueWrap}>
               <View style={styles.rightValueRow}>
-                <Text style={styles.timeText}>{nextPrayerTime}</Text>
                 <View style={styles.iconBox}>
                   <Pressable onPress={() => {}} hitSlop={6} style={styles.speakerBtn}>
-                    <FontAwesome5 name="mosque" size={18} color="#F0A500" solid />
+                    <FontAwesome5 name="mosque" size={18} color={COLORS.accent} solid />
                   </Pressable>
                 </View>
+                <Text style={styles.timeText}>{nextPrayerTime}</Text>
               </View>
             </View>
           </View>
         ) : null}
 
-        {/* expanded list: labels centered */}
         {isExpanded && times ? (
           <View style={styles.expandedList}>
             {renderFullRow("الفجر", times.fajr, times.nextPrayerName === "Fajr")}
@@ -251,49 +266,22 @@ export default function SalatukCitiesScreen() {
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: headerPadTop }]}>
         <View style={[styles.headerInner, { width: contentWidth }]}>
-          {isEditing ? (
-            <View style={styles.editHeaderLeft}>
-              <Pressable
-                onPress={() => {
-                  setIsEditing(false);
-                  setDraftCities(worldCities);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.iconBtn}
-              >
-                <Feather name="x" size={22} color="#6B6E72" />
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  await persistWorldCities(draftCities);
-                  setWorldCities(draftCities);
-                  setIsEditing(false);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.saveBtn}
-              >
-                <Text style={styles.saveText}>حفظ</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <Pressable
-                onPress={() => setIsEditing(true)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.iconBtn}
-              >
-                <Feather name="more-vertical" size={22} color="#6B6E72" />
-              </Pressable>
-
-              <Pressable
-                onPress={() => setPickerVisible(true)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.iconBtn}
-              >
-                <Feather name="plus" size={22} color="#6B6E72" />
-              </Pressable>
-            </>
-          )}
+          <View style={styles.headerLeftGroup}>
+            <Pressable
+              onPress={() => setPickerVisible(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.addBtn}
+            >
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              onPress={openMenu}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.kebabBtn}
+            >
+              <Ionicons name="ellipsis-vertical" size={16} color={COLORS.accent} />
+            </Pressable>
+          </View>
 
           <Text style={styles.headerTitle}>مدن العالم</Text>
 
@@ -312,14 +300,25 @@ export default function SalatukCitiesScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.menuBtn}
           >
-            <Feather name="menu" size={26} color="#111111" />
+            <Ionicons name="menu" size={22} color={COLORS.accent} />
           </Pressable>
         </View>
       </View>
 
       <View style={[styles.body, { width: contentWidth }]}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={16} color={COLORS.muted} style={styles.searchIcon} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="البحث عن مدينة..."
+            placeholderTextColor={COLORS.muted}
+            style={styles.searchInput}
+          />
+        </View>
+
         <FlatList
-          data={isEditing ? draftCities : worldCities}
+          data={visibleCities}
           keyExtractor={(item) => `${item.lat}:${item.lon}`}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -339,6 +338,30 @@ export default function SalatukCitiesScreen() {
         onClose={() => setPickerVisible(false)}
         onSelect={onSelect}
       />
+
+      <Modal visible={menuVisible} transparent animationType="fade">
+        <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
+          <Pressable style={styles.menuCard} onPress={() => {}}>
+            {!isEditing ? (
+              <Pressable style={styles.menuItem} onPress={handleStartEdit}>
+                <Text style={styles.menuText}>إدارة المدن</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable style={styles.menuItem} onPress={handleSave}>
+                  <Text style={styles.menuText}>حفظ التعديلات</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={handleCancelEdit}>
+                  <Text style={styles.menuText}>إلغاء التعديلات</Text>
+                </Pressable>
+              </>
+            )}
+            <Pressable style={styles.menuItem} onPress={closeMenu}>
+              <Text style={styles.menuText}>إغلاق</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -346,20 +369,17 @@ export default function SalatukCitiesScreen() {
 function renderFullRow(label: string, time: Date, isNext = false) {
   return (
     <View style={styles.fullRow}>
-      {/* Left spacer to make center truly centered */}
       <View style={styles.leftValueWrap} />
 
-      {/* Center label */}
       <View style={styles.centerLabelWrap}>
         <Text style={styles.fullLabelCentered}>{label}</Text>
       </View>
 
-      {/* Right fixed time column (unchanged) */}
       <View style={styles.rightValueWrap}>
         <View style={styles.rightValueRow}>
           <View style={styles.iconBox}>
             {isNext ? (
-              <FontAwesome5 name="mosque" size={16} color="#F0A500" solid />
+              <FontAwesome5 name="mosque" size={16} color={COLORS.accent} solid />
             ) : null}
           </View>
           <Text style={styles.timeText}>{formatTimeLatin(time)}</Text>
@@ -373,12 +393,13 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   header: {
     width: "100%",
     paddingBottom: 12,
     alignItems: "center",
+    backgroundColor: COLORS.background,
   },
   headerInner: {
     minHeight: 56,
@@ -387,58 +408,98 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerTitle: {
-    color: "#111111",
+    color: COLORS.headerText,
     fontFamily: "CairoBold",
-    fontSize: 28,
-    textAlign: "right",
+    fontSize: 22,
+    textAlign: "center",
   },
-  editHeaderLeft: {
+  headerLeftGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
-  iconBtn: {
+  addBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.accent,
     alignItems: "center",
     justifyContent: "center",
   },
-  saveBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-  saveText: {
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#2F6FE4",
+  kebabBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   menuBtn: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   body: {
     flex: 1,
     paddingHorizontal: 18,
-    paddingTop: 0,
+    alignItems: "center",
+  },
+  searchBar: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: COLORS.searchBg,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  searchIcon: {
+    marginLeft: 8,
+  },
+  searchInput: {
+    flex: 1,
+    textAlign: "right",
+    fontFamily: "Cairo",
+    fontSize: 14,
+    color: COLORS.text,
   },
   listContent: {
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
-
+  separator: {
+    height: 12,
+  },
   cityItem: {
-    paddingVertical: 10,
+    width: "100%",
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   cityHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
   headerLeftControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   chevronBtn: {
     width: 28,
@@ -450,152 +511,151 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
+    backgroundColor: COLORS.accent,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E25555",
+  },
+  cityHeaderContent: {
+    flex: 1,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
   cityTitleWrap: {
-    flex: 1,
     alignItems: "flex-end",
   },
   cityTitleText: {
     fontFamily: "CairoBold",
-    fontSize: 22,
-    color: "#111111",
-    textAlign: "right",
+    fontSize: 18,
+    color: COLORS.text,
   },
   cityMetaText: {
-    marginTop: 2,
+    marginTop: 4,
     fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#70757A",
-    textAlign: "right",
+    fontSize: 12,
+    color: COLORS.muted,
   },
-
-  timeRow: {
-    marginTop: 8,
+  cityTimeText: {
+    fontFamily: "CairoBold",
+    fontSize: 20,
+    color: COLORS.accent,
+  },
+  prayerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    backgroundColor: COLORS.accentSoft,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-
-  // fixed column to keep alignment identical for clock + speaker rows
-  rightValueWrap: {
-    width: 130,
-    alignItems: "flex-end",
-    flexShrink: 0,
-  },
-
-  // LEFT fixed column (must match rightValueWrap width)
   leftValueWrap: {
-    width: 130,
-    flexShrink: 0,
+    width: 72,
     alignItems: "flex-start",
-    justifyContent: "center",
   },
-
-  // center flexible column
   centerLabelWrap: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
   },
-
-  // IMPORTANT: icon is absolute at far right; text reserves paddingRight for it
+  rightValueWrap: {
+    width: 96,
+    alignItems: "flex-end",
+  },
   rightValueRow: {
-    width: "100%",
-    height: 28,
-    position: "relative",
-    justifyContent: "center",
-  },
-  iconBox: {
-    position: "absolute",
-    right: 0,
-    width: 28,
-    height: 28,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
   },
   timeText: {
     fontFamily: "CairoBold",
-    fontSize: 18,
-    lineHeight: 22,
-    color: "#111111",
-    textAlign: "right",
-    width: "100%",
-    paddingRight: 34, // icon width + gap
-  },
-  speakerBtn: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 0,
-    margin: 0,
-  },
-
-  expandedList: {
-    marginTop: 6,
-    paddingTop: 4,
-  },
-
-  fullRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 2,
-  },
-
-  fullLabelCentered: {
-    fontFamily: "Cairo",
     fontSize: 14,
-    color: "#2F3C49",
-    textAlign: "center",
+    color: COLORS.text,
   },
-
-  prayerRow: {
-    marginTop: 6,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  countdown: {
-    fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#2F3C49",
-    textAlign: "left",
-  },
-
   prayerNameCentered: {
     fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#111111",
-    textAlign: "center",
+    fontSize: 14,
+    color: COLORS.text,
   },
-
-  separator: {
-    height: 1,
-    backgroundColor: "rgba(0,0,0,0.12)",
+  countdown: {
+    fontFamily: "CairoBold",
+    fontSize: 12,
+    color: COLORS.muted,
+  },
+  iconBox: {
+    width: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speakerBtn: {
+    padding: 2,
+  },
+  expandedList: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: "hidden",
+  },
+  fullRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  fullLabelCentered: {
+    fontFamily: "CairoBold",
+    fontSize: 14,
+    color: COLORS.text,
   },
   emptyCard: {
-    borderRadius: 18,
+    width: "100%",
     padding: 18,
-    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: "rgba(80,110,130,0.10)",
+    borderColor: COLORS.border,
     alignItems: "center",
   },
   emptyTitle: {
     fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#33475A",
+    fontSize: 16,
+    color: COLORS.text,
   },
   emptyText: {
-    marginTop: 4,
+    marginTop: 6,
     fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#6F8398",
+    fontSize: 13,
+    color: COLORS.muted,
     textAlign: "center",
   },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  menuCard: {
+    width: "100%",
+    maxWidth: 260,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 8,
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  menuText: {
+    fontFamily: "CairoBold",
+    fontSize: 14,
+    color: COLORS.text,
+  },
 });
-
-
