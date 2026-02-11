@@ -42,20 +42,42 @@ export default function MainZikrScreen() {
     return { size, stroke, r, c, dash };
   }, [progress]);
 
+  const navigateAthkar = (screen: string, params?: Record<string, any>) => {
+    const nestedParams = { screen, params };
+    let parent: any = navigation;
+
+    while (parent) {
+      const routeNames = parent.getState?.().routeNames ?? [];
+      if (routeNames.includes("Main")) {
+        parent.navigate("Main", { screen: "AthkarTab", params: nestedParams });
+        return;
+      }
+      parent = parent.getParent?.();
+    }
+
+    const routes = navigation.getState?.().routeNames ?? [];
+    if (routes.includes("AthkarTab")) {
+      navigation.navigate("AthkarTab", nestedParams);
+      return;
+    }
+
+    navigation.navigate(screen, params);
+  };
+
   const openPresets = () => {
-    navigation.navigate("Presets");
+    navigateAthkar("Presets");
   };
   const openHisnIndex = () => {
-    navigation.navigate("HisnAlMuslim");
+    navigateAthkar("HisnAlMuslim");
   };
   const openStats = () => {
-    navigation.navigate("Stats");
+    navigateAthkar("Stats");
   };
   const openHisnCategory = (title: string) => {
-    navigation.navigate("HisnCategory", { categoryTitle: title });
+    navigateAthkar("HisnCategory", { categoryTitle: title });
   };
   const openAiChat = () => {
-    navigation.navigate("AiChatTest");
+    navigateAthkar("AiChatTest");
   };
 
   return (
@@ -181,8 +203,7 @@ export default function MainZikrScreen() {
               style={styles.quickActionButton}
               onPress={() => {
                 console.log("quick-action:calendar");
-                // TODO: Wire to CalendarScreen route when navigation is confirmed.
-                navigation.navigate("Calendar");
+                navigateAthkar("Calendar");
               }}
             >
               <Feather name="calendar" size={22} color="#D4AF37" />

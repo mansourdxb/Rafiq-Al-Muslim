@@ -13,8 +13,10 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import * as FileSystem from "expo-file-system";
-import { getModelInfo } from "@/src/lib/ai/modelStorage";
+import { getAiEngine } from "@/src/ai/engine";
+import { getSelectedWebModelId } from "@/src/ai/engine/webEngine";
+import { buildLocalContextData } from "@/src/ai/retrieval/localSearch";
+import { normalizeArabic } from "@/utils/normalizeArabic";
 
 import { typography } from "@/theme/typography";
 
@@ -24,21 +26,8 @@ type ChatMessage = {
   content: string;
 };
 
-const MODEL_PATH = FileSystem.documentDirectory + "models/ai-model.gguf";
 const SYSTEM_PROMPT =
   "أنت مساعد ذكي داخل تطبيق إسلامي. أجب دائمًا بالعربية الفصحى وبأسلوب لطيف ومختصر. لا تُصدر فتاوى مفصلة؛ عند الأحكام الشرعية قدّم تنبيهًا لطيفًا بمراجعة العلماء أو المصادر الموثوقة.";
-
-const STOP_WORDS = [
-  "</s>",
-  "<|end|>",
-  "<|eot_id|>",
-  "<|end_of_text|>",
-  "<|im_end|>",
-  "<|EOT|>",
-  "<|END_OF_TURN_TOKEN|>",
-  "<|end_of_turn|>",
-  "<|endoftext|>",
-];
 
 export default function AiChatTestScreen() {
   const insets = useSafeAreaInsets();
@@ -52,45 +41,53 @@ export default function AiChatTestScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "missing" | "ready" | "error">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
-  const contextRef = useRef<any>(null);
   const isSendingRef = useRef(false);
+  const engine = useMemo(() => getAiEngine(), []);
 
   const canSend = status === "ready" && !isSendingRef.current;
 
   const headerTitle = "المساعد الذكي";
 
   const checkAndInit = useCallback(async () => {
-    if (Platform.OS === "web") {
+    if (!engine.isSupported()) {
       setStatus("missing");
-      setErrorText("النموذج غير مدعوم على الويب");
+      setErrorText("WebGPU غير مدعوم على هذا الجهاز");
       return;
     }
     setStatus("loading");
     setErrorText(null);
     try {
-      const info = await getModelInfo();
-      if (!info.exists) {
-        setStatus("missing");
-        setErrorText("Model not installed");
+      if (Platform.OS === "web") {
+        const modelId = getSelectedWebModelId();
+        if (!modelId) {
+          setStatus("missing");
+          setErrorText("اختر نموذج الويب أولاً");
+          return;
+        }
+        await engine.ensureModelReady({ modelId });
+        setStatus("ready");
         return;
       }
-      const modelUri = "file://" + MODEL_PATH;
-      const llama = await import("llama.rn");
-      const ctx = await llama.initLlama({ model: modelUri, n_ctx: 2048 });
-      contextRef.current = ctx;
+
+      const ready = await engine.isModelReady();
+      if (!ready) {
+        setStatus("missing");
+        setErrorText("النموذج غير مثبت");
+        return;
+      }
+
+      await engine.ensureModelReady();
       setStatus("ready");
     } catch (err: any) {
       setStatus("error");
       setErrorText(err?.message ?? "تعذر تحميل النموذج");
     }
-  }, []);
+  }, [engine]);
 
   useEffect(() => {
     void checkAndInit();
     return () => {
-      try {
-        contextRef.current?.release?.();
-      } catch {}
+      // Engine cleanup handled internally if needed.
     };
   }, [checkAndInit]);
 
@@ -119,24 +116,49 @@ export default function AiChatTestScreen() {
     isSendingRef.current = true;
 
     try {
-      const ctx = contextRef.current;
-      if (!ctx) throw new Error("Context not ready");
+      const normalized = normalizeArabic(trimmed);
+      if (["السلام عليكم", "السلام عليكم ورحمة الله", "السلام عليكم ورحمة الله وبركاته"].includes(normalized)) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: "وعليكم السلام ورحمة الله وبركاته." } : m
+          )
+        );
+        return;
+      }
+
+      const contextData = await buildLocalContextData(trimmed);
+      if (!contextData.hasSources) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content:
+                    "لم أجد نصاً صريحاً في المصادر المحلية عن سؤالك. هل تريد صياغة السؤال بشكل أدق؟",
+                }
+              : m
+          )
+        );
+        return;
+      }
+
+      const systemContent = contextData.context
+        ? `${SYSTEM_PROMPT}\n\n${contextData.context}\n\nالرجاء ذكر المصادر بوضوح ضمن الإجابة.`
+        : SYSTEM_PROMPT;
 
       const chatMessages = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemContent },
         ...nextMessages
-          .filter((m) => m.role !== "system")
+          .filter((m) => m.role !== "system" && m.id !== assistantId)
           .map((m) => ({ role: m.role, content: m.content })),
       ];
 
-      await ctx.completion(
+      await engine.generateStream(
         {
           messages: chatMessages,
-          n_predict: 200,
-          stop: STOP_WORDS,
+          temperature: 0.2,
         },
-        (data: any) => {
-          const token = data?.token ?? data?.content ?? "";
+        (token) => {
           if (!token) return;
           setMessages((prev) =>
             prev.map((m) =>
@@ -145,15 +167,29 @@ export default function AiChatTestScreen() {
           );
         }
       );
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantId) return m;
+          if (m.content.includes("المصادر") || m.content.includes("القرآن الكريم")) {
+            return m;
+          }
+          return {
+            ...m,
+            content: `${m.content}\n\nالمصادر:\n${contextData.sourcesText}`,
+          };
+        })
+      );
     } catch (err: any) {
+      const msg = err?.message ?? "تعذر الحصول على الرد. حاول مرة أخرى.";
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: "تعذر الحصول على الرد. حاول مرة أخرى." }
+            ? { ...m, content: msg }
             : m
         )
       );
-      setErrorText(err?.message ?? "تعذر الحصول على الرد");
+      setErrorText(msg);
     } finally {
       isSendingRef.current = false;
     }
@@ -172,7 +208,10 @@ export default function AiChatTestScreen() {
 
   const footerStatus = useMemo(() => {
     if (status === "missing") return errorText || "Model not installed";
-    if (status === "loading") return "جاري تحميل النموذج...";
+    if (status === "loading") {
+      if (Platform.OS === "web") return null;
+      return "جاري تحميل النموذج...";
+    }
     if (status === "error") return errorText || "حدث خطأ أثناء التحميل";
     return null;
   }, [status, errorText]);
@@ -200,12 +239,14 @@ export default function AiChatTestScreen() {
       >
         {footerStatus ? <Text style={styles.statusText}>{footerStatus}</Text> : null}
 
-        {status === "missing" && Platform.OS !== "web" ? (
+        {status === "missing" ? (
           <Pressable
             style={styles.installBtn}
             onPress={() => navigation.navigate("AiModelSetup")}
           >
-            <Text style={styles.installText}>تثبيت النموذج</Text>
+            <Text style={styles.installText}>
+              {Platform.OS === "web" ? "اختيار نموذج الويب" : "تثبيت النموذج"}
+            </Text>
           </Pressable>
         ) : null}
 

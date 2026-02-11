@@ -444,47 +444,29 @@ export default function QuranReaderScreen() {
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.toolbar}>
-        <View style={styles.toolbarRow}>
-          <View style={styles.toolbarLeft}>
-            <Pressable
-              onPress={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
-                  return;
-                }
-                (navigation as any).navigate("Library");
-              }}
-              style={({ pressed }) => [styles.goldButton, pressed ? { opacity: 0.7 } : null]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"} size={20} color="#1B4332" />
-            </Pressable>
-            <Pressable
-              onPress={() => setOptionsToken((v) => v + 1)}
-              style={({ pressed }) => [styles.goldButton, pressed ? { opacity: 0.7 } : null]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="settings-outline" size={20} color="#1B4332" />
-            </Pressable>
-          </View>
-
-          <Text style={styles.toolbarTitle}>{surahName}</Text>
-
-          <View style={styles.toolbarRight}>
-            <Text style={styles.juzText}>{`????? ${arabicIndic(currentJuz ?? 1)}`}</Text>
-          </View>
-        </View>
-        <View style={styles.goldLine} />
-      </View>
-      <View style={styles.frameWrap}>
-        <View style={styles.frameOuter}>
-          <View style={styles.frameInner}>
-            <Text style={styles.frameTitle}>{`???? ${surahName}`}</Text>
-          </View>
-          <View style={[styles.frameCorner, styles.frameCornerTL]} />
-          <View style={[styles.frameCorner, styles.frameCornerTR]} />
-          <View style={[styles.frameCorner, styles.frameCornerBL]} />
-          <View style={[styles.frameCorner, styles.frameCornerBR]} />
+        <Pressable
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+              return;
+            }
+            (navigation as any).navigate("Library");
+          }}
+          style={({ pressed }) => [styles.toolbarButton, pressed ? { opacity: 0.7 } : null]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"} size={22} color="#E8F2EC" />
+        </Pressable>
+        <Text style={styles.toolbarTitle}>{surahName}</Text>
+        <View style={styles.toolbarActions}>
+          <Text style={styles.juzText}>{`الجزء ${arabicIndic(currentJuz ?? 1)}`}</Text>
+          <Pressable
+            onPress={() => setOptionsToken((v) => v + 1)}
+            style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="settings-outline" size={20} color="#E8F2EC" />
+          </Pressable>
         </View>
       </View>
       {renderReady ? (
@@ -565,112 +547,53 @@ export default function QuranReaderScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F8F4E3",
+    backgroundColor: "#EFE8DD",
   },
   toolbar: {
-    backgroundColor: "#1B4332",
-    paddingTop: 8,
+    height: 64,
     paddingHorizontal: 16,
-    paddingBottom: 10,
-  },
-  toolbarRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#2F5B4F",
   },
-  toolbarLeft: {
-    flexDirection: "row",
+  toolbarButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
-    gap: 10,
-  },
-  toolbarRight: {
-    minWidth: 68,
-    alignItems: "flex-end",
+    justifyContent: "center",
   },
   toolbarTitle: {
     fontFamily: "CairoBold",
     fontSize: 20,
-    color: "#FFFFFF",
+    color: "#E8F2EC",
     textAlign: "center",
+  },
+  toolbarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   juzText: {
     fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#D4AF37",
+    fontSize: 13,
+    color: "#CFE0D6",
   },
-  goldButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#D4AF37",
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  goldLine: {
-    marginTop: 8,
-    height: 2,
-    backgroundColor: "#D4AF37",
-    opacity: 0.9,
-  },
-  frameWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
-  },
-  frameOuter: {
-    backgroundColor: "#EADFC1",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#2F5B4F",
-    padding: 8,
-    position: "relative",
-  },
-  frameInner: {
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#D4AF37",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    backgroundColor: "#F3E6C8",
-  },
-  frameTitle: {
+  iconText: {
     fontFamily: "CairoBold",
-    fontSize: 22,
-    color: "#1F2D25",
-    textAlign: "center",
-  },
-  frameCorner: {
-    position: "absolute",
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#D4AF37",
-  },
-  frameCornerTL: { top: 6, left: 6 },
-  frameCornerTR: { top: 6, right: 6 },
-  frameCornerBL: { bottom: 6, left: 6 },
-  frameCornerBR: { bottom: 6, right: 6 },
+    fontSize: 18,
+    color: "#E8F2EC",
   },
   webOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 40,
   },
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

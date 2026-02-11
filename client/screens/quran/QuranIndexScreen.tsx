@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -243,13 +244,17 @@ export default function QuranIndexScreen({
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={22} color="#B8AC9B" style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="بحث في القرآن الكريم"
-            placeholderTextColor="#B8AC9B"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            textAlign="right"
-          />
+  style={[
+    styles.searchInput,
+    { textAlign: "right", writingDirection: "rtl" },
+    // مهم لو بتجرب على Web
+  ]}
+  placeholder="بحث في القرآن الكريم"
+  placeholderTextColor="#B8AC9B"
+  value={searchQuery}
+  onChangeText={setSearchQuery}
+/>
+
         </View>
 
         {/* Continue Reading Card */}

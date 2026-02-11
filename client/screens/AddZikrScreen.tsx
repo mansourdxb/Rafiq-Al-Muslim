@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   input: {
     color: "#1B1F22",
-    ...(Platform.OS === "web" ? ({ direction: "rtl" } as any) : null),
+    writingDirection: "rtl",
   },
   inputTitle: {
     ...typography.itemTitle,

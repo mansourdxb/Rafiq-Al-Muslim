@@ -13,11 +13,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
 import { typography } from "@/theme/typography";
+import { getAiEngine } from "@/src/ai/engine";
 import {
   getModelInfo,
   downloadModel,
   deleteModel,
 } from "@/src/lib/ai/modelStorage";
+import {
+  getWebModelList,
+  getSelectedWebModelId,
+  setSelectedWebModelId,
+  getWebReadyFlag,
+} from "@/src/ai/engine/webEngine";
 
 export default function AiModelSetupScreen() {
   const insets = useSafeAreaInsets();
@@ -34,6 +41,10 @@ export default function AiModelSetupScreen() {
   const [progressWritten, setProgressWritten] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [webModels, setWebModels] = useState<string[]>([]);
+  const [selectedWebModel, setSelectedWebModel] = useState<string | null>(null);
+  const [webReady, setWebReady] = useState(false);
+  const engine = useMemo(() => getAiEngine(), []);
 
   const refreshInfo = useCallback(async () => {
     if (Platform.OS === "web") {
@@ -50,13 +61,66 @@ export default function AiModelSetupScreen() {
     void refreshInfo();
   }, [refreshInfo]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    let mounted = true;
+    const loadWebModels = async () => {
+      try {
+        const list = await getWebModelList();
+        if (!mounted) return;
+        setWebModels(list);
+        const stored = getSelectedWebModelId();
+        const fallback = stored ?? list[0] ?? null;
+        if (!stored && list[0]) {
+          setSelectedWebModelId(list[0]);
+        }
+        setSelectedWebModel(fallback);
+        const ready = getWebReadyFlag();
+        if (mounted) setWebReady(ready);
+      } catch (err: any) {
+        if (mounted) setErrorText(err?.message ?? "تعذر تحميل نماذج الويب");
+      }
+    };
+    void loadWebModels();
+    return () => {
+      mounted = false;
+    };
+  }, [engine]);
+
   const sizeLabel = useMemo(() => {
+    if (Platform.OS === "web") return "غير متاح";
     if (!sizeBytes) return "0 MB";
     return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
   }, [sizeBytes]);
 
   const startDownload = async () => {
-    if (Platform.OS === "web") return;
+    if (Platform.OS === "web") {
+      if (!engine.isSupported()) {
+        setErrorText("WebGPU غير مدعوم على هذا الجهاز");
+        return;
+      }
+      if (!selectedWebModel) {
+        setErrorText("اختر نموذج الويب أولاً");
+        return;
+      }
+      setLoading(true);
+      setErrorText(null);
+      setProgressRatio(0);
+      setProgressWritten(0);
+      setProgressTotal(0);
+      try {
+        await engine.ensureModelReady({
+          modelId: selectedWebModel,
+          onProgress: (ratio) => setProgressRatio(ratio),
+        });
+        setWebReady(true);
+      } catch (err: any) {
+        setErrorText(err?.message ?? "تعذر تحميل نموذج الويب");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     setLoading(true);
     setErrorText(null);
     setProgressRatio(0);
@@ -114,26 +178,76 @@ export default function AiModelSetupScreen() {
       <View style={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>حالة النموذج</Text>
-          <Text style={styles.cardValue}>{installed ? "مثبت" : "غير مثبت"}</Text>
+          <Text style={styles.cardValue}>
+            {Platform.OS === "web"
+              ? webReady
+                ? "جاهز"
+                : "غير مثبت"
+              : installed
+              ? "مثبت"
+              : "غير مثبت"}
+          </Text>
           <Text style={styles.cardMeta}>الحجم: {sizeLabel}</Text>
         </View>
 
         {Platform.OS === "web" ? (
-          <Text style={styles.helperText}>غير مدعوم على الويب حالياً.</Text>
+          <View style={styles.webSection}>
+            <Text style={styles.webTitle}>نماذج الويب</Text>
+            {webModels.length === 0 ? (
+              <Text style={styles.helperText}>جاري تحميل القائمة...</Text>
+            ) : (
+              <View style={styles.webModelList}>
+                {webModels.slice(0, 6).map((modelId) => {
+                  const selected = modelId === selectedWebModel;
+                  return (
+                    <Pressable
+                      key={modelId}
+                      style={[styles.webModelChip, selected && styles.webModelChipActive]}
+                      onPress={() => {
+                        setSelectedWebModel(modelId);
+                        setSelectedWebModelId(modelId);
+                        setWebReady(false);
+                      }}
+                    >
+                      <Text style={[styles.webModelText, selected && styles.webModelTextActive]}>
+                        {modelId}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         ) : null}
 
         {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
         {!installed && Platform.OS !== "web" ? (
           <Pressable style={styles.primaryBtn} onPress={startDownload} disabled={loading}>
-            {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>تحميل النموذج</Text>}
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryText}>تحميل النموذج</Text>
+            )}
           </Pressable>
         ) : null}
 
-        {loading && progressTotal > 0 ? (
+        {Platform.OS === "web" ? (
+          <Pressable style={styles.primaryBtn} onPress={startDownload} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryText}>
+                {webReady ? "تشغيل نموذج الويب" : "تحميل نموذج الويب"}
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
+
+        {loading && (progressTotal > 0 || Platform.OS === "web") ? (
           <View style={styles.progressWrap}>
             <View style={styles.progressRow}>
-              <Text style={styles.progressText}>{progressLabel}</Text>
+              <Text style={styles.progressText}>{Platform.OS === "web" ? "" : progressLabel}</Text>
               <Text style={styles.progressText}>{progressPercent}%</Text>
             </View>
             <View style={styles.progressTrack}>
@@ -193,6 +307,40 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 18,
+  },
+  webSection: {
+    marginTop: 14,
+  },
+  webTitle: {
+    ...typography.itemTitle,
+    fontSize: 14,
+    color: "#1B4332",
+    textAlign: "right",
+    marginBottom: 8,
+  },
+  webModelList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  webModelChip: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(27,67,50,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  webModelChipActive: {
+    backgroundColor: "rgba(27,67,50,0.12)",
+    borderColor: "#1B4332",
+  },
+  webModelText: {
+    ...typography.itemSubtitle,
+    fontSize: 11,
+    color: "#4D5C55",
+  },
+  webModelTextActive: {
+    color: "#1B4332",
   },
   card: {
     backgroundColor: "#FFFFFF",
