@@ -6,6 +6,7 @@ import { clearMark, loadMarks, setMark, type AyahMark } from "@/src/lib/quran/ay
 import { getPageCount, getPageData, getPageForAyah, arabicIndic } from "@/src/lib/quran/mushaf";
 import ReaderOptionsSheet from "@/ui/quran/ReaderOptionsSheet";
 import TafsirSheet from "@/ui/quran/TafsirSheet";
+import QuranMiniPlayer from "@/src/components/quran/QuranMiniPlayer";
 
 const DEBUG_QURAN_NAV = true;
 
@@ -395,6 +396,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         onClose={() => setTafsirVisible(false)}
         tafsirList={selectedAyah?.tafsirList ?? []}
       />
+      <QuranMiniPlayer />
     </View>
   );
 }

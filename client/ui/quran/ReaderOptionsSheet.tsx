@@ -7,12 +7,14 @@ import {
   Text,
   View,
   ScrollView,
+  Alert,
+  Platform,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { quranTheme } from "./theme";
 import { loadMarks } from "@/src/lib/quran/ayahMarks";
 import { quranFiles } from "@/lib/quran/quranFiles";
-import { quranPlayer } from "@/src/services/quranAudio";
+import { buildEveryAyahUrl, playAyah } from "@/src/services/quranAudio";
 
 function arabicIndic(value: number) {
   const map = ["\u0660", "\u0661", "\u0662", "\u0663", "\u0664", "\u0665", "\u0666", "\u0667", "\u0668", "\u0669"];
@@ -77,16 +79,12 @@ export default function ReaderOptionsSheet({
   useEffect(() => {
     if (!visible) {
       setView("main");
-      quranPlayer.stop();
-      quranPlayer.unload();
       setIsPlaying(false);
     }
   }, [visible]);
 
   useEffect(() => {
-    return () => {
-      quranPlayer.unload();
-    };
+    return () => {};
   }, []);
 
   useEffect(() => {
@@ -201,12 +199,22 @@ export default function ReaderOptionsSheet({
                 setIsLoading(true);
                 try {
                   if (!surahNumber) return;
-                  const playing = await quranPlayer.toggleAyah({
+                  console.log("PLAY pressed", surahNumber, ayahNumber);
+                  const url = buildEveryAyahUrl(surahNumber, ayahNumber, "alafasy");
+                  console.log("[QuranAudio] play", url);
+                  await playAyah({
                     surah: surahNumber,
                     ayah: ayahNumber,
-                    reciter: "alafasy",
+                    surahName,
+                    reciterKey: "alafasy",
                   });
-                  setIsPlaying(playing);
+                  setIsPlaying(true);
+                  onClose();
+                } catch (error) {
+                  console.error("[QuranAudio] play failed", error);
+                  if (Platform.OS === "web") {
+                    Alert.alert("تعذر التشغيل", "يرجى المحاولة مرة أخرى.");
+                  }
                 } finally {
                   setIsLoading(false);
                 }
