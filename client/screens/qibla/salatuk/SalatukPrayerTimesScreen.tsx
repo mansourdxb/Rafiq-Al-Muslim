@@ -15,18 +15,18 @@ import { Feather } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import tzLookup from "tz-lookup";
 
-import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
-import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/src/lib/prayer/preferences";
-import { getAthanPrefs, type AthanMode, type AthanPrefs } from "@/src/lib/prayer/athanPrefs";
-import CityPickerModal from "@/components/prayer/CityPickerModal";
+import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
+import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/screens/qibla/services/preferences";
+import { getAthanPrefs, type AthanMode, type AthanPrefs } from "@/screens/qibla/services/athanPrefs";
+import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import {
   computePrayerTimes,
   formatTime,
   formatTimeInTZ,
   type PrayerName,
   type PrayerTimesResult,
-} from "@/src/services/prayerTimes";
-import { getCityFromGPS } from "@/src/services/cityService";
+} from "@/screens/qibla/services/prayerTimes";
+import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 
 function pad2(v: number) {
   return String(v).padStart(2, "0");
@@ -538,3 +538,4 @@ const styles = StyleSheet.create({
     color: "#BE1144",
   },
 });
+

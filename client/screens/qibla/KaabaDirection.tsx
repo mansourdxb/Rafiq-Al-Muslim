@@ -13,11 +13,11 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 
 import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
-import CityPickerModal from "@/components/prayer/CityPickerModal";
+import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import { useTheme } from "@/context/ThemeContext";
-import type { City } from "@/src/lib/prayer/preferences";
-import { getSelectedCity, setSelectedCity } from "@/src/lib/prayer/preferences";
-import { getCityFromGPS } from "@/src/services/cityService";
+import type { City } from "@/screens/qibla/services/preferences";
+import { getSelectedCity, setSelectedCity } from "@/screens/qibla/services/preferences";
+import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 import { useDeviceHeading } from "@/src/hooks/useDeviceHeading";
 
 const DIRECTION_LABELS = [
@@ -423,3 +423,4 @@ const styles = StyleSheet.create({
     color: "#7B7F86",
   },
 });
+

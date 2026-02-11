@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 import { Platform } from "react-native";
 import tzLookup from "tz-lookup";
-import type { City } from "@/src/lib/prayer/preferences";
+import type { City } from "@/screens/qibla/services/preferences";
 
 type ReverseAddress = Location.LocationGeocodedAddress;
 
@@ -236,3 +236,4 @@ export async function searchCityByName(query: string): Promise<City[]> {
 
   return Array.from(deduped.values());
 }
+

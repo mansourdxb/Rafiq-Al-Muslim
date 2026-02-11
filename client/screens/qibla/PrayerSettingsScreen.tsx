@@ -19,12 +19,12 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 import { useTheme } from "@/context/ThemeContext";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
-import { getPrayerSettings, getSelectedCity, setPrayerSettings } from "@/src/lib/prayer/preferences";
+import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
+import { getPrayerSettings, getSelectedCity, setPrayerSettings } from "@/screens/qibla/services/preferences";
 import {
   reschedulePrayerNotificationsIfEnabled,
   scheduleTestNotification,
-} from "@/src/services/prayerNotifications";
+} from "@/screens/qibla/services/prayerNotifications";
 import { initLocalNotifications } from "@/src/services/notificationsInit";
 import { typography } from "@/theme/typography";
 
@@ -543,3 +543,4 @@ const styles = StyleSheet.create({
     color: "#2D6185",
   },
 });
+

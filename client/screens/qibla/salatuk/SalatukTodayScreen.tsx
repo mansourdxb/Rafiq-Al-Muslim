@@ -4,9 +4,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme } from "@/context/ThemeContext";
-import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
-import { getPrayerSettings, getSelectedCity } from "@/src/lib/prayer/preferences";
-import { computePrayerTimes, formatTimeInTZ } from "@/src/services/prayerTimes";
+import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
+import { getPrayerSettings, getSelectedCity } from "@/screens/qibla/services/preferences";
+import { computePrayerTimes, formatTimeInTZ } from "@/screens/qibla/services/prayerTimes";
 import tzLookup from "tz-lookup";
 
 type TodayTimes = {
@@ -191,3 +191,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+

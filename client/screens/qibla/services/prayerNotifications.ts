@@ -2,8 +2,8 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import tzLookup from "tz-lookup";
-import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
-import { computePrayerTimes, formatTimeInTZ } from "@/src/services/prayerTimes";
+import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
+import { computePrayerTimes, formatTimeInTZ } from "@/screens/qibla/services/prayerTimes";
 import { initLocalNotifications } from "@/src/services/notificationsInit";
 
 const STORAGE_KEY = "@tasbeeh/prayerNotificationIds";
@@ -155,3 +155,4 @@ export async function scheduleTestNotification(delayMs = 30000): Promise<void> {
   });
   console.log("[NOTIF] test scheduled", id, fireDate.toString());
 }
+

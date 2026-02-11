@@ -9,8 +9,8 @@ import {
   setPrayerAthanSound,
   type AthanSoundId,
   type PrayerKey,
-} from "@/storage/salatukAthanSounds";
-import { playPreview, stopPreview } from "@/services/athanAudio";
+} from "@/screens/qibla/services/salatukAthanSounds";
+import { playPreview, stopPreview } from "@/screens/qibla/services/athanAudio";
 
 const OPTIONS: Array<{ id: AthanSoundId; label: string }> = [
   { id: "makkah", label: "أذان مكة" },
@@ -187,3 +187,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0A500",
   },
 });
+

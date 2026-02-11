@@ -9,9 +9,9 @@ import AboutScreen from "@/screens/AboutScreen";
 import QuranReaderScreen from "@/screens/quran/QuranReaderScreen";
 import QuranSearchScreen from "@/screens/quran/QuranSearchScreen";
 import SettingsPlaceholderScreen from "@/screens/settings/SettingsPlaceholderScreen";
-import PrayerSettingsScreen from "@/screens/settings/PrayerSettingsScreen";
-import SalatukAthanSettingsScreen from "@/screens/salatuk/SalatukAthanSettingsScreen";
-import AthanSoundPickerScreen from "@/screens/salatuk/AthanSoundPickerScreen";
+import PrayerSettingsScreen from "@/screens/qibla/PrayerSettingsScreen";
+import SalatukAthanSettingsScreen from "@/screens/qibla/salatuk/SalatukAthanSettingsScreen";
+import AthanSoundPickerScreen from "@/screens/qibla/salatuk/AthanSoundPickerScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type RootStackParamList = {
@@ -146,3 +146,4 @@ export default function RootStackNavigator() {
     </Stack.Navigator>
   );
 }
+

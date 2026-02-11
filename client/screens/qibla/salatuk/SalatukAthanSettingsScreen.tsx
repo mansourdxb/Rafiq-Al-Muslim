@@ -10,12 +10,12 @@ import {
   type AthanMode,
   type AthanPrayerKey,
   type AthanPrefs,
-} from "@/src/lib/prayer/athanPrefs";
+} from "@/screens/qibla/services/athanPrefs";
 import {
   getAthanSounds,
   type AthanSoundId,
   type PrayerKey,
-} from "@/storage/salatukAthanSounds";
+} from "@/screens/qibla/services/salatukAthanSounds";
 
 const PRAYERS: Array<{
   key: AthanPrayerKey;
@@ -204,3 +204,4 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.08)",
   },
 });
+

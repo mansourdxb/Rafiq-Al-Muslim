@@ -14,13 +14,13 @@ import Svg, { Circle } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 
 import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
-import CityPickerModal from "@/components/prayer/CityPickerModal";
+import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import { useTheme } from "@/context/ThemeContext";
-import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
-import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/src/lib/prayer/preferences";
-import { reschedulePrayerNotificationsIfEnabled } from "@/src/services/prayerNotifications";
-import { computePrayerTimes, formatTimeInTZ, type PrayerName, type PrayerTimesResult } from "@/src/services/prayerTimes";
-import { getCityFromGPS } from "@/src/services/cityService";
+import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
+import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/screens/qibla/services/preferences";
+import { reschedulePrayerNotificationsIfEnabled } from "@/screens/qibla/services/prayerNotifications";
+import { computePrayerTimes, formatTimeInTZ, type PrayerName, type PrayerTimesResult } from "@/screens/qibla/services/prayerTimes";
+import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 import tzLookup from "tz-lookup";
 
 const PRAYER_ARABIC: Record<PrayerName, string> = {
@@ -554,3 +554,4 @@ const styles = StyleSheet.create({
     color: "#B90A12",
   },
 });
+

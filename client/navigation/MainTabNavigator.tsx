@@ -1,7 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
-import SalatukEntryScreen from "@/screens/salatuk/SalatukEntryScreen";
+import SalatukEntryScreen from "@/screens/qibla/salatuk/SalatukEntryScreen";
 import PresetsStackNavigator from "@/navigation/PresetsStackNavigator";
 import QuranTabNavigator from "@/navigation/QuranTabNavigator";
 import HadithStackNavigator from "@/navigation/HadithStackNavigator";
@@ -34,3 +34,4 @@ export default function MainTabNavigator() {
     </Tab.Navigator>
   );
 }
+

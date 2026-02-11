@@ -10,8 +10,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import type { City } from "@/src/lib/prayer/preferences";
-import { getCityFromGPS, searchCityByName } from "@/src/services/cityService";
+import type { City } from "@/screens/qibla/services/preferences";
+import { getCityFromGPS, searchCityByName } from "@/screens/qibla/services/cityService";
 
 type CityPickerModalProps = {
   visible: boolean;
@@ -264,3 +264,4 @@ const styles = StyleSheet.create({
     opacity: 0.88,
   },
 });
+

@@ -14,10 +14,10 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import KaabaDirection from "@/screens/qibla/KaabaDirection";
-import QiblaScreen from "@/screens/QiblaScreen";
-import PrayerSettingsScreen from "@/screens/settings/PrayerSettingsScreen";
-import SalatukCitiesScreen from "@/screens/salatuk/SalatukCitiesScreen";
-import SalatukPrayerTimesScreen from "@/screens/salatuk/SalatukPrayerTimesScreen";
+import QiblaScreen from "@/screens/qibla/QiblaScreen";
+import PrayerSettingsScreen from "@/screens/qibla/PrayerSettingsScreen";
+import SalatukCitiesScreen from "@/screens/qibla/salatuk/SalatukCitiesScreen";
+import SalatukPrayerTimesScreen from "@/screens/qibla/salatuk/SalatukPrayerTimesScreen";
 
 export type SalatukTabParamList = {
   SalatukHome: undefined;
@@ -140,4 +140,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
 

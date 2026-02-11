@@ -4,7 +4,7 @@ import {
   Madhab,
   PrayerTimes,
 } from "adhan";
-import type { PrayerSettings } from "../lib/prayer/preferences";
+import type { PrayerSettings } from "./preferences";
 
 type CityCoords = {
   lat: number;
@@ -273,3 +273,4 @@ export function formatTimeInTZ(date: Date, timeZone: string, locale?: string): s
   });
   return formatter.format(date);
 }
+

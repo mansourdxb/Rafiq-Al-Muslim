@@ -1,7 +1,7 @@
 import { Alert } from "react-native";
 import { Audio } from "expo-av";
 
-import type { AthanSoundId } from "@/storage/salatukAthanSounds";
+import type { AthanSoundId } from "@/screens/qibla/services/salatukAthanSounds";
 
 let currentSound: Audio.Sound | null = null;
 let audioModeReady = false;
@@ -15,11 +15,11 @@ const FILE_MAP: Record<AthanSoundId, string> = {
 };
 
 const ATHAN_ASSETS = {
-  makkah: require("../assets/athan/makkah.mp3"),
-  madina: require("../assets/athan/madina.mp3"),
-  oriental1: require("../assets/athan/oriental1.mp3"),
-  oriental2: require("../assets/athan/oriental2.mp3"),
-  maghrib1: require("../assets/athan/maghrib1.mp3"),
+  makkah: require("../../../assets/athan/makkah.mp3"),
+  madina: require("../../../assets/athan/madina.mp3"),
+  oriental1: require("../../../assets/athan/oriental1.mp3"),
+  oriental2: require("../../../assets/athan/oriental2.mp3"),
+  maghrib1: require("../../../assets/athan/maghrib1.mp3"),
 } as const;
 
 export function getAthanAsset(soundId: AthanSoundId) {
@@ -88,3 +88,5 @@ export async function stopPreview(): Promise<void> {
   }
   currentSound = null;
 }
+
+

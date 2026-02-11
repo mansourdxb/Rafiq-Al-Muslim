@@ -17,15 +17,15 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import tzLookup from "tz-lookup";
 
-import CityPickerModal from "@/components/prayer/CityPickerModal";
-import type { City, PrayerSettings } from "@/src/lib/prayer/preferences";
-import { getPrayerSettings } from "@/src/lib/prayer/preferences";
+import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
+import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
+import { getPrayerSettings } from "@/screens/qibla/services/preferences";
 import {
   computePrayerTimes,
   formatTime,
   formatTimeInTZ,
   type PrayerName,
-} from "@/src/services/prayerTimes";
+} from "@/screens/qibla/services/prayerTimes";
 
 const formatTimeLatin = (date: Date) =>
   formatTime(date, "en").replace(/AM/i, "ص").replace(/PM/i, "م");
@@ -36,7 +36,7 @@ import {
   getWorldCities,
   setWorldCities as persistWorldCities,
   type WorldCity,
-} from "@/storage/salatukWorldCities";
+} from "@/screens/qibla/services/salatukWorldCities";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -597,4 +597,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
 

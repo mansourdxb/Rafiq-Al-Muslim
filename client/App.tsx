@@ -21,14 +21,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { initLocalNotifications } from "@/src/services/notificationsInit";
-import { getPrayerSettings, getSelectedCity } from "@/src/lib/prayer/preferences";
-import { reschedulePrayerNotificationsIfEnabled } from "@/src/services/prayerNotifications";
-import { playPreview, stopPreview } from "@/services/athanAudio";
+import { getPrayerSettings, getSelectedCity } from "@/screens/qibla/services/preferences";
+import { reschedulePrayerNotificationsIfEnabled } from "@/screens/qibla/services/prayerNotifications";
+import { playPreview, stopPreview } from "@/screens/qibla/services/athanAudio";
 import {
   computePrayerTimes,
   formatTimeInTZ,
   type PrayerName,
-} from "@/src/services/prayerTimes";
+} from "@/screens/qibla/services/prayerTimes";
 
 // Keep splash visible until we manually hide it
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -280,3 +280,4 @@ const styles = StyleSheet.create({
     color: "#2D6185",
   },
 });
+
