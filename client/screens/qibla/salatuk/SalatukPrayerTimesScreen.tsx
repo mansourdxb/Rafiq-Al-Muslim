@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DrawerActions, useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import Svg, { Line } from "react-native-svg";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -331,25 +331,8 @@ export default function SalatukPrayerTimesScreen() {
         >
           <View style={[styles.header, { paddingTop: topPad }]}>
             <View style={[styles.headerInner, { width: contentWidth }]}>
-              <View style={styles.headerSpacer} />
               <Text style={styles.headerTitle}>رفيق المسلم</Text>
-              <Pressable
-                onPress={() => {
-                  let current: any = navigation;
-                  while (current) {
-                    const state = current.getState?.();
-                    if (state?.type === "drawer") {
-                      current.dispatch(DrawerActions.openDrawer());
-                      return;
-                    }
-                    current = current.getParent?.();
-                  }
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.menuBtn}
-              >
-                <Feather name="menu" size={24} color="#FFFFFF" />
-              </Pressable>
+              <View style={styles.headerSpacer} />
             </View>
           </View>
 
@@ -547,10 +530,6 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 28,
-  },
-  menuBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: 2,
   },
   body: {
     flex: 1,
