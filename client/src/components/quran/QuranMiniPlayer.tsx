@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Feather } from "@expo/vector-icons";
 import {
-  RECITERS,
+  RECITER_OPTIONS,
   getPlayerState,
   subscribePlayer,
   togglePlayPause,
@@ -15,6 +15,7 @@ import {
   stopAndHide,
   playAyah,
 } from "@/src/services/quranAudio";
+import ReciterPickerModal from "@/src/components/quran/ReciterPickerModal";
 
 const SPEEDS = [1, 1.25, 1.5, 2];
 
@@ -34,7 +35,7 @@ export default function QuranMiniPlayer() {
   }, []);
 
   const reciterLabel = useMemo(() => {
-    const found = RECITERS.find((r) => r.key === state.reciterKey);
+    const found = RECITER_OPTIONS.find((r) => r.key === state.reciterKey);
     return found?.label ?? state.reciterKey;
   }, [state.reciterKey]);
 
@@ -103,32 +104,22 @@ export default function QuranMiniPlayer() {
         </View>
       </View>
 
-      <Modal transparent visible={reciterOpen} animationType="fade" onRequestClose={() => setReciterOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setReciterOpen(false)} />
-        <View style={styles.modalCard}>
-          {RECITERS.map((reciter) => (
-            <Pressable
-              key={reciter.key}
-              style={styles.reciterRow}
-              onPress={() => {
-                setReciterOpen(false);
-                if (!state.surah || !state.ayah) return;
-                void playAyah({
-                  surah: state.surah,
-                  ayah: state.ayah,
-                  surahName: state.surahName,
-                  reciterKey: reciter.key,
-                });
-              }}
-            >
-              <Text style={styles.reciterRowText}>{reciter.label}</Text>
-              {reciter.key === state.reciterKey ? (
-                <Feather name="check" size={16} color="#2F6E52" />
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
-      </Modal>
+      <ReciterPickerModal
+        visible={reciterOpen}
+        onClose={() => setReciterOpen(false)}
+        selectedReciterKey={state.reciterKey}
+        onSelectReciter={(key) => {
+          if (!state.surah || !state.ayah) return;
+          void playAyah({
+            surah: state.surah,
+            ayah: state.ayah,
+            surahName: state.surahName,
+            reciterKey: key,
+          });
+        }}
+        currentSurahNumber={state.surah ?? 0}
+        currentAyahNumber={state.ayah ?? 0}
+      />
     </>
   );
 }
@@ -221,29 +212,5 @@ const styles = StyleSheet.create({
     fontFamily: "CairoBold",
     fontSize: 12,
     color: "#2F6E52",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  modalCard: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    bottom: 90,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
-  },
-  reciterRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-  },
-  reciterRowText: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#1F2937",
   },
 });
