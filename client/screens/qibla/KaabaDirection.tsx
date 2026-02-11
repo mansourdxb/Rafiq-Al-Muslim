@@ -1,8 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image,
-  ImageBackground,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,7 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
@@ -23,9 +20,13 @@ import { getSelectedCity, setSelectedCity } from "@/screens/qibla/services/prefe
 import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 import { useDeviceHeading } from "@/src/hooks/useDeviceHeading";
 
-const BG_IMAGE = require("@/assets/qibla/qibla-bg.png");
-const COMPASS_BASE = require("@/assets/qibla/compass-base.png");
-const COMPASS_NEEDLE = require("@/assets/qibla/compass-needle.png");
+const COLORS = {
+  primary: "#3D5A47",
+  accent: "#C19B53",
+  backgroundLight: "#F3F5F4",
+  backgroundDark: "#1A241E",
+  cardDark: "#243129",
+};
 
 export default function KaabaDirection() {
   const navigation = useNavigation<any>();
@@ -43,7 +44,6 @@ export default function KaabaDirection() {
   const [loadingCity, setLoadingCity] = useState(false);
   const [cityLookupFailed, setCityLookupFailed] = useState(false);
   const [autoOpenedPickerOnWeb, setAutoOpenedPickerOnWeb] = useState(false);
-  const [showCalibration, setShowCalibration] = useState(false);
   const { headingDeg, accuracy, source } = useDeviceHeading();
   const hasLoadedRef = useRef(false);
   const cityVersionRef = useRef(0);
@@ -120,141 +120,137 @@ export default function KaabaDirection() {
   };
 
   const cityTitle = !selectedCity || isUnknownCityName(selectedCity.name)
-    ? "اختر مدينة"
+    ? "--"
     : selectedCity.name;
-  const citySourceText = selectedCity && !isUnknownCityName(selectedCity.name)
-    ? selectedCity.source === "manual"
-      ? "الموقع مثبت يدوياً"
-      : "تم تحديد الموقع تلقائياً"
-    : "";
 
   const qiblaBearing = selectedCity
     ? computeQiblaBearing(selectedCity.lat, selectedCity.lon)
     : null;
   const qiblaDegreeText =
     qiblaBearing === null ? "--°" : `${Math.round(qiblaBearing)}°`;
-  const needleRotation =
+  const needleDeg =
     qiblaBearing !== null
       ? (qiblaBearing - (headingDeg ?? 0) + 360) % 360
       : 0;
 
-  const compassSize = Math.min(contentWidth - 40, 290);
+  const bearingCardinal = qiblaBearing === null ? "--" : toCardinal(qiblaBearing);
+  const distanceKm =
+    selectedCity ? haversineKm(selectedCity.lat, selectedCity.lon, 21.4225, 39.8262) : null;
+
+  const compassSize = Math.min(contentWidth - 40, 300);
+  const ringInset = 12;
+  const innerInset = 24;
+
+  const bgColor = isDarkMode ? COLORS.backgroundDark : COLORS.backgroundLight;
+  const cardColor = isDarkMode ? COLORS.cardDark : "#FFFFFF";
 
   return (
-    <View style={[styles.root, { backgroundColor: isDarkMode ? "#15140F" : "#F7F2E7" }]}>
-      <ImageBackground
-        source={BG_IMAGE}
-        resizeMode="cover"
-        style={styles.bg}
-        imageStyle={styles.bgImage}
+    <View style={[styles.root, { backgroundColor: bgColor }]}>
+      <View style={[styles.blob, styles.blobLeft, { backgroundColor: "rgba(61,90,71,0.08)" }]} />
+      <View style={[styles.blob, styles.blobRight, { backgroundColor: "rgba(193,155,83,0.08)" }]} />
+
+      <ScrollView
+        style={{ width: contentWidth }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          style={{ width: contentWidth }}
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.header, { paddingTop: headerPadTop }]}>
-            <View style={styles.headerRow}>
-              <Pressable
-                onPress={() => {
-                  if (navigation.canGoBack?.()) {
-                    navigation.goBack();
-                  } else {
-                    navigation.navigate("PrayerTimes");
-                  }
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.headerBtn}
-              >
-                <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
-              </Pressable>
-              <Text style={styles.headerTitle}>بوصلة اتجاه القبلة</Text>
-              <Pressable
-                onPress={() => navigation.navigate("SalatukSettings")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.headerBtn}
-              >
-                <Ionicons name="settings" size={18} color="#FFFFFF" />
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.content}>
-            <View style={styles.cityRow}>
-              <Text
-                style={styles.cityName}
-                numberOfLines={2}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-              >
-                {loadingCity ? "..." : cityTitle}
-              </Text>
-              <Pressable style={styles.pinButton} onPress={() => setIsCityPickerOpen(true)}>
-                <Feather name="map-pin" size={18} color="#2F6E52" />
-              </Pressable>
-            </View>
-            {citySourceText ? <Text style={styles.citySource}>{citySourceText}</Text> : null}
-
-            <View style={styles.compassSection}>
-              <View style={[styles.compassWrap, { width: compassSize, height: compassSize }]}>
-                <Image source={COMPASS_BASE} style={styles.compassBase} />
-                <Image
-                  source={COMPASS_NEEDLE}
-                  style={[
-                    styles.compassNeedle,
-                    { transform: [{ rotate: `${needleRotation}deg` }] },
-                  ]}
-                />
-              </View>
-            </View>
-
-            <View style={styles.qiblaInfoWrap}>
-              <View style={styles.degreeRow}>
-                <Text style={styles.qiblaDegree}>{qiblaDegreeText}</Text>
-                <Ionicons name="arrow-undo" size={20} color="#2F6E52" />
-              </View>
-              <Text style={styles.qiblaLabel}>القبلة</Text>
-              {headingDeg === null && Platform.OS === "web" ? (
-                <Text style={styles.webHint}>
-                  Compass sensor not available on web. Use phone for live compass.
-                </Text>
-              ) : null}
-              {__DEV__ ? (
-                <Text style={styles.debugText}>
-                  {`Heading: ${headingDeg == null ? "--" : Math.round(headingDeg)}° (${source}) acc: ${accuracy ?? "--"}`}
-                </Text>
-              ) : null}
-            </View>
-
+        <View style={[styles.header, { paddingTop: headerPadTop }]}> 
+          <View style={styles.headerRow}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.headerTitle}>اتجاه القبلة</Text>
             <Pressable
-              onPress={() => setShowCalibration(true)}
-              style={styles.calibrateBtn}
+              onPress={() => {
+                if (navigation.canGoBack?.()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate("PrayerTimes");
+                }
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.headerBtn}
             >
-              <Text style={styles.calibrateText}>معايرة</Text>
+              <Ionicons name="chevron-back" size={18} color={COLORS.primary} />
             </Pressable>
           </View>
-        </ScrollView>
+        </View>
 
-        <CityPickerModal
-          visible={isCityPickerOpen}
-          onClose={() => setIsCityPickerOpen(false)}
-          onSelect={handleCitySelect}
-        />
-        <Modal transparent visible={showCalibration} animationType="fade">
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowCalibration(false)}>
-            <Pressable style={styles.modalCard} onPress={() => {}}>
-              <Text style={styles.modalTitle}>معايرة البوصلة</Text>
-              <Text style={styles.modalText}>حرّك الهاتف بحركة رقم ٨ حتى تتحسن الدقة.</Text>
+        <View style={styles.content}>
+          <View style={[styles.compassWrap, { width: compassSize, height: compassSize }]}> 
+            <View style={[styles.ringOuter, { borderColor: "rgba(61,90,71,0.2)" }]} />
+            <View style={[styles.ringInner, { borderColor: "rgba(61,90,71,0.12)" }]} />
+
+            <Text style={[styles.cardinal, styles.cardinalN]}>N</Text>
+            <Text style={[styles.cardinal, styles.cardinalS]}>S</Text>
+            <Text style={[styles.cardinal, styles.cardinalE]}>E</Text>
+            <Text style={[styles.cardinal, styles.cardinalW]}>W</Text>
+
+            <View style={[styles.centerDisc, { backgroundColor: cardColor }]} />
+
+            <View style={[styles.needleWrap, { transform: [{ rotate: `${needleDeg}deg` }] }]}> 
+              <View style={styles.kaabaMarker}>
+                <View style={styles.kaabaDot} />
+                <Text style={styles.kaabaText}>KAABA</Text>
+              </View>
+              <View style={styles.needleStemTop} />
+              <View style={styles.needleStemBottom} />
+              <View style={[styles.needleCenter, { borderColor: bgColor }]} />
+            </View>
+          </View>
+
+          {headingDeg === null && Platform.OS === "web" ? (
+            <Text style={styles.webHint}>Compass sensor not available on web. Use phone for live compass.</Text>
+          ) : null}
+
+          <View style={[styles.infoCard, { backgroundColor: cardColor }]}> 
+            <View style={styles.infoTopRow}>
+              <View>
+                <Text style={styles.infoLabel}>المدينة الحالية</Text>
+                <Text style={styles.infoCity}>{loadingCity ? "..." : cityTitle}</Text>
+              </View>
               <Pressable
-                onPress={() => setShowCalibration(false)}
-                style={styles.modalButton}
+                onPress={loadCity}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.refreshBtn}
               >
-                <Text style={styles.modalButtonText}>حسنًا</Text>
+                <Ionicons name="locate" size={18} color={COLORS.primary} />
               </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      </ImageBackground>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoGrid}>
+              <View style={styles.infoCol}>
+                <Text style={styles.infoSmall}>الزاوية</Text>
+                <Text style={styles.infoValue}>
+                  {qiblaDegreeText} <Text style={styles.infoSub}>{bearingCardinal}</Text>
+                </Text>
+              </View>
+              <View style={styles.infoCol}>
+                <Text style={styles.infoSmall}>المسافة</Text>
+                <Text style={styles.infoValue}>
+                  {distanceKm === null ? "--" : distanceKm.toFixed(1)} <Text style={styles.infoSub}>كم</Text>
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <Text style={styles.instruction}>
+            يرجى وضع الهاتف بشكل مسطح وبعيداً عن الأجسام المغناطيسية للحصول على أدق النتائج.
+          </Text>
+
+          {__DEV__ ? (
+            <Text style={styles.debugText}>
+              {`Heading: ${headingDeg == null ? "--" : Math.round(headingDeg)}° (${source}) acc: ${accuracy ?? "--"}`}
+            </Text>
+          ) : null}
+        </View>
+      </ScrollView>
+
+      <CityPickerModal
+        visible={isCityPickerOpen}
+        onClose={() => setIsCityPickerOpen(false)}
+        onSelect={handleCitySelect}
+      />
     </View>
   );
 }
@@ -272,6 +268,24 @@ function computeQiblaBearing(lat: number, lon: number): number {
   let bearing = toDeg(Math.atan2(y, x));
   bearing = (bearing + 360) % 360;
   return bearing;
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toCardinal(deg: number) {
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"];
+  const idx = Math.round(((deg % 360) / 45));
+  return dirs[idx] ?? "N";
 }
 
 function toRad(deg: number): number {
@@ -293,19 +307,26 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  bg: {
-    flex: 1,
-    alignItems: "center",
+  blob: {
+    position: "absolute",
+    borderRadius: 999,
+    opacity: 1,
   },
-  bgImage: {
-    opacity: 0.16,
+  blobLeft: {
+    width: 240,
+    height: 200,
+    top: -80,
+    left: -80,
+  },
+  blobRight: {
+    width: 240,
+    height: 200,
+    bottom: -80,
+    right: -80,
   },
   header: {
     width: "100%",
-    backgroundColor: "#1E5A47",
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   headerRow: {
     flexDirection: "row",
@@ -313,151 +334,205 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
+  headerTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: COLORS.primary,
+  },
   headerBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(61,90,71,0.2)",
   },
-  headerTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#FFFFFF",
+  headerSpacer: {
+    width: 36,
   },
   content: {
     alignItems: "center",
     paddingHorizontal: 18,
-    paddingTop: 20,
-  },
-  cityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  cityName: {
-    fontFamily: "CairoBold",
-    fontSize: 20,
-    lineHeight: 26,
-    color: "#2B2B2B",
-    textAlign: "center",
-    paddingHorizontal: 10,
-  },
-  pinButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  citySource: {
-    marginTop: 4,
-    fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#7C7C7C",
-    textAlign: "center",
-  },
-  compassSection: {
-    width: "100%",
-    alignItems: "center",
-    marginTop: 20,
+    paddingTop: 8,
   },
   compassWrap: {
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 8,
   },
-  compassBase: {
+  ringOuter: {
+    position: "absolute",
     width: "100%",
     height: "100%",
-    resizeMode: "contain",
+    borderRadius: 999,
+    borderWidth: 2,
   },
-  compassNeedle: {
+  ringInner: {
     position: "absolute",
-    width: "80%",
-    height: "80%",
-    resizeMode: "contain",
+    width: "100%",
+    height: "100%",
+    borderRadius: 999,
+    borderWidth: 1,
+    transform: [{ scale: 0.86 }],
   },
-  qiblaInfoWrap: {
+  centerDisc: {
+    width: "70%",
+    height: "70%",
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  cardinal: {
+    position: "absolute",
+    fontFamily: "CairoBold",
+    fontSize: 12,
+    color: COLORS.primary,
+  },
+  cardinalN: {
+    top: 6,
+    color: COLORS.accent,
+  },
+  cardinalS: {
+    bottom: 6,
+  },
+  cardinalE: {
+    right: 6,
+  },
+  cardinalW: {
+    left: 6,
+  },
+  needleWrap: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
     alignItems: "center",
-    marginTop: 14,
+    justifyContent: "center",
   },
-  degreeRow: {
+  needleStemTop: {
+    width: 4,
+    height: "32%",
+    backgroundColor: "#C13C3C",
+    borderRadius: 2,
+    marginBottom: 6,
+  },
+  needleStemBottom: {
+    width: 4,
+    height: "22%",
+    backgroundColor: "rgba(61,90,71,0.25)",
+    borderRadius: 2,
+  },
+  needleCenter: {
+    position: "absolute",
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: COLORS.accent,
+    borderWidth: 2,
+  },
+  kaabaMarker: {
+    position: "absolute",
+    top: 12,
+    alignItems: "center",
+  },
+  kaabaDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.accent,
+    marginBottom: 4,
+  },
+  kaabaText: {
+    fontFamily: "CairoBold",
+    fontSize: 10,
+    color: COLORS.accent,
+    letterSpacing: 1,
+  },
+  infoCard: {
+    width: "100%",
+    borderRadius: 24,
+    padding: 16,
+    marginTop: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  infoTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "space-between",
   },
-  qiblaDegree: {
-    fontFamily: "CairoBold",
-    fontSize: 28,
-    color: "#1F1F1F",
-  },
-  qiblaLabel: {
-    marginTop: 4,
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#2F6E52",
-  },
-  webHint: {
-    marginTop: 4,
+  infoLabel: {
     fontFamily: "Cairo",
     fontSize: 12,
-    color: "#8A8A8A",
+    color: "#7C7C7C",
+  },
+  infoCity: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: COLORS.primary,
+  },
+  refreshBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(61,90,71,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(61,90,71,0.1)",
+    marginVertical: 12,
+  },
+  infoGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  infoCol: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  infoSmall: {
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#7C7C7C",
+  },
+  infoValue: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: COLORS.primary,
+  },
+  infoSub: {
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#9AA2A9",
+  },
+  instruction: {
+    marginTop: 16,
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#8C8C8C",
+    textAlign: "center",
+    paddingHorizontal: 24,
+  },
+  webHint: {
+    marginTop: 10,
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#8C8C8C",
+    textAlign: "center",
   },
   debugText: {
     marginTop: 6,
     fontFamily: "Cairo",
     fontSize: 12,
     color: "#7B7F86",
-  },
-  calibrateBtn: {
-    marginTop: 18,
-    paddingHorizontal: 28,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#C6A86A",
-    backgroundColor: "#F6EFE1",
-  },
-  calibrateText: {
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#3F3B2F",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 320,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#2B2B2B",
-    marginBottom: 6,
-  },
-  modalText: {
-    fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#6B6B6B",
-    textAlign: "center",
-    marginBottom: 14,
-  },
-  modalButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 18,
-    backgroundColor: "#1E5A47",
-  },
-  modalButtonText: {
-    fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#FFFFFF",
   },
 });
