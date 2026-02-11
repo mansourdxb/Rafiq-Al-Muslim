@@ -9,17 +9,14 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { useTheme } from "@/context/ThemeContext";
 import { typography } from "@/theme/typography";
 import type { LibraryStackParamList } from "@/navigation/LibraryStackNavigator";
-import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
 
 const hadithBooks = [
   {
@@ -73,32 +70,24 @@ export default function LibraryHadithScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { width } = useWindowDimensions();
-  const { colors, isDarkMode } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<LibraryStackParamList>>();
 
   const contentWidth = Math.min(width, 430);
-  const headerGradientColors = colors.headerGradient as [string, string, ...string[]];
-  const sheetBackground = isDarkMode ? "#0D0F12" : "#F3F5F8";
-  const cardOuterBackground = isDarkMode ? "#000000" : "#E7EDF4";
-  const cardInnerBackground = isDarkMode ? "#2F2F30" : "#FFFFFF";
-  const primaryText = isDarkMode ? "#FFFFFF" : "#111418";
-  const secondaryText = isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(17,20,24,0.55)";
+  const sheetBackground = "#F5F4F1";
+  const cardOuterBackground = "#FFFFFF";
+  const cardInnerBackground = "#FFFFFF";
+  const primaryText = "#1F2D25";
+  const secondaryText = "#7C8A82";
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={headerGradientColors}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-      >
+    <View style={[styles.root, { backgroundColor: "#F5F4F1" }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={[styles.headerInner, { width: contentWidth }]}>
-          <View style={styles.menuButton}>
-            <DrawerMenuButton />
-          </View>
           <Text style={[styles.headerTitle, typography.screenTitle]}>
             {"\u0627\u0644\u062d\u062f\u064a\u062b"}
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
         style={{ width: contentWidth }}
@@ -177,8 +166,16 @@ const styles = StyleSheet.create({
   },
   header: {
     width: "100%",
-    paddingBottom: 16,
+    paddingBottom: 18,
     alignItems: "center",
+    backgroundColor: "#1B4332",
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   headerInner: {
     paddingHorizontal: 14,
@@ -187,21 +184,14 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: "#FFFFFF",
-    fontSize: 40,
-    fontWeight: "900",
+    fontSize: 24,
     textAlign: "center",
-  },
-  menuButton: {
-    position: "absolute",
-    right: 4,
-    top: 2,
-    zIndex: 5,
   },
   sheet: {
     flex: 1,
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    paddingTop: 16,
+    paddingTop: 18,
     paddingHorizontal: 14,
   },
   hadithList: {
@@ -215,8 +205,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   hadithSectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
     textAlign: "right",
     fontFamily: "CairoBold",
   },
@@ -225,8 +214,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 14,
   },
   favoritesButton: {
     width: 30,
@@ -234,30 +223,30 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1E8B5A",
+    backgroundColor: "#2F6E52",
   },
   hadithCardOuter: {
-    borderRadius: 22,
-    padding: 8,
+    borderRadius: 18,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: "#E6E0D6",
     ...(Platform.OS === "web"
       ? ({ boxShadow: "0 10px 24px rgba(0,0,0,0.10)" } as any)
       : null),
   },
   hadithCardInner: {
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     alignItems: "center",
   },
   hadithCardTitle: {
-    fontSize: 18,
-    fontWeight: "900",
+    fontSize: 16,
     textAlign: "center",
   },
   hadithCardSub: {
     marginTop: 4,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
     textAlign: "center",
   },
 });
