@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DrawerActions, useFocusEffect, useNavigation } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import tzLookup from "tz-lookup";
 
@@ -424,12 +424,17 @@ export default function SalatukPrayerTimesScreen() {
                       <Pressable
                         onPress={openAthanSettings}
                         hitSlop={6}
-                        style={[
-                          styles.toggle,
-                          isEnabled && styles.toggleActive,
-                        ]}
+                        style={styles.soundBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          isEnabled ? `إيقاف صوت ${row.label}` : `تفعيل صوت ${row.label}`
+                        }
                       >
-                        <View style={styles.toggleThumb} />
+                        <Ionicons
+                          name={isEnabled ? "volume-high" : "volume-mute"}
+                          size={22}
+                          color={isEnabled ? COLORS.primary : COLORS.textMuted}
+                        />
                       </Pressable>
                     </View>
                     {index < rows.length - 1 ? <View style={styles.divider} /> : null}
@@ -741,23 +746,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.divider,
   },
-  toggle: {
-    width: 46,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.toggleTrack,
-    padding: 3,
-    alignItems: "flex-start",
+  soundBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
     justifyContent: "center",
-  },
-  toggleActive: {
-    backgroundColor: COLORS.primary,
-    alignItems: "flex-end",
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: COLORS.toggleThumb,
   },
 });
