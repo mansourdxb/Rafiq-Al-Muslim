@@ -63,6 +63,34 @@ function getYMDInTZ(date: Date, timeZone: string) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+function getTimePartsInTZ(date: Date, timeZone?: string | null) {
+  if (!timeZone) {
+    return {
+      hours: date.getHours(),
+      minutes: date.getMinutes(),
+      seconds: date.getSeconds(),
+    };
+  }
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    dtf
+      .formatToParts(date)
+      .filter((p) => p.type !== "literal")
+      .map((p) => [p.type, p.value])
+  );
+  return {
+    hours: Number(parts.hour ?? 0),
+    minutes: Number(parts.minute ?? 0),
+    seconds: Number(parts.second ?? 0),
+  };
+}
+
 function getCityOnlyLabel(city: City | null) {
   if (!city?.name) return "اختر مدينة";
   const name = city.name.split(",")[0]?.trim();
@@ -227,6 +255,13 @@ export default function SalatukPrayerTimesScreen() {
       : "--:--:--";
   const nextPrayerLabel = nextPrayer ? PRAYER_LABELS[nextPrayer] : "—";
 
+  const timeParts = useMemo(
+    () => getTimePartsInTZ(new Date(nowMs), tz),
+    [nowMs, tz]
+  );
+  const hourAngle = ((timeParts.hours % 12) + timeParts.minutes / 60) * 30;
+  const minuteAngle = (timeParts.minutes + timeParts.seconds / 60) * 6;
+
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
 
@@ -385,8 +420,20 @@ export default function SalatukPrayerTimesScreen() {
               <View style={styles.clockGlow} />
               <View style={styles.clock}>
                 <View style={styles.clockRing} />
-                <View style={[styles.clockHand, styles.clockHandPrimary]} />
-                <View style={[styles.clockHand, styles.clockHandSecondary]} />
+                <View
+                  style={[
+                    styles.clockHand,
+                    styles.clockHandHour,
+                    { transform: [{ rotate: `${hourAngle}deg` }] },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.clockHand,
+                    styles.clockHandMinute,
+                    { transform: [{ rotate: `${minuteAngle}deg` }] },
+                  ]}
+                />
                 <View style={styles.clockDot} />
               </View>
             </View>
@@ -644,14 +691,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     bottom: "50%",
   },
-  clockHandPrimary: {
-    height: 58,
-    transform: [{ rotate: "45deg" }],
+  clockHandHour: {
+    height: 46,
   },
-  clockHandSecondary: {
-    height: 70,
+  clockHandMinute: {
+    height: 64,
     opacity: 0.6,
-    transform: [{ rotate: "140deg" }],
   },
   clockDot: {
     width: 10,
