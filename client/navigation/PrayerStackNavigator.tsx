@@ -5,14 +5,15 @@ import SalatukPrayerTimesScreen from "@/screens/qibla/salatuk/SalatukPrayerTimes
 import KaabaDirection from "@/screens/qibla/KaabaDirection";
 import SalatukCitiesScreen from "@/screens/qibla/salatuk/SalatukCitiesScreen";
 import PrayerSettingsScreen from "@/screens/qibla/PrayerSettingsScreen";
-import NearbyMasjidsScreen from "@/screens/qibla/NearbyMasjidsScreen";
+import MasjidsComingSoonScreen from "@/screens/qibla/MasjidsComingSoonScreen";
+
 
 export type PrayerStackParamList = {
   PrayerTimes: undefined;
   QiblaDirection: undefined;
   WorldCities: undefined;
   PrayerSettings: undefined;
-  NearbyMasjids: undefined;
+  MasjidsComingSoon: undefined;
 };
 
 const Stack = createNativeStackNavigator<PrayerStackParamList>();
@@ -24,7 +25,7 @@ export default function PrayerStackNavigator() {
       <Stack.Screen name="QiblaDirection" component={KaabaDirection} />
       <Stack.Screen name="WorldCities" component={SalatukCitiesScreen} />
       <Stack.Screen name="PrayerSettings" component={PrayerSettingsScreen} />
-      <Stack.Screen name="NearbyMasjids" component={NearbyMasjidsScreen} />
+      <Stack.Screen name="MasjidsComingSoon" component={MasjidsComingSoonScreen} />
     </Stack.Navigator>
   );
 }
