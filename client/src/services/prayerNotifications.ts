@@ -24,12 +24,6 @@ export async function initPrayerNotifications(): Promise<boolean> {
     }),
   });
 
-  const perm = await Notifications.getPermissionsAsync();
-  if (!perm.granted) {
-    const next = await Notifications.requestPermissionsAsync();
-    if (!next.granted) return false;
-  }
-
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("prayer", {
       name: "Prayer Times",
@@ -39,6 +33,12 @@ export async function initPrayerNotifications(): Promise<boolean> {
       enableVibrate: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
+  }
+
+  const perm = await Notifications.getPermissionsAsync();
+  if (!perm.granted) {
+    const req = await Notifications.requestPermissionsAsync();
+    if (!req.granted) return false;
   }
 
   return true;
@@ -103,17 +103,16 @@ export async function schedulePrayerNotifications(params: {
 }
 
 export async function scheduleTestNotification(): Promise<void> {
-  const fireDate = new Date(Date.now() + 5000);
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "اختبار الأذان / الإشعار",
-      body: "سيظهر هذا الإشعار خلال 5 ثوانٍ",
+      title: "اختبار الأذان",
+      body: "سيعمل الأذان/الإشعار عند وقت الصلاة بإذن الله",
       sound: "default",
-      data: { type: "prayer", prayer: "test" },
+      data: { type: "test" },
     },
     trigger:
       Platform.OS === "android"
-        ? ({ date: fireDate, channelId: "prayer" } as any)
-        : (fireDate as any),
+        ? ({ seconds: 5, channelId: "prayer" } as any)
+        : ({ seconds: 5 } as any),
   });
 }

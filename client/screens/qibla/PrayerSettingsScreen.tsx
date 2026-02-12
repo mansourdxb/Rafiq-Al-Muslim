@@ -304,17 +304,20 @@ export default function PrayerSettingsScreen() {
             />
           </View>
           <Pressable
-            onPress={() =>
-              void (async () => {
+            onPress={async () => {
+              try {
                 const ok = await initPrayerNotifications();
                 if (!ok) {
-                  Alert.alert("تنبيه", "لم يتم منح إذن الإشعارات.");
+                  Alert.alert("الإشعارات", "الرجاء السماح بالإشعارات من الإعدادات.");
                   return;
                 }
                 await scheduleTestNotification();
-                Alert.alert("تنبيه", "سيظهر إشعار خلال 5 ثوانٍ");
-              })()
-            }
+                Alert.alert("تم", "سيظهر إشعار خلال 5 ثوانٍ");
+              } catch (e) {
+                console.log("TEST NOTIF ERROR:", e);
+                Alert.alert("خطأ", "تعذر إرسال إشعار الاختبار. راجع السجل.");
+              }
+            }}
             style={[styles.testNotifBtn, { backgroundColor: goldSoft }]}
           >
             <Text style={[styles.testNotifText, { color: green }]}>اختبار الأذان / الإشعار</Text>
