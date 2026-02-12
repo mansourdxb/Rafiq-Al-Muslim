@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -8,16 +8,12 @@ import {
   Switch,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import DrawerMenuButton from "@/components/navigation/DrawerMenuButton";
-import { useTheme } from "@/context/ThemeContext";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
 import { getPrayerSettings, getSelectedCity, setPrayerSettings } from "@/screens/qibla/services/preferences";
@@ -26,7 +22,6 @@ import {
   scheduleTestNotification,
 } from "@/screens/qibla/services/prayerNotifications";
 import { initLocalNotifications } from "@/src/services/notificationsInit";
-import { typography } from "@/theme/typography";
 
 const METHODS: PrayerSettings["method"][] = [
   "MWL",
@@ -37,11 +32,11 @@ const METHODS: PrayerSettings["method"][] = [
 ];
 
 const METHOD_LABELS: Record<PrayerSettings["method"], string> = {
-  MWL: "MWL",
-  UmmAlQura: "UmmAlQura",
-  Egypt: "Egypt",
-  Karachi: "Karachi",
-  ISNA: "ISNA",
+  MWL: "رابطة العالم الإسلامي",
+  UmmAlQura: "أم القرى",
+  Egypt: "الهيئة المصرية",
+  Karachi: "جامعة كراتشي",
+  ISNA: "الجمعية الإسلامية لأمريكا الشمالية",
 };
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -58,10 +53,6 @@ function defaultSettings(): PrayerSettings {
 export default function PrayerSettingsScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { colors, isDarkMode } = useTheme();
-  const maxW = 430;
-  const contentWidth = Math.min(width, maxW);
 
   const [settings, setSettings] = useState<PrayerSettings>(defaultSettings);
   const [city, setCity] = useState<City | null>(null);
@@ -69,12 +60,14 @@ export default function PrayerSettingsScreen() {
   const [loaded, setLoaded] = useState(false);
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const headerGradientColors = colors.headerGradient as [string, string, ...string[]];
   const headerPadTop = useMemo(() => insets.top + 12, [insets.top]);
-  const cardBg = isDarkMode ? "#2B2B2B" : "#FFFFFF";
-  const textColor = isDarkMode ? "#FFFFFF" : "#111418";
-  const subColor = isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(17,20,24,0.55)";
-  const dividerColor = isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(17,20,24,0.08)";
+  const pageBg = "#F6F2E9";
+  const cardBg = "#FFFFFF";
+  const green = "#0F4A3C";
+  const gold = "#D6AF3E";
+  const goldSoft = "rgba(214,175,62,0.14)";
+  const subColor = "#9AA3A7";
+  const dividerColor = "rgba(15,74,60,0.08)";
 
   useEffect(() => {
     let mounted = true;
@@ -147,139 +140,155 @@ export default function PrayerSettingsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <LinearGradient colors={headerGradientColors} style={[styles.header, { paddingTop: headerPadTop }]}>
-        <View style={[styles.headerInner, { width: contentWidth }]}>
+    <View style={[styles.root, { backgroundColor: pageBg }]}> 
+      <View style={[styles.header, { paddingTop: headerPadTop, backgroundColor: green }]}> 
+        <View style={styles.headerInner}>
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Feather name="arrow-left" size={22} color="#FFFFFF" />
+            <Feather name="chevron-right" size={24} color="#FFFFFF" />
           </Pressable>
-          <View style={styles.menuButton}>
-            <DrawerMenuButton />
-          </View>
-          <Text style={styles.headerTitle}>إعدادات الصلاة</Text>
+          <Text style={styles.headerTitle}>إعدادات المواقيت</Text>
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
-        style={{ width: contentWidth }}
-        contentContainerStyle={{ paddingTop: 14, paddingBottom: insets.bottom + 24 }}
+        style={styles.scroll}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: insets.bottom + 28 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.card, { backgroundColor: cardBg }]}>
-          <Pressable style={styles.row} onPress={() => setMethodModalOpen(true)}>
-            <View style={styles.rowTextWrap}>
-              <Text style={[styles.rowTitle, { color: textColor }]}>طريقة الحساب</Text>
-              <Text style={[styles.rowSub, { color: subColor }]}>{METHOD_LABELS[settings.method]}</Text>
-            </View>
-            <Feather name="chevron-left" size={20} color={subColor} />
-          </Pressable>
-          <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+        <Pressable
+          style={[styles.selectCard, { backgroundColor: cardBg }]}
+          onPress={() => setMethodModalOpen(true)}
+        >
+          <View style={styles.selectCardText}>
+            <Text style={[styles.sectionTitle, { color: green }]}>طريقة الحساب</Text>
+            <Text style={[styles.sectionValue, { color: gold }]}>{METHOD_LABELS[settings.method]}</Text>
+          </View>
+          <View style={styles.selectChevron}>
+            <Feather name="chevron-left" size={22} color={green} />
+          </View>
+        </Pressable>
 
-          <View style={styles.row}>
-            <View style={styles.rowTextWrap}>
-              <Text style={[styles.rowTitle, { color: textColor }]}>المذهب</Text>
-              <View style={styles.segmentWrap}>
-                <Pressable
-                  onPress={() => persistPartial({ madhab: "Shafi" })}
-                  style={[
-                    styles.segmentButton,
-                    settings.madhab === "Shafi" ? styles.segmentActive : null,
-                  ]}
-                >
-                  <Text style={styles.segmentText}>Shafi</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => persistPartial({ madhab: "Hanafi" })}
-                  style={[
-                    styles.segmentButton,
-                    settings.madhab === "Hanafi" ? styles.segmentActive : null,
-                  ]}
-                >
-                  <Text style={styles.segmentText}>Hanafi</Text>
-                </Pressable>
-              </View>
-            </View>
+        <View style={[styles.card, { backgroundColor: cardBg }]}> 
+          <Text style={[styles.sectionTitle, { color: green }]}>المذهب</Text>
+          <View style={styles.pillRow}>
+            <Pressable
+              onPress={() => persistPartial({ madhab: "Hanafi" })}
+              style={[
+                styles.pillButton,
+                settings.madhab === "Hanafi" ? styles.pillSelected : styles.pillUnselected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.pillText,
+                  settings.madhab === "Hanafi" ? styles.pillTextSelected : styles.pillTextUnselected,
+                ]}
+              >
+                حنفي
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => persistPartial({ madhab: "Shafi" })}
+              style={[
+                styles.pillButton,
+                settings.madhab === "Shafi" ? styles.pillSelected : styles.pillUnselected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.pillText,
+                  settings.madhab === "Shafi" ? styles.pillTextSelected : styles.pillTextUnselected,
+                ]}
+              >
+                شافعي / حنبلي / مالكي
+              </Text>
+            </Pressable>
           </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: cardBg }]}>
-          <Text style={[styles.cardTitle, { color: textColor }]}>تعديلات الدقائق</Text>
+        <Text style={[styles.sectionTitle, { color: green, marginHorizontal: 18 }]}>تعديل الدقائق</Text>
+        <View style={[styles.card, { backgroundColor: cardBg }]}> 
           <AdjustmentRow
             label="الفجر"
             value={settings.adjustments.fajr}
             onMinus={() => setAdjustment("fajr", -1)}
             onPlus={() => setAdjustment("fajr", 1)}
-            textColor={textColor}
+            green={green}
             subColor={subColor}
             dividerColor={dividerColor}
+            gold={gold}
           />
           <AdjustmentRow
             label="الظهر"
             value={settings.adjustments.dhuhr}
             onMinus={() => setAdjustment("dhuhr", -1)}
             onPlus={() => setAdjustment("dhuhr", 1)}
-            textColor={textColor}
+            green={green}
             subColor={subColor}
             dividerColor={dividerColor}
+            gold={gold}
           />
           <AdjustmentRow
             label="العصر"
             value={settings.adjustments.asr}
             onMinus={() => setAdjustment("asr", -1)}
             onPlus={() => setAdjustment("asr", 1)}
-            textColor={textColor}
+            green={green}
             subColor={subColor}
             dividerColor={dividerColor}
+            gold={gold}
           />
           <AdjustmentRow
             label="المغرب"
             value={settings.adjustments.maghrib}
             onMinus={() => setAdjustment("maghrib", -1)}
             onPlus={() => setAdjustment("maghrib", 1)}
-            textColor={textColor}
+            green={green}
             subColor={subColor}
             dividerColor={dividerColor}
+            gold={gold}
           />
           <AdjustmentRow
             label="العشاء"
             value={settings.adjustments.isha}
             onMinus={() => setAdjustment("isha", -1)}
             onPlus={() => setAdjustment("isha", 1)}
-            textColor={textColor}
+            green={green}
             subColor={subColor}
             dividerColor={dividerColor}
+            gold={gold}
             isLast
           />
         </View>
 
-        <View style={[styles.card, { backgroundColor: cardBg }]}>
+        <View style={[styles.card, { backgroundColor: cardBg }]}> 
           <View style={styles.row}>
             <View style={styles.rowTextWrap}>
-              <Text style={[styles.rowTitle, { color: textColor }]}>تنبيهات الصلاة</Text>
+              <Text style={[styles.rowTitle, { color: green }]}>تنبيهات الصلاة</Text>
               <Text style={[styles.rowSub, { color: subColor }]}>
-                {city ? `المدينة: ${city.name}` : "اختر مدينة من شاشة القبلة أولاً"}
+                {city ? `المدينة: ${city.name}` : "اختر مدينة من شاشة القبلة أولًا"}
               </Text>
             </View>
             <Switch
               value={settings.notificationsEnabled}
               onValueChange={onToggleNotifications}
-              trackColor={{ false: "#8D8D8D", true: "#7EC3E6" }}
+              trackColor={{ false: "#C9C9C9", true: gold }}
               thumbColor="#FFFFFF"
             />
           </View>
           <Pressable
             onPress={() => void scheduleTestNotification(30000)}
-            style={styles.testNotifBtn}
+            style={[styles.testNotifBtn, { backgroundColor: goldSoft }]}
           >
-            <Text style={styles.testNotifText}>اختبار إشعار بعد 30 ثانية</Text>
+            <Text style={[styles.testNotifText, { color: green }]}>اختبار إشعار بعد 30 ثانية</Text>
           </Pressable>
         </View>
       </ScrollView>
 
       <Modal visible={methodModalOpen} transparent animationType="fade" onRequestClose={() => setMethodModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.modalTitle, { color: textColor }]}>اختر طريقة الحساب</Text>
+          <View style={[styles.modalCard, { backgroundColor: cardBg }]}> 
+            <Text style={[styles.modalTitle, { color: green }]}>اختر طريقة الحساب</Text>
             {METHODS.map((method) => (
               <Pressable
                 key={method}
@@ -292,16 +301,16 @@ export default function PrayerSettingsScreen() {
                   pressed ? { opacity: 0.8 } : null,
                 ]}
               >
-                <Text style={[styles.methodText, { color: textColor }]}>{METHOD_LABELS[method]}</Text>
+                <Text style={[styles.methodText, { color: green }]}>{METHOD_LABELS[method]}</Text>
                 {settings.method === method ? (
-                  <Feather name="check" size={18} color="#5EA7D4" />
+                  <Feather name="check" size={18} color={gold} />
                 ) : (
                   <View style={{ width: 18 }} />
                 )}
               </Pressable>
             ))}
             <Pressable style={styles.closeBtn} onPress={() => setMethodModalOpen(false)}>
-              <Text style={styles.closeBtnText}>إغلاق</Text>
+              <Text style={[styles.closeBtnText, { color: green }]}>إغلاق</Text>
             </Pressable>
           </View>
         </View>
@@ -315,35 +324,37 @@ function AdjustmentRow({
   value,
   onMinus,
   onPlus,
-  textColor,
+  green,
   subColor,
   dividerColor,
+  gold,
   isLast = false,
 }: {
   label: string;
   value: number;
   onMinus: () => void;
   onPlus: () => void;
-  textColor: string;
+  green: string;
   subColor: string;
   dividerColor: string;
+  gold: string;
   isLast?: boolean;
 }) {
   return (
     <>
       <View style={styles.row}>
         <View style={styles.rowTextWrap}>
-          <Text style={[styles.rowTitle, { color: textColor }]}>{label}</Text>
+          <Text style={[styles.rowTitle, { color: green }]}>{label}</Text>
           <Text style={[styles.rowSub, { color: subColor }]}>بالدقائق</Text>
         </View>
         <View style={styles.stepperWrap}>
-          <Pressable style={styles.stepperBtn} onPress={onMinus}>
+          <Pressable style={[styles.stepperBtn, { backgroundColor: gold }]} onPress={onMinus}>
             <Text style={styles.stepperBtnText}>-</Text>
           </Pressable>
-          <Text style={[styles.stepperValue, { color: textColor }]}>
+          <Text style={[styles.stepperValue, { color: green }]}>
             {value > 0 ? `+${value}` : value}
           </Text>
-          <Pressable style={styles.stepperBtn} onPress={onPlus}>
+          <Pressable style={[styles.stepperBtn, { backgroundColor: gold }]} onPress={onPlus}>
             <Text style={styles.stepperBtnText}>+</Text>
           </Pressable>
         </View>
@@ -360,141 +371,175 @@ const styles = StyleSheet.create({
   },
   header: {
     width: "100%",
-    paddingBottom: 18,
+    paddingBottom: 16,
     alignItems: "center",
   },
   headerInner: {
+    width: "100%",
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 48,
   },
   headerTitle: {
-    ...typography.screenTitle,
     color: "#FFFFFF",
-    fontSize: 38,
-    fontWeight: "900",
+    fontSize: 20,
+    fontWeight: "800",
     textAlign: "center",
+    fontFamily: "CairoBold",
   },
   backButton: {
     position: "absolute",
-    left: 4,
-    top: 2,
+    right: 4,
+    top: 6,
     zIndex: 5,
     padding: 8,
   },
-  menuButton: {
-    position: "absolute",
-    right: 4,
-    top: 2,
-    zIndex: 5,
+  scroll: {
+    width: "100%",
   },
   card: {
-    borderRadius: 20,
-    padding: 14,
-    marginHorizontal: 14,
-    marginBottom: 12,
+    borderRadius: 22,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 14,
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 2,
   },
-  cardTitle: {
-    ...typography.sectionTitle,
-    textAlign: "right",
-    marginBottom: 8,
-    fontSize: 20,
-    fontWeight: "900",
-  },
   row: {
-    minHeight: 52,
+    minHeight: 58,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   rowTextWrap: {
     flex: 1,
     paddingLeft: 8,
   },
   rowTitle: {
-    ...typography.itemTitle,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
     textAlign: "right",
+    fontFamily: "CairoBold",
   },
   rowSub: {
-    ...typography.itemSubtitle,
     marginTop: 2,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
     textAlign: "right",
+    fontFamily: "CairoRegular",
   },
   testNotifBtn: {
     marginTop: 10,
-    minHeight: 40,
-    borderRadius: 10,
+    minHeight: 42,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(94,167,212,0.18)",
   },
   testNotifText: {
     fontFamily: "CairoBold",
     fontSize: 14,
-    color: "#2D6185",
   },
   divider: {
     height: 1,
   },
-  segmentWrap: {
-    marginTop: 8,
+  selectCard: {
+    borderRadius: 22,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginHorizontal: 16,
+    marginBottom: 14,
     flexDirection: "row-reverse",
-    gap: 8,
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
-  segmentButton: {
-    minWidth: 88,
-    minHeight: 34,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(94,167,212,0.3)",
-    backgroundColor: "rgba(94,167,212,0.08)",
+  selectCardText: {
+    flex: 1,
+    paddingLeft: 12,
+  },
+  selectChevron: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "right",
+    fontFamily: "CairoBold",
+  },
+  sectionValue: {
+    marginTop: 6,
+    fontSize: 14,
+    textAlign: "right",
+    fontFamily: "CairoBold",
+  },
+  pillRow: {
+    marginTop: 12,
+    flexDirection: "row-reverse",
+    gap: 12,
+  },
+  pillButton: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
   },
-  segmentActive: {
-    backgroundColor: "rgba(94,167,212,0.24)",
-    borderColor: "rgba(94,167,212,0.65)",
+  pillSelected: {
+    backgroundColor: "#D6AF3E",
   },
-  segmentText: {
-    fontFamily: "CairoBold",
+  pillUnselected: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E7EA",
+  },
+  pillText: {
     fontSize: 13,
-    color: "#2D6185",
+    textAlign: "center",
+    fontFamily: "CairoBold",
+  },
+  pillTextSelected: {
+    color: "#FFFFFF",
+  },
+  pillTextUnselected: {
+    color: "#0F4A3C",
   },
   stepperWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   stepperBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(94,167,212,0.18)",
   },
   stepperBtnText: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#2D6185",
+    fontWeight: "800",
+    color: "#FFFFFF",
     lineHeight: 20,
   },
   stepperValue: {
     width: 44,
     textAlign: "center",
     fontFamily: "CairoBold",
-    fontSize: 16,
+    fontSize: 18,
   },
   modalOverlay: {
     flex: 1,
@@ -506,7 +551,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 360,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
   },
   modalTitle: {
@@ -535,12 +580,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(94,167,212,0.18)",
+    backgroundColor: "rgba(214,175,62,0.14)",
   },
   closeBtnText: {
     fontFamily: "CairoBold",
     fontSize: 14,
-    color: "#2D6185",
   },
 });
-
