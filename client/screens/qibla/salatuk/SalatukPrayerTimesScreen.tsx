@@ -158,7 +158,7 @@ export default function SalatukPrayerTimesScreen() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [athanPrefs, setAthanPrefs] = useState<AthanPrefs | null>(null);
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
-  const [clockVariant, setClockVariant] = useState<ClockVariant>("mint");
+  const [clockFace, setClockFace] = useState<ClockVariant>("mint");
   const [facePickerOpen, setFacePickerOpen] = useState(false);
 
   const contentWidth = Math.min(width, 430);
@@ -242,8 +242,8 @@ export default function SalatukPrayerTimesScreen() {
   }, []);
 
   useEffect(() => {
-    void AsyncStorage.setItem(CLOCK_VARIANT_KEY, clockVariant);
-  }, [clockVariant]);
+    void AsyncStorage.setItem(CLOCK_VARIANT_KEY, clockFace);
+  }, [clockFace]);
 
   useEffect(() => {
     if (!city || !settings) {
@@ -309,11 +309,6 @@ export default function SalatukPrayerTimesScreen() {
     [nowMs, tz]
   );
 
-  const toggleFacePicker = React.useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setFacePickerOpen((v) => !v);
-  }, []);
-
   const openFacePicker = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setFacePickerOpen(true);
@@ -325,7 +320,7 @@ export default function SalatukPrayerTimesScreen() {
     const offset = event?.nativeEvent?.contentOffset?.x ?? 0;
     const index = Math.round(offset / CLOCK_CAROUSEL_SNAP);
     const item = CLOCK_FACE_OPTIONS[index];
-    if (item) setClockVariant(item.key);
+    if (item) setClockFace(item.key);
   }, []);
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
@@ -408,12 +403,7 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.unitText}>دقيقة</Text>
                 <Text style={styles.unitText}>ثانية</Text>
               </View>
-              <Pressable
-              onPress={toggleFacePicker}
-              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel={CLOCK_HINT_OPEN}
-            >
+              <Pressable onPress={() => setFacePickerOpen((v) => !v)} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
               <Text style={styles.clockPickerHint}>
                 {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
               </Text>
@@ -462,8 +452,7 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.clockWrap}>
               <Pressable
-                onPress={openFacePicker}
-                onLongPress={toggleFacePicker}
+                onLongPress={() => setFacePickerOpen(true)}
                 delayLongPress={250}
                 accessibilityRole="button"
                 accessibilityLabel={CLOCK_HINT_OPEN}
@@ -476,7 +465,7 @@ export default function SalatukPrayerTimesScreen() {
                     hours={timeParts.hours}
                     minutes={timeParts.minutes}
                     seconds={timeParts.seconds}
-                    variant={clockVariant}
+                    variant={clockFace}
                     accent={COLORS.primary}
                   />
                 </View>
@@ -484,7 +473,7 @@ export default function SalatukPrayerTimesScreen() {
             </View>
 
             <Pressable
-              onPress={toggleFacePicker}
+              onPress={() => setFacePickerOpen((v) => !v)}
               hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
               accessibilityRole="button"
               accessibilityLabel={CLOCK_HINT_OPEN}
@@ -508,11 +497,11 @@ export default function SalatukPrayerTimesScreen() {
                   onMomentumScrollEnd={handleClockFaceMomentumEnd}
                   inverted={I18nManager.isRTL}
                   renderItem={({ item }) => {
-                    const isActive = item.key === clockVariant;
+                    const isActive = item.key === clockFace;
                     return (
                       <Pressable
                         onPress={() => {
-                          setClockVariant(item.key);
+                          setClockFace(item.key);
                           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                           setFacePickerOpen(false);
                           const index = CLOCK_FACE_OPTIONS.findIndex((x) => x.key === item.key);
