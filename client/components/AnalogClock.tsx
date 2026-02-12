@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { StyleProp, View, ViewStyle } from "react-native";
+import { Platform, StyleProp, View, ViewStyle } from "react-native";
 import Svg, { Circle, Line, Text as SvgText, G, Path } from "react-native-svg";
 
 type ClockVariant =
@@ -178,6 +178,8 @@ export default function AnalogClock({
   const minAngle = (minutes + seconds / 60) * 6 - 90;
   const secAngle = seconds * 6 - 90;
 
+  const svgFontFamily = Platform.OS === "web" ? undefined : "CairoBold";
+
   const numberFontSize = Math.max(10, Math.round(size * 0.08));
   const romanFontSize = Math.max(10, Math.round(size * 0.07));
   const cardinalFontSize = Math.max(9, Math.round(size * 0.07));
@@ -203,7 +205,7 @@ export default function AnalogClock({
             fill={colors.text}
             fontSize={cardinalFontSize}
             fontWeight="700"
-            fontFamily="CairoBold"
+            fontFamily={svgFontFamily as any}
             textAnchor="middle"
           >
             {item.label}
@@ -224,7 +226,7 @@ export default function AnalogClock({
           fill={colors.text}
           fontSize={variant === "roman" ? romanFontSize : numberFontSize}
           fontWeight="700"
-          fontFamily="CairoBold"
+          fontFamily={svgFontFamily as any}
           textAnchor="middle"
         >
           {label}
