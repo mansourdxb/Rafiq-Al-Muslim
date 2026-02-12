@@ -142,6 +142,8 @@ const CLOCK_VARIANT_KEY = "prayerClock:variant";
 const CLOCK_CAROUSEL_ITEM = 86;
 const CLOCK_CAROUSEL_GAP = 12;
 const CLOCK_CAROUSEL_SNAP = CLOCK_CAROUSEL_ITEM + CLOCK_CAROUSEL_GAP;
+const CLOCK_HINT_OPEN = "\u0627\u0636\u063a\u0637 \u0644\u062a\u063a\u064a\u064a\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
+const CLOCK_HINT_CLOSE = "\u0625\u062e\u0641\u0627\u0621 \u0623\u0634\u0643\u0627\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 
 export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
@@ -307,6 +309,16 @@ export default function SalatukPrayerTimesScreen() {
     [nowMs, tz]
   );
 
+  const toggleFacePicker = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFacePickerOpen((v) => !v);
+  }, []);
+
+  const openFacePicker = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFacePickerOpen(true);
+  }, []);
+
   const clockFaceListRef = React.useRef<FlatList<any>>(null);
 
   const handleClockFaceMomentumEnd = React.useCallback((event: any) => {
@@ -396,22 +408,11 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.unitText}>دقيقة</Text>
                 <Text style={styles.unitText}>ثانية</Text>
               </View>
-              <Pressable
-                onPress={() => setIsCityPickerOpen(true)}
-                hitSlop={6}
-                style={styles.cityRow}
-              >
-                <Feather name="map-pin" size={16} color={COLORS.primary} />
-                <Text
-                  style={styles.cityName}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                  ellipsizeMode="tail"
-                >
-                  {cityLabel}
-                </Text>
-              </Pressable>
+              <Pressable onPress={openFacePicker} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
+              <Text style={styles.clockPickerHint}>
+                {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
+              </Text>
+            </Pressable>
               <Text style={styles.cityMeta}>{subtitle}</Text>
             </View>
 
@@ -455,7 +456,12 @@ export default function SalatukPrayerTimesScreen() {
             <View style={styles.dateDivider} />
 
             <View style={styles.clockWrap}>
-              <Pressable>
+              <Pressable
+                onLongPress={toggleFacePicker}
+                delayLongPress={250}
+                accessibilityRole="button"
+                accessibilityLabel={CLOCK_HINT_OPEN}
+              >
                 <View style={styles.clockGlow} />
                 <View style={styles.clock}>
                   <View style={styles.clockRing} />
@@ -471,17 +477,9 @@ export default function SalatukPrayerTimesScreen() {
               </Pressable>
             </View>
 
-            <Pressable
-              onLongPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setFacePickerOpen((v) => !v);
-              }}
-              delayLongPress={250}
-              accessibilityRole="button"
-              accessibilityLabel="????? ????? ??????"
-            >
+            <Pressable onPress={openFacePicker} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
               <Text style={styles.clockPickerHint}>
-                {facePickerOpen ? "????? ????? ??????" : "???? ?????? ??? ??????"}
+                {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
               </Text>
             </Pressable>
 
