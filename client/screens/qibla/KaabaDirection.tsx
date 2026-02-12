@@ -154,8 +154,6 @@ export default function KaabaDirection() {
       >
         <View style={[styles.header, { paddingTop: headerPadTop }]}> 
           <View style={styles.headerRow}>
-            <View style={styles.headerSpacer} />
-            <Text style={styles.headerTitle}>اتجاه القبلة</Text>
             <Pressable
               onPress={() => {
                 if (navigation.canGoBack?.()) {
@@ -169,6 +167,8 @@ export default function KaabaDirection() {
             >
               <Ionicons name="chevron-back" size={18} color={COLORS.primary} />
             </Pressable>
+            <Text style={styles.headerTitle}>اتجاه القبلة</Text>
+            <View style={styles.headerSpacer} />
           </View>
         </View>
 
