@@ -157,6 +157,7 @@ export default function SalatukPrayerTimesScreen() {
   const [athanPrefs, setAthanPrefs] = useState<AthanPrefs | null>(null);
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
   const [clockVariant, setClockVariant] = useState<ClockVariant>("mint");
+  const [facePickerOpen, setFacePickerOpen] = useState(false);
 
   const contentWidth = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
@@ -217,6 +218,12 @@ export default function SalatukPrayerTimesScreen() {
       setNowMs(Date.now());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -464,50 +471,68 @@ export default function SalatukPrayerTimesScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.clockCarouselWrap}>
-              <FlatList
-                ref={clockFaceListRef}
-                horizontal
-                data={CLOCK_FACE_OPTIONS}
-                keyExtractor={(item) => item.key}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.clockCarouselContent}
-                snapToInterval={CLOCK_CAROUSEL_SNAP}
-                decelerationRate="fast"
-                onMomentumScrollEnd={handleClockFaceMomentumEnd}
-                inverted={I18nManager.isRTL}
-                renderItem={({ item }) => {
-                  const isActive = item.key === clockVariant;
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        setClockVariant(item.key);
-                        const index = CLOCK_FACE_OPTIONS.findIndex((x) => x.key === item.key);
-                        if (index >= 0) {
-                          clockFaceListRef.current?.scrollToOffset({
-                            offset: index * CLOCK_CAROUSEL_SNAP,
-                            animated: true,
-                          });
-                        }
-                      }}
-                      style={[styles.clockCarouselItem, isActive && styles.clockCarouselItemActive]}
-                    >
-                      <AnalogClock
-                        size={56}
-                        hours={timeParts.hours}
-                        minutes={timeParts.minutes}
-                        seconds={timeParts.seconds}
-                        variant={item.key}
-                        accent={COLORS.primary}
-                      />
-                      <Text style={[styles.clockCarouselLabel, isActive && styles.clockCarouselLabelActive]}>
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  );
-                }}
-              />
-            </View>
+            <Pressable
+              onLongPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setFacePickerOpen((v) => !v);
+              }}
+              delayLongPress={250}
+              accessibilityRole="button"
+              accessibilityLabel="????? ????? ??????"
+            >
+              <Text style={styles.clockPickerHint}>
+                {facePickerOpen ? "????? ????? ??????" : "???? ?????? ??? ??????"}
+              </Text>
+            </Pressable>
+
+            {facePickerOpen ? (
+              <View style={styles.clockCarouselWrap}>
+                <FlatList
+                  ref={clockFaceListRef}
+                  horizontal
+                  data={CLOCK_FACE_OPTIONS}
+                  keyExtractor={(item) => item.key}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.clockCarouselContent}
+                  snapToInterval={CLOCK_CAROUSEL_SNAP}
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={handleClockFaceMomentumEnd}
+                  inverted={I18nManager.isRTL}
+                  renderItem={({ item }) => {
+                    const isActive = item.key === clockVariant;
+                    return (
+                      <Pressable
+                        onPress={() => {
+                          setClockVariant(item.key);
+                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                          setFacePickerOpen(false);
+                          const index = CLOCK_FACE_OPTIONS.findIndex((x) => x.key === item.key);
+                          if (index >= 0) {
+                            clockFaceListRef.current?.scrollToOffset({
+                              offset: index * CLOCK_CAROUSEL_SNAP,
+                              animated: true,
+                            });
+                          }
+                        }}
+                        style={[styles.clockCarouselItem, isActive && styles.clockCarouselItemActive]}
+                      >
+                        <AnalogClock
+                          size={56}
+                          hours={timeParts.hours}
+                          minutes={timeParts.minutes}
+                          seconds={timeParts.seconds}
+                          variant={item.key}
+                          accent={COLORS.primary}
+                        />
+                        <Text style={[styles.clockCarouselLabel, isActive && styles.clockCarouselLabelActive]}>
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  }}
+                />
+              </View>
+            ) : null}
 
             <View style={styles.quickActions}>
               {[
