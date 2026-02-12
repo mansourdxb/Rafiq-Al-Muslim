@@ -448,8 +448,7 @@ export default function SalatukPrayerTimesScreen() {
             <View style={styles.dateDivider} />
 
             <View style={styles.clockWrap}>
-              <Pressable
-              >
+              <Pressable>
                 <View style={styles.clockGlow} />
                 <View style={styles.clock}>
                   <View style={styles.clockRing} />
@@ -463,6 +462,51 @@ export default function SalatukPrayerTimesScreen() {
                   />
                 </View>
               </Pressable>
+            </View>
+
+            <View style={styles.clockCarouselWrap}>
+              <FlatList
+                ref={clockFaceListRef}
+                horizontal
+                data={CLOCK_FACE_OPTIONS}
+                keyExtractor={(item) => item.key}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.clockCarouselContent}
+                snapToInterval={CLOCK_CAROUSEL_SNAP}
+                decelerationRate="fast"
+                onMomentumScrollEnd={handleClockFaceMomentumEnd}
+                inverted={I18nManager.isRTL}
+                renderItem={({ item }) => {
+                  const isActive = item.key === clockVariant;
+                  return (
+                    <Pressable
+                      onPress={() => {
+                        setClockVariant(item.key);
+                        const index = CLOCK_FACE_OPTIONS.findIndex((x) => x.key === item.key);
+                        if (index >= 0) {
+                          clockFaceListRef.current?.scrollToOffset({
+                            offset: index * CLOCK_CAROUSEL_SNAP,
+                            animated: true,
+                          });
+                        }
+                      }}
+                      style={[styles.clockCarouselItem, isActive && styles.clockCarouselItemActive]}
+                    >
+                      <AnalogClock
+                        size={56}
+                        hours={timeParts.hours}
+                        minutes={timeParts.minutes}
+                        seconds={timeParts.seconds}
+                        variant={item.key}
+                        accent={COLORS.primary}
+                      />
+                      <Text style={[styles.clockCarouselLabel, isActive && styles.clockCarouselLabelActive]}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
             </View>
 
             <View style={styles.quickActions}>
