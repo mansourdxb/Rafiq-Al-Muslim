@@ -18,6 +18,7 @@ import type { City, PrayerSettings } from "@/screens/qibla/services/preferences"
 import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/screens/qibla/services/preferences";
 import { getAthanPrefs, type AthanMode, type AthanPrefs } from "@/screens/qibla/services/athanPrefs";
 import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
+import AnalogClock from "@/components/AnalogClock";
 import {
   computePrayerTimes,
   formatTimeInTZ,
