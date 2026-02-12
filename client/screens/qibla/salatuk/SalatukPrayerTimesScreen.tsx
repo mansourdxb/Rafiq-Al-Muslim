@@ -463,10 +463,18 @@ export default function SalatukPrayerTimesScreen() {
               </Pressable>
             </View>
 
-            <Pressable onPress={toggleFacePicker} hitSlop={12}>
-              <Text style={styles.clockPickerHint}>
-                {facePickerOpen ? "إخفاء أشكال الساعة" : "اضغط لتغيير شكل الساعة"}
-              </Text>
+            <Pressable
+              onPress={() => setFacePickerOpen((v) => !v)}
+              style={styles.clockPickerIconBtn}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={facePickerOpen ? "إخفاء أشكال الساعة" : "تغيير شكل الساعة"}
+            >
+              <Feather
+                name={facePickerOpen ? "x" : "layers"}
+                size={18}
+                color={COLORS.primary}
+              />
             </Pressable>
 
             {facePickerOpen && (
@@ -814,6 +822,23 @@ const styles = StyleSheet.create({
   },
   clockCarouselLabelActive: {
     color: COLORS.primary,
+  },
+  clockPickerIconBtn: {
+    alignSelf: "center",
+    marginTop: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   quickActions: {
     width: "100%",
