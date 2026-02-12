@@ -128,18 +128,21 @@ const CLOCK_VARIANTS = ["mint", "minimal", "classic", "arabic", "roman", "sky", 
 type ClockVariant = (typeof CLOCK_VARIANTS)[number];
 
 const CLOCK_FACE_OPTIONS: Array<{ key: ClockVariant; label: string }> = [
-  { key: "mint", label: "نعناع" },
-  { key: "minimal", label: "بسيط" },
-  { key: "classic", label: "كلاسيك" },
-  { key: "arabic", label: "أرقام عربية" },
-  { key: "roman", label: "أرقام رومانية" },
-  { key: "sky", label: "أزرق سماوي" },
-  { key: "ring", label: "أزرق مع حلقة" },
-  { key: "graphite", label: "جرافيت" },
+  { key: "mint", label: "\u0646\u0639\u0646\u0627\u0639" },
+  { key: "minimal", label: "\u0628\u0633\u064a\u0637" },
+  { key: "classic", label: "\u0643\u0644\u0627\u0633\u064a\u0643" },
+  { key: "arabic", label: "\u0623\u0631\u0642\u0627\u0645 \u0639\u0631\u0628\u064a\u0629" },
+  { key: "roman", label: "\u0623\u0631\u0642\u0627\u0645 \u0631\u0648\u0645\u0627\u0646\u064a\u0629" },
+  { key: "sky", label: "\u0623\u0632\u0631\u0642 \u0633\u0645\u0627\u0648\u064a" },
+  { key: "ring", label: "\u0623\u0632\u0631\u0642 \u0645\u0639 \u062d\u0644\u0642\u0629" },
+  { key: "graphite", label: "\u062c\u0631\u0627\u0641\u064a\u062a" },
 ];
 
 
 const CLOCK_VARIANT_KEY = "prayerClock:variant";
+
+const CLOCK_SHEET_TITLE = "\u0627\u062e\u062a\u064a\u0627\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
+const CLOCK_SHEET_ACCESSIBILITY = "\u0627\u062e\u062a\u064a\u0627\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 
 
 export default function SalatukPrayerTimesScreen() {
@@ -457,7 +460,7 @@ export default function SalatukPrayerTimesScreen() {
                 onContextMenu={handleClockContextMenu as any}
                 delayLongPress={350}
                 accessibilityRole="button"
-                accessibilityLabel="?????? ??? ??????"
+                accessibilityLabel={CLOCK_SHEET_ACCESSIBILITY}
               >
                 <View style={styles.clockGlow} />
                 <View style={styles.clock}>
@@ -562,7 +565,7 @@ export default function SalatukPrayerTimesScreen() {
         <Pressable style={styles.sheetOverlay} onPress={() => setIsClockSheetOpen(false)} />
         <View style={styles.sheetContainer}>
           <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>?????? ??? ??????</Text>
+          <Text style={styles.sheetTitle}>{CLOCK_SHEET_TITLE}</Text>
           <View style={styles.sheetList}>
             {CLOCK_FACE_OPTIONS.map((option) => {
               const isActive = option.key === clockVariant;
