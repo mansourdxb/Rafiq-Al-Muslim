@@ -2,6 +2,7 @@
 import {
   I18nManager,
   Platform,
+  GestureResponderEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -121,6 +122,9 @@ const PRAYER_LABELS: Record<PrayerName, string> = {
   Isha: "العشاء",
 };
 
+const CLOCK_VARIANTS = ["mint", "minimal", "classic", "arabic", "roman"] as const;
+type ClockVariant = (typeof CLOCK_VARIANTS)[number];
+
 
 export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
@@ -135,6 +139,7 @@ export default function SalatukPrayerTimesScreen() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [athanPrefs, setAthanPrefs] = useState<AthanPrefs | null>(null);
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
+  const [clockVariant, setClockVariant] = useState<ClockVariant>("mint");
 
   const contentWidth = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
@@ -259,6 +264,22 @@ export default function SalatukPrayerTimesScreen() {
   const timeParts = useMemo(
     () => getTimePartsInTZ(new Date(nowMs), tz),
     [nowMs, tz]
+  );
+
+  const cycleClockVariant = React.useCallback(() => {
+    setClockVariant((prev) => {
+      const idx = CLOCK_VARIANTS.indexOf(prev);
+      return CLOCK_VARIANTS[(idx + 1) % CLOCK_VARIANTS.length];
+    });
+  }, []);
+
+  const handleClockContextMenu = React.useCallback(
+    (event: GestureResponderEvent) => {
+      if (Platform.OS !== "web") return;
+      event.preventDefault?.();
+      cycleClockVariant();
+    },
+    [cycleClockVariant]
   );
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
@@ -400,18 +421,26 @@ export default function SalatukPrayerTimesScreen() {
             <View style={styles.dateDivider} />
 
             <View style={styles.clockWrap}>
-              <View style={styles.clockGlow} />
-              <View style={styles.clock}>
-                <View style={styles.clockRing} />
-                <AnalogClock
-                  size={170}
-                  hours={timeParts.hours}
-                  minutes={timeParts.minutes}
-                  seconds={timeParts.seconds}
-                  variant="mint"
-                  accent={COLORS.primary}
-                />
-              </View>
+              <Pressable
+                onLongPress={cycleClockVariant}
+                onContextMenu={handleClockContextMenu as any}
+                delayLongPress={350}
+                accessibilityRole="button"
+                accessibilityLabel="????? ??? ??????"
+              >
+                <View style={styles.clockGlow} />
+                <View style={styles.clock}>
+                  <View style={styles.clockRing} />
+                  <AnalogClock
+                    size={170}
+                    hours={timeParts.hours}
+                    minutes={timeParts.minutes}
+                    seconds={timeParts.seconds}
+                    variant={clockVariant}
+                    accent={COLORS.primary}
+                  />
+                </View>
+              </Pressable>
             </View>
 
             <View style={styles.quickActions}>
