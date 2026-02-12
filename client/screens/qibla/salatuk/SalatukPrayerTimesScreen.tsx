@@ -299,6 +299,19 @@ export default function SalatukPrayerTimesScreen() {
     [nowMs, tz]
   );
 
+  const openClockSheet = React.useCallback(() => {
+    setIsClockSheetOpen(true);
+  }, []);
+
+  const handleClockContextMenu = React.useCallback(
+    (event: GestureResponderEvent) => {
+      if (Platform.OS !== "web") return;
+      event.preventDefault?.();
+      setIsClockSheetOpen(true);
+    },
+    []
+  );
+
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
 
