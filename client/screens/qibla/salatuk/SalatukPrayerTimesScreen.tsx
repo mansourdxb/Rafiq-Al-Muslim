@@ -12,7 +12,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import Svg, { Line } from "react-native-svg";
 import tzLookup from "tz-lookup";
 
 import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
@@ -121,10 +120,6 @@ const PRAYER_LABELS: Record<PrayerName, string> = {
   Isha: "العشاء",
 };
 
-const CLOCK_SIZE = 170;
-const CLOCK_CENTER = CLOCK_SIZE / 2;
-const HOUR_HAND_LEN = 48;
-const MIN_HAND_LEN = 64;
 
 export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
@@ -264,8 +259,6 @@ export default function SalatukPrayerTimesScreen() {
     () => getTimePartsInTZ(new Date(nowMs), tz),
     [nowMs, tz]
   );
-  const hourAngle = ((timeParts.hours % 12) + timeParts.minutes / 60) * 30;
-  const minuteAngle = (timeParts.minutes + timeParts.seconds / 60) * 6;
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
@@ -409,40 +402,24 @@ export default function SalatukPrayerTimesScreen() {
               <View style={styles.clockGlow} />
               <View style={styles.clock}>
                 <View style={styles.clockRing} />
-                <Svg width={CLOCK_SIZE} height={CLOCK_SIZE} style={styles.clockSvg}>
-                  <Line
-                    x1={CLOCK_CENTER}
-                    y1={CLOCK_CENTER}
-                    x2={CLOCK_CENTER}
-                    y2={CLOCK_CENTER - HOUR_HAND_LEN}
-                    stroke={COLORS.primary}
-                    strokeWidth={4}
-                    strokeLinecap="round"
-                    transform={`rotate(${hourAngle} ${CLOCK_CENTER} ${CLOCK_CENTER})`}
-                  />
-                  <Line
-                    x1={CLOCK_CENTER}
-                    y1={CLOCK_CENTER}
-                    x2={CLOCK_CENTER}
-                    y2={CLOCK_CENTER - MIN_HAND_LEN}
-                    stroke={COLORS.primary}
-                    strokeWidth={4}
-                    strokeLinecap="round"
-                    strokeOpacity={0.6}
-                    transform={`rotate(${minuteAngle} ${CLOCK_CENTER} ${CLOCK_CENTER})`}
-                  />
-                </Svg>
-                <View style={styles.clockDot} />
+                <AnalogClock
+                  size={170}
+                  hours={timeParts.hours}
+                  minutes={timeParts.minutes}
+                  seconds={timeParts.seconds}
+                  variant="mint"
+                  accent={COLORS.primary}
+                />
               </View>
             </View>
 
             <View style={styles.quickActions}>
               {[
                 
-                { key: "world", label: "مدن العالم", icon: "globe", tint: COLORS.primary },
-                { key: "qibla", label: "القبلة", icon: "compass", tint: COLORS.secondary },
-                { key: "mosques", label: "المساجد", icon: "home", tint: COLORS.primary },
-                { key: "times", label: "إعدادات التوقيق", icon: "clock", tint: COLORS.secondary },
+                { key: "world", label: "مدن\nالعالم", icon: "globe", tint: COLORS.primary },
+                { key: "qibla", label: "إتجاه\nالقبلة", icon: "compass", tint: COLORS.secondary },
+                { key: "mosques", label: "المساجد\n القريبة", icon: "home", tint: COLORS.primary },
+                { key: "times", label: "إعدادات \nالتوقيق", icon: "clock", tint: COLORS.secondary },
               ].map((item) => (
                 <Pressable
                   key={item.key}
@@ -687,11 +664,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
-  clockSvg: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-  },
   clockRing: {
     position: "absolute",
     width: 150,
@@ -700,14 +672,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: "dashed",
     borderColor: "rgba(121, 159, 132, 0.35)",
-  },
-  clockDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: COLORS.primary,
   },
   quickActions: {
     width: "100%",
