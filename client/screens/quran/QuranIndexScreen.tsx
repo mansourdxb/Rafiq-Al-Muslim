@@ -1,4 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
+
+
 import {
   Modal,
   View,
@@ -17,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { loadKhatmah, saveKhatmah, type KhatmahState } from "@/src/lib/quran/khatmah";
+import { getPageForAyah } from "@/src/lib/quran/mushaf";
 import { quranFiles } from "@/lib/quran/quranFiles";
 
 type SurahItem = {
@@ -87,7 +90,9 @@ function arabicIndic(value: number) {
     .join("");
 }
 
-const LAST_READ_KEY = "@tasbeeh/quranLastRead";
+
+const LAST_READ_KEY = "quran:lastRead";
+const FORCE_SURAH_OPEN = new Set([7, 23, 26, 56, 62, 70, 79, 87, 96, 101, 107]);
 
 export default function QuranIndexScreen({
   visible,
@@ -108,19 +113,20 @@ export default function QuranIndexScreen({
   const navigation = useNavigation<any>();
   const [activeSegment, setActiveSegment] = useState<(typeof SEGMENT_TABS)[number]["key"]>("surah");
   const [searchQuery, setSearchQuery] = useState("");
-  const [lastRead, setLastRead] = useState<{ surahName: string; ayah: number; progress: number } | null>(null);
+  const [lastRead, setLastRead] = useState<{ surahNumber: number; ayahNumber: number; page: number; progress: number; surahName: string } | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     const loadLastRead = async () => {
       const stored = await AsyncStorage.getItem(LAST_READ_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        setLastRead({
-          surahName: parsed.surahName || "البقرة",
-          ayah: parsed.ayah || 286,
-          progress: parsed.progress || 45,
-        });
+        const parsed = JSON.parse(stored) as { surahNumber?: number; ayahNumber?: number; page?: number };
+        const surahNumber = parsed.surahNumber || 1;
+        const ayahNumber = parsed.ayahNumber || 1;
+        const page = parsed.page || getPageForAyah(surahNumber, ayahNumber);
+        const surahName = quranFiles.find((f) => f.number === surahNumber)?.data?.surah ?? "??????";
+        const progress = Math.min(100, Math.max(0, (page / 604) * 100));
+        setLastRead({ surahNumber, ayahNumber, page, surahName, progress });
       }
     };
     loadLastRead();
@@ -143,6 +149,14 @@ export default function QuranIndexScreen({
           pressed && { opacity: 0.7 },
         ]}
         onPress={() => {
+          if (FORCE_SURAH_OPEN.has(item.number)) {
+            if (__DEV__) {
+              console.log("[QURAN] forced surah open", item.number);
+            }
+            onSelectSurah(item.number);
+            onClose();
+            return;
+          }
           onSelectSurah(item.number);
           onClose();
         }}
@@ -233,7 +247,7 @@ export default function QuranIndexScreen({
       </Pressable>
     );
   };
-
+ const RTL_PLACEHOLDER = "\u200Fبحث في القرآن الكريم"; // forces RTL
   const body = (
     <LinearGradient
       colors={['#2F6E52', '#1E5A3D', '#0F4429']}
@@ -243,23 +257,45 @@ export default function QuranIndexScreen({
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={22} color="#B8AC9B" style={styles.searchIcon} />
+         
           <TextInput
-  style={[
-    styles.searchInput,
-    { textAlign: "right", writingDirection: "rtl" },
-    // مهم لو بتجرب على Web
-  ]}
-  placeholder="بحث في القرآن الكريم"
-  placeholderTextColor="#B8AC9B"
-  value={searchQuery}
-  onChangeText={setSearchQuery}
-/>
+            style={[
+              styles.searchInput,
+              { direction: "rtl" } as any,
+            ]}
+            placeholder="??? ?? ?????? ??????"
+            placeholderTextColor="#B8AC9B"
+            textAlign="right"
+            writingDirection="rtl"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+
 
         </View>
 
         {/* Continue Reading Card */}
         {lastRead && (
-          <View style={styles.continueCard}>
+          <Pressable
+            style={styles.continueCard}
+            onPress={() => {
+              if (!lastRead) return;
+              const sura = lastRead.surahNumber || 1;
+              const aya = lastRead.ayahNumber || 1;
+              const page = lastRead.page || getPageForAyah(sura, aya);
+              const navToken = Date.now();
+              console.log("[QuranIndex] continue reading", { sura, aya, page });
+              const params = { sura, aya, page, source: "resume", navToken };
+              if (typeof (navigation as any)?.setParams === "function") {
+                (navigation as any).setParams(params);
+              } else if (typeof (navigation as any)?.navigate === "function") {
+                (navigation as any).navigate("QuranReader", params);
+              }
+              onClose();
+            }}
+          >
             <View style={styles.continueCardPattern}>
               {/* Islamic Pattern SVG placeholder */}
               <View style={styles.patternCircle} />
@@ -267,13 +303,13 @@ export default function QuranIndexScreen({
             <View style={styles.continueCardContent}>
               <Text style={styles.continueCardTitle}>استمرار القراءة</Text>
               <Text style={styles.continueCardSubtitle}>
-                سورة {lastRead.surahName}، آية {arabicIndic(lastRead.ayah)}
+                سورة {lastRead.surahName}، آية {arabicIndic(lastRead.ayahNumber)}
               </Text>
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${lastRead.progress}%` }]} />
               </View>
             </View>
-          </View>
+          </Pressable>
         )}
 
         {/* Segment Tabs */}
@@ -412,10 +448,14 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'Cairo',
     fontSize: 16,
-    color: '#FFFFFF',
+    color: "#fff",
+    textAlign: "right",
+    writingDirection: "rtl",
+    textAlignVertical: "center", // helps Android
   },
+
+
 
   // Continue Reading Card
   continueCard: {
@@ -479,6 +519,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 4,
     marginBottom: 16,
+    zIndex: 2,
+    elevation: 2,
   },
   segmentTab: {
     flex: 1,
@@ -501,6 +543,7 @@ const styles = StyleSheet.create({
   // List Container
   listContainer: {
     flex: 1,
+    zIndex: 1,
   },
   listContent: {
     paddingBottom: 20,
