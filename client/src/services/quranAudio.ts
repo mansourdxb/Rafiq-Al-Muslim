@@ -496,6 +496,12 @@ let webAudio: HTMLAudioElement | null = null;
 let webKey: string | null = null;
 let currentAyahCount: number | null = null;
 let webStatusTimer: ReturnType<typeof setInterval> | null = null;
+let stopAtTarget: { surah: number; ayah: number } | null = null;
+
+const compareAyahRef = (a: { surah: number; ayah: number }, b: { surah: number; ayah: number }) => {
+  if (a.surah !== b.surah) return a.surah - b.surah;
+  return a.ayah - b.ayah;
+};
 
 const stopWebPolling = () => {
   if (webStatusTimer) {
@@ -543,6 +549,11 @@ const makeKey = (surah: number, ayah: number, reciterKey: ReciterKey) => `${reci
 
 const handleEnded = async () => {
   if (!playerState.surah || !playerState.ayah) return;
+  if (stopAtTarget && compareAyahRef({ surah: playerState.surah, ayah: playerState.ayah }, stopAtTarget) >= 0) {
+    stopAtTarget = null;
+    await stopAndHide();
+    return;
+  }
   if (playerState.repeatOne) {
     await playAyah({
       surah: playerState.surah,
@@ -642,6 +653,7 @@ const startNativePlayback = async (surah: number, ayah: number, reciterKey: Reci
 };
 
 const stopInternal = async (hide: boolean) => {
+  stopAtTarget = null;
   if (Platform.OS === "web") {
     if (webAudio) {
       webAudio.pause();
@@ -678,12 +690,18 @@ export async function playAyah(opts: {
   surahName?: string;
   reciterKey?: ReciterKey;
   ayahCount?: number;
+  stopAt?: { surah: number; ayah: number } | null;
 }): Promise<void> {
-  const { surah, ayah, surahName, reciterKey, ayahCount } = opts;
+  const { surah, ayah, surahName, reciterKey, ayahCount, stopAt } = opts;
   const storedReciter = await loadReciterKey();
   const nextReciter = reciterKey ?? storedReciter;
   if (reciterKey) {
     await persistReciterKey(reciterKey);
+  }
+  if (stopAt && compareAyahRef({ surah, ayah }, stopAt) <= 0) {
+    stopAtTarget = stopAt;
+  } else {
+    stopAtTarget = null;
   }
   currentAyahCount = ayahCount ?? SURAH_MAP.get(surah)?.ayahCount ?? null;
   const key = makeKey(surah, ayah, nextReciter);

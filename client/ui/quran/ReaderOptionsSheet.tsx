@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -16,6 +16,12 @@ import { loadMarks } from "@/src/lib/quran/ayahMarks";
 import { quranFiles } from "@/lib/quran/quranFiles";
 import { SURAH_META } from "@/constants/quran/surahMeta";
 import { buildEveryAyahUrl, playAyah } from "@/src/services/quranAudio";
+import {
+  arabicIndic as arabicIndicMushaf,
+  getPageCount,
+  getPageData,
+  getPageForAyah,
+} from "@/src/lib/quran/mushaf";
 
 function arabicIndic(value: number) {
   const map = ["\u0660", "\u0661", "\u0662", "\u0663", "\u0664", "\u0665", "\u0666", "\u0667", "\u0668", "\u0669"];
@@ -43,11 +49,19 @@ type Props = {
 const BOOKMARK_COLORS = ["#7BBF94", "#D9B871", "#F08B7E", "#5B7DBE"];
 const HIGHLIGHT_COLORS = ["#FFE7C2", "#FFF3C6", "#D7F0E5", "#E7D8F7", "#F6D5D5"];
 const BOOKMARK_COLOR_NAMES: Record<string, string> = {
-  "#7BBF94": "\u0627\u0644\u0623\u062e\u0636\u0631",
-  "#D9B871": "\u0627\u0644\u0623\u0635\u0641\u0631",
-  "#F08B7E": "\u0627\u0644\u0623\u062d\u0645\u0631",
-  "#5B7DBE": "\u0627\u0644\u0623\u0632\u0631\u0642",
+  "#7BBF94": "الأخضر",
+  "#D9B871": "الأصفر",
+  "#F08B7E": "الأحمر",
+  "#5B7DBE": "الأزرق",
 };
+
+type PlayToMode =
+  | { kind: "pageEnd" }
+  | { kind: "surahEnd" }
+  | { kind: "continuous" }
+  | { kind: "ayah"; surah: number; ayah: number }
+  | { kind: "page"; page: number }
+  | { kind: "surah"; surah: number };
 
 export default function ReaderOptionsSheet({
   visible,
@@ -64,10 +78,14 @@ export default function ReaderOptionsSheet({
   onOpenTafsir,
 }: Props) {
   const translateY = useRef(new Animated.Value(400)).current;
+  const playToTranslateY = useRef(new Animated.Value(420)).current;
   const [view, setView] = useState<"main" | "fawasil">("main");
   const [fawasilLatest, setFawasilLatest] = useState<Record<string, { sura: number; aya: number; updatedAt?: string }>>({});
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [playToOpen, setPlayToOpen] = useState(false);
+  const [playToTab, setPlayToTab] = useState<"ayah" | "page" | "surah">("ayah");
+  const [playTo, setPlayTo] = useState<PlayToMode>({ kind: "pageEnd" });
 
   useEffect(() => {
     Animated.timing(translateY, {
@@ -78,15 +96,20 @@ export default function ReaderOptionsSheet({
   }, [translateY, visible]);
 
   useEffect(() => {
+    Animated.timing(playToTranslateY, {
+      toValue: playToOpen ? 0 : 420,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [playToOpen, playToTranslateY]);
+
+  useEffect(() => {
     if (!visible) {
       setView("main");
       setIsPlaying(false);
+      setPlayToOpen(false);
     }
   }, [visible]);
-
-  useEffect(() => {
-    return () => {};
-  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -124,20 +147,95 @@ export default function ReaderOptionsSheet({
   const buildSubtitle = (sura: number, aya: number, updatedAt?: string) => {
     const surah = quranFiles.find((f) => f.number === sura)?.data?.surah;
     const time = formatTime(updatedAt);
-    const surahLabel = surah ?? `\u0633\u0648\u0631\u0629 ${arabicIndic(sura)}`;
-    return `${surahLabel}: ${arabicIndic(aya)}${time ? ` \u2022 ${time}` : ""}`;
+    const surahLabel = surah ?? `سورة ${arabicIndic(sura)}`;
+    return `${surahLabel}: ${arabicIndic(aya)}${time ? ` • ${time}` : ""}`;
   };
   const activeBookmark = bookmarkColor ?? BOOKMARK_COLORS[0];
   const activeEntry = activeBookmark ? fawasilLatest[activeBookmark] : undefined;
-  const activeTitle = activeBookmark ? BOOKMARK_COLOR_NAMES[activeBookmark] ?? "\u0627\u0644\u0623\u062e\u0636\u0631" : "\u0627\u0644\u0623\u062e\u0636\u0631";
+  const activeTitle = activeBookmark ? BOOKMARK_COLOR_NAMES[activeBookmark] ?? "الأخضر" : "الأخضر";
   const activeSubtitle = activeEntry
     ? buildSubtitle(activeEntry.sura, activeEntry.aya, activeEntry.updatedAt)
-    : "\u0627\u0644\u0622\u064a\u0629 \u0627\u0644\u062d\u0627\u0644\u064a\u0629";
+    : "الآية الحالية";
 
   const headerTitle = useMemo(() => {
     const number = arabicIndic(ayahNumber);
     return surahName ? `${surahName}: ${number}` : `الآية ${number}`;
   }, [ayahNumber, surahName]);
+
+  const currentSurah = surahNumber ?? 1;
+  const currentAyah = ayahNumber ?? 1;
+  const currentSurahMeta = SURAH_META.find((s) => s.number === currentSurah);
+  const currentSurahName = surahName ?? currentSurahMeta?.name_ar ?? `سورة ${arabicIndic(currentSurah)}`;
+  const currentAyahCount = currentSurahMeta?.ayahCount ?? 0;
+  const currentPage = useMemo(() => getPageForAyah(currentSurah, currentAyah), [currentSurah, currentAyah]);
+
+  const buildPlayToLabel = () => {
+    switch (playTo.kind) {
+      case "pageEnd":
+        return { title: "نهاية الصفحة", subtitle: `الصفحة ${arabicIndicMushaf(currentPage)}` };
+      case "surahEnd":
+        return { title: "نهاية السورة", subtitle: currentSurahName };
+      case "continuous":
+        return { title: "تشغيل مستمر", subtitle: "لا يتوقف تلقائياً" };
+      case "ayah":
+        return {
+          title: "آية محددة",
+          subtitle: `${currentSurahName}: ${arabicIndicMushaf(playTo.ayah)}`,
+        };
+      case "page":
+        return { title: "صفحة محددة", subtitle: `الصفحة ${arabicIndicMushaf(playTo.page)}` };
+      case "surah":
+        return {
+          title: "سورة محددة",
+          subtitle: SURAH_META.find((s) => s.number === playTo.surah)?.name_ar ?? `سورة ${arabicIndic(playTo.surah)}`,
+        };
+      default:
+        return { title: "تشغيل إلى", subtitle: "" };
+    }
+  };
+
+  const buildStopAt = () => {
+    const pageCount = getPageCount();
+    if (!currentSurahMeta) return undefined;
+    if (playTo.kind === "continuous") return undefined;
+    if (playTo.kind === "surahEnd") {
+      return { surah: currentSurah, ayah: currentAyahCount };
+    }
+    if (playTo.kind === "ayah") {
+      return { surah: playTo.surah, ayah: playTo.ayah };
+    }
+    if (playTo.kind === "surah") {
+      const meta = SURAH_META.find((s) => s.number === playTo.surah);
+      const count = meta?.ayahCount ?? 0;
+      return { surah: playTo.surah, ayah: count };
+    }
+    const pageNo = playTo.kind === "pageEnd" ? currentPage : playTo.page;
+    const safePage = Math.min(pageCount, Math.max(1, pageNo));
+    const pageData = getPageData(safePage);
+    const last = pageData.ayahs[pageData.ayahs.length - 1];
+    if (!last) return undefined;
+    return { surah: last.sura, ayah: last.aya };
+  };
+
+  const playToLabel = buildPlayToLabel();
+  const stopAt = buildStopAt();
+
+  const ayahList = useMemo(() => {
+    return Array.from({ length: currentAyahCount || 0 }, (_, idx) => idx + 1);
+  }, [currentAyahCount]);
+
+  const pageList = useMemo(() => {
+    const total = getPageCount();
+    const start = Math.max(1, currentPage - 10);
+    const end = Math.min(total, currentPage + 10);
+    const list: number[] = [];
+    for (let p = start; p <= end; p += 1) list.push(p);
+    return list;
+  }, [currentPage]);
+
+  const playToSubtitle = playToLabel.subtitle
+    ? `${playToLabel.title} • ${playToLabel.subtitle}`
+    : playToLabel.title;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -154,10 +252,10 @@ export default function ReaderOptionsSheet({
               <Feather name="x" size={18} color="#7A7A7A" />
             </Pressable>
           </View>
-          <Text style={styles.title}>{view === "fawasil" ? "\u0627\u0644\u0641\u0648\u0627\u0635\u0644" : headerTitle}</Text>
+          <Text style={styles.title}>{view === "fawasil" ? "الفواصل" : headerTitle}</Text>
           {view === "main" ? (
             <Pressable style={styles.editButton} onPress={() => {}} hitSlop={8}>
-              <Text style={styles.editText}>{"\u062a\u0639\u062f\u064a\u0644"}</Text>
+              <Text style={styles.editText}>{"تعديل"}</Text>
             </Pressable>
           ) : (
             <View style={styles.headerSpacer} />
@@ -167,147 +265,161 @@ export default function ReaderOptionsSheet({
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {view === "main" ? (
             <>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{"الفواصل"}</Text>
-            <Pressable style={styles.rowCard} onPress={() => onSelectBookmark?.(activeBookmark ?? null)}>
-              <View style={styles.rowRight}>
-                {activeEntry ? (
-                  <Ionicons name="bookmark" size={18} color={activeBookmark ?? "#7BBF94"} />
-                ) : (
-                  <Feather name="bookmark" size={18} color={activeBookmark ?? "#7BBF94"} />
-                )}
-                <View style={styles.rowTextWrap}>
-                  <Text style={styles.rowTitle}>{activeTitle}</Text>
-                  <Text style={styles.rowSubtitle}>{activeSubtitle}</Text>
-                </View>
-              </View>
-            </Pressable>
-            <Pressable style={styles.rowCard} onPress={() => setView("fawasil")}>
-              <View style={styles.rowRight}>
-                <Feather name="list" size={18} color="#6B7280" />
-                <Text style={styles.rowTitle}>{"الكل"}</Text>
-              </View>
-              <Feather name="chevron-left" size={18} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{"التلاوة"}</Text>
-            <Pressable
-              style={styles.rowCard}
-              onPress={async () => {
-                if (isLoading) return;
-                setIsLoading(true);
-                try {
-                  if (!surahNumber) return;
-                  console.log("PLAY pressed", surahNumber, ayahNumber);
-                  const url = buildEveryAyahUrl(surahNumber, ayahNumber, "Abu Bakr Ash-Shaatree_128kbps");
-                  console.log("[QuranAudio] play", url);
-                  await playAyah({
-                    surah: surahNumber,
-                    ayah: ayahNumber,
-                    surahName,
-                    reciterKey: "Abu Bakr Ash-Shaatree_128kbps",
-                    ayahCount: SURAH_META.find((s) => s.number === surahNumber)?.ayahCount ?? 0,
-                  });
-                  setIsPlaying(true);
-                  onClose();
-                } catch (error) {
-                  console.error("[QuranAudio] play failed", error);
-                  if (Platform.OS === "web") {
-                    Alert.alert("تعذر التشغيل", "يرجى المحاولة مرة أخرى.");
-                  }
-                } finally {
-                  setIsLoading(false);
-                }
-              }}
-            >
-              <View style={styles.rowRight}>
-                <Feather name={isPlaying ? "pause" : "play"} size={18} color="#2F6E52" />
-                <Text style={styles.rowTitle}>{"تشغيل"}</Text>
-              </View>
-            </Pressable>
-            <Pressable style={styles.rowCard} onPress={() => {}}>
-              <View style={styles.rowRight}>
-                <Feather name="play" size={18} color="#2F6E52" />
-                <Text style={styles.rowTitle}>{"تشغيل إلى"}</Text>
-              </View>
-              <Feather name="chevron-left" size={18} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{"التفسير"}</Text>
-            <Pressable style={styles.rowCard} onPress={() => {}}>
-              <View style={styles.rowRight}>
-                <Feather name="book" size={18} color="#6B7280" />
-                <Text style={styles.rowTitle}>{"اختيار كتاب..."}</Text>
-              </View>
-            </Pressable>
-            <Pressable style={styles.rowCard} onPress={onOpenTafsir}>
-              <View style={styles.rowRight}>
-                <Feather name="book-open" size={18} color="#6B7280" />
-                <Text style={styles.rowTitle}>{"المكتبة"}</Text>
-              </View>
-              <Feather name="chevron-left" size={18} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{"المشاركة"}</Text>
-            <View style={styles.shareButtonsRow}>
-              <Pressable style={styles.shareSquare} onPress={onCopy}>
-                <Feather name="copy" size={18} color="#2F6E52" />
-                <Text style={styles.shareSquareText}>{"نسخ"}</Text>
-              </Pressable>
-              <Pressable style={styles.shareSquare} onPress={onShare}>
-                <Feather name="share-2" size={18} color="#2F6E52" />
-                <Text style={styles.shareSquareText}>{"مشاركة"}</Text>
-              </Pressable>
-            </View>
-            <Pressable style={styles.rowCard} onPress={onShare}>
-              <View style={styles.rowRight}>
-                <Feather name="share-2" size={18} color="#2F6E52" />
-                <Text style={styles.rowTitle}>{"مشاركة"}</Text>
-              </View>
-              <Feather name="chevron-left" size={18} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{"التمييز"}</Text>
-            <View style={styles.colorRow}>
-              {HIGHLIGHT_COLORS.map((c) => {
-                const active = highlightColor === c;
-                return (
-                  <Pressable key={c} onPress={() => onSelectHighlight?.(c)} style={styles.colorPress}>
-                    <View style={[styles.colorDot, { backgroundColor: c }, active && styles.colorActive]} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{"الفواصل"}</Text>
+                <View style={styles.sectionCard}>
+                  <Pressable style={styles.actionRow} onPress={() => onSelectBookmark?.(activeBookmark ?? null)}>
+                    <View style={styles.rowRight}>
+                      {activeEntry ? (
+                        <Ionicons name="bookmark" size={18} color={activeBookmark ?? "#7BBF94"} />
+                      ) : (
+                        <Feather name="bookmark" size={18} color={activeBookmark ?? "#7BBF94"} />
+                      )}
+                      <View style={styles.rowTextWrap}>
+                        <Text style={styles.rowTitle}>{activeTitle}</Text>
+                        <Text style={styles.rowSubtitle}>{activeSubtitle}</Text>
+                      </View>
+                    </View>
                   </Pressable>
-                );
-              })}
-              <Pressable onPress={() => onSelectHighlight?.(null)} style={styles.colorPress}>
-                <View style={[styles.colorDot, styles.noneDot]}>
-                  <Feather name="slash" size={14} color="#6B7280" />
+                  <View style={styles.rowDivider} />
+                  <Pressable style={styles.actionRow} onPress={() => setView("fawasil")}>
+                    <View style={styles.rowRight}>
+                      <Feather name="list" size={18} color="#6B7280" />
+                      <Text style={styles.rowTitle}>{"الكل"}</Text>
+                    </View>
+                    <Feather name="chevron-left" size={18} color="#9CA3AF" />
+                  </Pressable>
                 </View>
-              </Pressable>
-            </View>
-          </View>
-        
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{"التلاوة"}</Text>
+                <View style={styles.sectionCard}>
+                  <Pressable
+                    style={styles.actionRow}
+                    onPress={async () => {
+                      if (isLoading) return;
+                      setIsLoading(true);
+                      try {
+                        if (!surahNumber) return;
+                        console.log("PLAY pressed", surahNumber, ayahNumber);
+                        const url = buildEveryAyahUrl(surahNumber, ayahNumber, "Abu Bakr Ash-Shaatree_128kbps");
+                        console.log("[QuranAudio] play", url);
+                        await playAyah({
+                          surah: surahNumber,
+                          ayah: ayahNumber,
+                          surahName,
+                          reciterKey: "Abu Bakr Ash-Shaatree_128kbps",
+                          ayahCount: SURAH_META.find((s) => s.number === surahNumber)?.ayahCount ?? 0,
+                          stopAt,
+                        });
+                        setIsPlaying(true);
+                        onClose();
+                      } catch (error) {
+                        console.error("[QuranAudio] play failed", error);
+                        if (Platform.OS === "web") {
+                          Alert.alert("تعذر التشغيل", "يرجى المحاولة مرة أخرى.");
+                        }
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  >
+                    <View style={styles.rowRight}>
+                      <Feather name={isPlaying ? "pause" : "play"} size={18} color="#2F6E52" />
+                      <Text style={styles.rowTitle}>{"تشغيل"}</Text>
+                    </View>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                  <Pressable style={styles.actionRow} onPress={() => setPlayToOpen(true)}>
+                    <View style={styles.rowRight}>
+                      <Feather name="play" size={18} color="#2F6E52" />
+                      <View style={styles.rowTextWrap}>
+                        <Text style={styles.rowTitle}>{"تشغيل إلى"}</Text>
+                        <Text style={styles.rowSubtitle}>{playToSubtitle}</Text>
+                      </View>
+                    </View>
+                    <Feather name="chevron-left" size={18} color="#9CA3AF" />
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{"التفسير"}</Text>
+                <View style={styles.sectionCard}>
+                  <Pressable style={styles.actionRow} onPress={() => {}}>
+                    <View style={styles.rowRight}>
+                      <Feather name="book" size={18} color="#6B7280" />
+                      <Text style={styles.rowTitle}>{"اختيار كتاب..."}</Text>
+                    </View>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                  <Pressable style={styles.actionRow} onPress={onOpenTafsir}>
+                    <View style={styles.rowRight}>
+                      <Feather name="book-open" size={18} color="#6B7280" />
+                      <Text style={styles.rowTitle}>{"المكتبة"}</Text>
+                    </View>
+                    <Feather name="chevron-left" size={18} color="#9CA3AF" />
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{"المشاركة"}</Text>
+                <View style={styles.sectionCard}>
+                  <View style={styles.shareButtonsRow}>
+                    <Pressable style={styles.shareSquare} onPress={onCopy}>
+                      <Feather name="copy" size={18} color="#2F6E52" />
+                      <Text style={styles.shareSquareText}>{"نسخ"}</Text>
+                    </Pressable>
+                    <Pressable style={styles.shareSquare} onPress={onShare}>
+                      <Feather name="share-2" size={18} color="#2F6E52" />
+                      <Text style={styles.shareSquareText}>{"مشاركة"}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.rowDivider} />
+                  <Pressable style={styles.actionRow} onPress={onShare}>
+                    <View style={styles.rowRight}>
+                      <Feather name="share-2" size={18} color="#2F6E52" />
+                      <Text style={styles.rowTitle}>{"مشاركة"}</Text>
+                    </View>
+                    <Feather name="chevron-left" size={18} color="#9CA3AF" />
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{"التمييز"}</Text>
+                <View style={styles.sectionCard}>
+                  <View style={styles.colorRow}>
+                    {HIGHLIGHT_COLORS.map((c) => {
+                      const active = highlightColor === c;
+                      return (
+                        <Pressable key={c} onPress={() => onSelectHighlight?.(c)} style={styles.colorPress}>
+                          <View style={[styles.colorDot, { backgroundColor: c }, active && styles.colorActive]} />
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable onPress={() => onSelectHighlight?.(null)} style={styles.colorPress}>
+                      <View style={[styles.colorDot, styles.noneDot]}>
+                        <Feather name="slash" size={14} color="#6B7280" />
+                      </View>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
             </>
           ) : (
             <View style={styles.section}>
-              <View style={styles.fawasilCard}>
+              <View style={styles.sectionCard}>
                 {BOOKMARK_COLORS.map((c, idx) => {
                   const entry = fawasilLatest[c];
                   const title = BOOKMARK_COLOR_NAMES[c] ?? "";
-                  const subtitle = entry ? buildSubtitle(entry.sura, entry.aya, entry.updatedAt) : "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f";
+                  const subtitle = entry ? buildSubtitle(entry.sura, entry.aya, entry.updatedAt) : "غير محدد";
                   return (
                     <Pressable
                       key={c}
-                      style={[
-                        styles.fawasilRow,
-                        idx < BOOKMARK_COLORS.length - 1 ? styles.fawasilRowDivider : null,
-                      ]}
+                      style={[styles.actionRow, idx < BOOKMARK_COLORS.length - 1 ? styles.rowDivider : null]}
                       onPress={() => {
                         onSelectBookmark?.(c);
                         setView("main");
@@ -326,8 +438,153 @@ export default function ReaderOptionsSheet({
               </View>
             </View>
           )}
-</ScrollView>
+        </ScrollView>
       </Animated.View>
+
+      <Modal visible={playToOpen} transparent animationType="none" onRequestClose={() => setPlayToOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setPlayToOpen(false)} />
+        <Animated.View style={[styles.sheet, { transform: [{ translateY: playToTranslateY }] }]}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeftGroup}>
+              <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
+                <Feather name="x" size={18} color="#7A7A7A" />
+              </Pressable>
+            </View>
+            <Text style={styles.title}>{"تشغيل إلى"}</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <Text style={styles.contextText}>{`${currentSurahName}: ${arabicIndic(currentAyah)}`}</Text>
+
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.section}>
+              <View style={styles.sectionCard}>
+                <Pressable
+                  style={styles.actionRow}
+                  onPress={() => {
+                    setPlayTo({ kind: "pageEnd" });
+                    setPlayToOpen(false);
+                  }}
+                >
+                  <View style={styles.rowRight}>
+                    <Feather name="file-text" size={18} color="#2F6E52" />
+                    <View style={styles.rowTextWrap}>
+                      <Text style={styles.rowTitle}>{"نهاية الصفحة"}</Text>
+                      <Text style={styles.rowSubtitle}>{`الصفحة ${arabicIndicMushaf(currentPage)}`}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+                <View style={styles.rowDivider} />
+                <Pressable
+                  style={styles.actionRow}
+                  onPress={() => {
+                    setPlayTo({ kind: "surahEnd" });
+                    setPlayToOpen(false);
+                  }}
+                >
+                  <View style={styles.rowRight}>
+                    <Feather name="flag" size={18} color="#2F6E52" />
+                    <View style={styles.rowTextWrap}>
+                      <Text style={styles.rowTitle}>{"نهاية السورة"}</Text>
+                      <Text style={styles.rowSubtitle}>{currentSurahName}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+                <View style={styles.rowDivider} />
+                <Pressable
+                  style={styles.actionRow}
+                  onPress={() => {
+                    setPlayTo({ kind: "continuous" });
+                    setPlayToOpen(false);
+                  }}
+                >
+                  <View style={styles.rowRight}>
+                    <Feather name="repeat" size={18} color="#2F6E52" />
+                    <View style={styles.rowTextWrap}>
+                      <Text style={styles.rowTitle}>{"تشغيل مستمر"}</Text>
+                      <Text style={styles.rowSubtitle}>{"لا يتوقف تلقائياً"}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.segmented}>
+                {[
+                  { key: "ayah", label: "آية" },
+                  { key: "page", label: "صفحة" },
+                  { key: "surah", label: "سورة" },
+                ].map((tab) => (
+                  <Pressable
+                    key={tab.key}
+                    onPress={() => setPlayToTab(tab.key as "ayah" | "page" | "surah")}
+                    style={[styles.segmentItem, playToTab === tab.key && styles.segmentItemActive]}
+                  >
+                    <Text style={[styles.segmentText, playToTab === tab.key && styles.segmentTextActive]}>
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionCard}>
+                {playToTab === "ayah" ? (
+                  ayahList.map((n, idx) => (
+                    <Pressable
+                      key={`ayah-${n}`}
+                      style={[styles.actionRow, idx < ayahList.length - 1 ? styles.rowDivider : null]}
+                      onPress={() => {
+                        setPlayTo({ kind: "ayah", surah: currentSurah, ayah: n });
+                        setPlayToOpen(false);
+                      }}
+                    >
+                      <View style={styles.rowRight}>
+                        <Text style={styles.rowTitle}>{`آية ${arabicIndicMushaf(n)}`}</Text>
+                      </View>
+                    </Pressable>
+                  ))
+                ) : playToTab === "page" ? (
+                  pageList.map((p, idx) => (
+                    <Pressable
+                      key={`page-${p}`}
+                      style={[styles.actionRow, idx < pageList.length - 1 ? styles.rowDivider : null]}
+                      onPress={() => {
+                        setPlayTo({ kind: "page", page: p });
+                        setPlayToOpen(false);
+                      }}
+                    >
+                      <View style={styles.rowRight}>
+                        <Text style={styles.rowTitle}>{`الصفحة ${arabicIndicMushaf(p)}`}</Text>
+                      </View>
+                    </Pressable>
+                  ))
+                ) : (
+                  SURAH_META.map((s, idx) => (
+                    <Pressable
+                      key={`surah-${s.number}`}
+                      style={[styles.actionRow, idx < SURAH_META.length - 1 ? styles.rowDivider : null]}
+                      onPress={() => {
+                        setPlayTo({ kind: "surah", surah: s.number });
+                        setPlayToOpen(false);
+                      }}
+                    >
+                      <View style={styles.rowRight}>
+                        <View style={styles.rowTextWrap}>
+                          <Text style={styles.rowTitle}>{s.name_ar}</Text>
+                          <Text style={styles.rowSubtitle}>{arabicIndicMushaf(s.number)}</Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))
+                )}
+              </View>
+            </View>
+          </ScrollView>
+        </Animated.View>
+      </Modal>
     </Modal>
   );
 }
@@ -395,11 +652,18 @@ const styles = StyleSheet.create({
     width: 44,
   },
   content: {
-    gap: 18,
+    padding: 16,
+    gap: 12,
     paddingBottom: 24,
   },
   section: {
     gap: 10,
+  },
+  sectionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 12,
+    gap: 8,
   },
   sectionTitle: {
     fontFamily: "CairoBold",
@@ -407,14 +671,18 @@ const styles = StyleSheet.create({
     color: quranTheme.colors.text,
     textAlign: "right",
   },
-  rowCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  actionRow: {
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignSelf: "stretch",
   },
   rowRight: {
     flexDirection: "row-reverse",
@@ -437,19 +705,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 2,
   },
-  fawasilCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 6,
-  },
-  fawasilRow: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  fawasilRowDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
-  },
   colorRow: {
     flexDirection: "row-reverse",
     gap: 10,
@@ -462,6 +717,11 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
+  },
+  noneDot: {
+    backgroundColor: "#F3EFE6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   colorActive: {
     borderWidth: 2,
@@ -484,5 +744,38 @@ const styles = StyleSheet.create({
     fontFamily: "CairoBold",
     fontSize: 13,
     color: quranTheme.colors.text,
+  },
+  contextText: {
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  segmented: {
+    flexDirection: "row-reverse",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 6,
+    gap: 8,
+  },
+  segmentItem: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3EFE6",
+  },
+  segmentItemActive: {
+    backgroundColor: "#2F6E52",
+  },
+  segmentText: {
+    fontFamily: "CairoBold",
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  segmentTextActive: {
+    color: "#FFFFFF",
   },
 });
