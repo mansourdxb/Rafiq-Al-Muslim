@@ -408,7 +408,12 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.unitText}>دقيقة</Text>
                 <Text style={styles.unitText}>ثانية</Text>
               </View>
-              <Pressable onPress={openFacePicker} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
+              <Pressable
+              onPress={toggleFacePicker}
+              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={CLOCK_HINT_OPEN}
+            >
               <Text style={styles.clockPickerHint}>
                 {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
               </Text>
@@ -457,6 +462,7 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.clockWrap}>
               <Pressable
+                onPress={openFacePicker}
                 onLongPress={toggleFacePicker}
                 delayLongPress={250}
                 accessibilityRole="button"
@@ -477,7 +483,12 @@ export default function SalatukPrayerTimesScreen() {
               </Pressable>
             </View>
 
-            <Pressable onPress={openFacePicker} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
+            <Pressable
+              onPress={toggleFacePicker}
+              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={CLOCK_HINT_OPEN}
+            >
               <Text style={styles.clockPickerHint}>
                 {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
               </Text>
