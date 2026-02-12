@@ -48,11 +48,11 @@ function variantColors(variant: ClockVariant, accent?: string): VariantStyle {
     case "minimal":
       return {
         face: "#FFFFFF",
-        rim: "#E6ECE7",
-        tick: "#9BA7A0",
-        text: "#6E7B73",
-        hour: "#2F6E52",
-        minute: "#2F6E52",
+        rim: "#EAEAEA",
+        tick: "#B5B5B5",
+        text: "#6A6A6A",
+        hour: "#111111",
+        minute: "#111111",
         second: "#C19B53",
         accent: acc,
         inner: null,
@@ -61,13 +61,13 @@ function variantColors(variant: ClockVariant, accent?: string): VariantStyle {
       };
     case "classic":
       return {
-        face: "#FFFDF7",
-        rim: "#D9D0C2",
-        tick: "#6F6456",
-        text: "#2B261F",
-        hour: "#2B261F",
-        minute: "#2B261F",
-        second: "#C19B53",
+        face: "#FFF7E6",
+        rim: "#E4D2B0",
+        tick: "#7D6A4B",
+        text: "#4A3B28",
+        hour: "#4A3B28",
+        minute: "#4A3B28",
+        second: "#B77A2F",
         accent: acc,
         inner: null,
         numberMode: "full",
@@ -75,28 +75,28 @@ function variantColors(variant: ClockVariant, accent?: string): VariantStyle {
       };
     case "arabic":
       return {
-        face: "#FFFDF7",
-        rim: "#E6E1D6",
-        tick: "#7A746A",
-        text: "#2B261F",
-        hour: "#2B261F",
-        minute: "#2B261F",
-        second: "#C19B53",
-        accent: acc,
+        face: "#F1F7FF",
+        rim: "#C9DAF2",
+        tick: "#6F89B5",
+        text: "#2A3F63",
+        hour: "#2A3F63",
+        minute: "#2A3F63",
+        second: "#D46B6B",
+        accent: "#3E6AA7",
         inner: null,
         numberMode: "full",
         arc: null,
       };
     case "roman":
       return {
-        face: "#FFFFFF",
-        rim: "#E6E6E6",
-        tick: "#7A7A7A",
-        text: "#2B2B2B",
-        hour: "#2B2B2B",
-        minute: "#2B2B2B",
+        face: "#F5F1FF",
+        rim: "#D6C7F1",
+        tick: "#7A6DA8",
+        text: "#3E2F66",
+        hour: "#3E2F66",
+        minute: "#3E2F66",
         second: "#C19B53",
-        accent: acc,
+        accent: "#6B57A8",
         inner: null,
         numberMode: "full",
         arc: null,
@@ -178,6 +178,10 @@ export default function AnalogClock({
   const minAngle = (minutes + seconds / 60) * 6 - 90;
   const secAngle = seconds * 6 - 90;
 
+  const numberFontSize = Math.max(10, Math.round(size * 0.08));
+  const romanFontSize = Math.max(10, Math.round(size * 0.07));
+  const cardinalFontSize = Math.max(9, Math.round(size * 0.07));
+
   const numbers = useMemo(() => {
     if (colors.numberMode === "none") return null;
     if (colors.numberMode === "cardinal") {
@@ -197,8 +201,9 @@ export default function AnalogClock({
             x={nx}
             y={ny}
             fill={colors.text}
-            fontSize={12}
+            fontSize={cardinalFontSize}
             fontWeight="700"
+            fontFamily="CairoBold"
             textAnchor="middle"
           >
             {item.label}
@@ -217,8 +222,9 @@ export default function AnalogClock({
           x={nx}
           y={ny}
           fill={colors.text}
-          fontSize={variant === "roman" ? 11 : 12}
+          fontSize={variant === "roman" ? romanFontSize : numberFontSize}
           fontWeight="700"
+          fontFamily="CairoBold"
           textAnchor="middle"
         >
           {label}
