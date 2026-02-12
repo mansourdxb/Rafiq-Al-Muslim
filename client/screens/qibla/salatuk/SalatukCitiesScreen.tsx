@@ -398,11 +398,12 @@ export default function SalatukCitiesScreen() {
         </View>
       </View>
 
-      <View style={[styles.body, { width: contentWidth }]}>
+      <View style={styles.body}>
         <FlatList
           data={visibleCities}
           keyExtractor={(item) => `${item.lat}:${item.lon}`}
           renderItem={renderItem}
+          style={{ flex: 1, width: "100%" }}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsVerticalScrollIndicator={false}
@@ -540,17 +541,22 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    paddingHorizontal: 18,
     alignItems: "center",
+    width: "100%",
   },
   listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 24,
+    alignItems: "center",
   },
   separator: {
     height: 12,
   },
   cityItem: {
     width: "100%",
+    maxWidth: 430,
+    alignSelf: "center",
     backgroundColor: COLORS.card,
     borderRadius: 18,
     padding: 16,
@@ -688,6 +694,8 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     width: "100%",
+    maxWidth: 430,
+    alignSelf: "center",
     padding: 18,
     borderRadius: 18,
     backgroundColor: COLORS.card,
