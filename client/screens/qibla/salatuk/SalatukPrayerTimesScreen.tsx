@@ -3,6 +3,7 @@ import {
   I18nManager,
   Platform,
   GestureResponderEvent,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import tzLookup from "tz-lookup";
 
 import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
@@ -122,8 +124,21 @@ const PRAYER_LABELS: Record<PrayerName, string> = {
   Isha: "العشاء",
 };
 
-const CLOCK_VARIANTS = ["mint", "minimal", "classic", "arabic", "roman"] as const;
+const CLOCK_VARIANTS = ["mint", "minimal", "classic", "arabic", "roman", "sky", "ring", "graphite"] as const;
 type ClockVariant = (typeof CLOCK_VARIANTS)[number];
+
+const CLOCK_FACE_OPTIONS: Array<{ key: ClockVariant; label: string }> = [
+  { key: "mint", label: "?????" },
+  { key: "minimal", label: "????" },
+  { key: "classic", label: "??????" },
+  { key: "arabic", label: "????? ?????" },
+  { key: "roman", label: "????? ???????" },
+  { key: "sky", label: "???? ?????" },
+  { key: "ring", label: "???? ?? ????" },
+  { key: "graphite", label: "??????" },
+];
+
+const CLOCK_VARIANT_KEY = "prayerClock:variant";
 
 
 export default function SalatukPrayerTimesScreen() {
@@ -140,6 +155,7 @@ export default function SalatukPrayerTimesScreen() {
   const [athanPrefs, setAthanPrefs] = useState<AthanPrefs | null>(null);
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
   const [clockVariant, setClockVariant] = useState<ClockVariant>("mint");
+  const [isClockSheetOpen, setIsClockSheetOpen] = useState(false);
 
   const contentWidth = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
@@ -203,6 +219,23 @@ export default function SalatukPrayerTimesScreen() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(CLOCK_VARIANT_KEY).then((stored) => {
+      if (!active || !stored) return;
+      if (CLOCK_VARIANTS.includes(stored as ClockVariant)) {
+        setClockVariant(stored as ClockVariant);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    void AsyncStorage.setItem(CLOCK_VARIANT_KEY, clockVariant);
+  }, [clockVariant]);
+
+  useEffect(() => {
     if (!city || !settings) {
       setTimes(null);
       return;
@@ -264,22 +297,6 @@ export default function SalatukPrayerTimesScreen() {
   const timeParts = useMemo(
     () => getTimePartsInTZ(new Date(nowMs), tz),
     [nowMs, tz]
-  );
-
-  const cycleClockVariant = React.useCallback(() => {
-    setClockVariant((prev) => {
-      const idx = CLOCK_VARIANTS.indexOf(prev);
-      return CLOCK_VARIANTS[(idx + 1) % CLOCK_VARIANTS.length];
-    });
-  }, []);
-
-  const handleClockContextMenu = React.useCallback(
-    (event: GestureResponderEvent) => {
-      if (Platform.OS !== "web") return;
-      event.preventDefault?.();
-      cycleClockVariant();
-    },
-    [cycleClockVariant]
   );
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
@@ -422,11 +439,11 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.clockWrap}>
               <Pressable
-                onLongPress={cycleClockVariant}
+                onLongPress={openClockSheet}
                 onContextMenu={handleClockContextMenu as any}
                 delayLongPress={350}
                 accessibilityRole="button"
-                accessibilityLabel="????? ??? ??????"
+                accessibilityLabel="?????? ??? ??????"
               >
                 <View style={styles.clockGlow} />
                 <View style={styles.clock}>
@@ -521,6 +538,44 @@ export default function SalatukPrayerTimesScreen() {
         onClose={() => setIsCityPickerOpen(false)}
         onSelect={handleCitySelect}
       />
+
+      <Modal
+        visible={isClockSheetOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsClockSheetOpen(false)}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={() => setIsClockSheetOpen(false)} />
+        <View style={styles.sheetContainer}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>?????? ??? ??????</Text>
+          <View style={styles.sheetList}>
+            {CLOCK_FACE_OPTIONS.map((option) => {
+              const isActive = option.key === clockVariant;
+              return (
+                <Pressable
+                  key={option.key}
+                  style={[styles.sheetRow, isActive && styles.sheetRowActive]}
+                  onPress={() => {
+                    setClockVariant(option.key);
+                    setIsClockSheetOpen(false);
+                  }}
+                >
+                  <AnalogClock
+                    size={56}
+                    hours={timeParts.hours}
+                    minutes={timeParts.minutes}
+                    seconds={timeParts.seconds}
+                    variant={option.key}
+                    accent={COLORS.primary}
+                  />
+                  <Text style={[styles.sheetLabel, isActive && styles.sheetLabelActive]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
