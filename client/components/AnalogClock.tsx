@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Platform, StyleProp, View, ViewStyle } from "react-native";
+import { Platform, StyleProp, Text, View, ViewStyle } from "react-native";
 import Svg, { Circle, Line, Text as SvgText, G, Path } from "react-native-svg";
 
 type ClockVariant =
@@ -180,11 +180,43 @@ export default function AnalogClock({
 
   const svgFontFamily = Platform.OS === "web" ? undefined : "CairoBold";
 
+  const isWeb = Platform.OS === "web";
+
   const numberFontSize = Math.max(10, Math.round(size * 0.08));
   const romanFontSize = Math.max(10, Math.round(size * 0.07));
   const cardinalFontSize = Math.max(9, Math.round(size * 0.07));
 
+
+  const labelPositions = useMemo(() => {
+    if (colors.numberMode === "none") return [];
+    const positions = [];
+    if (colors.numberMode === "cardinal") {
+      const placements = [
+        { label: CARDINALS[0], angle: -90 },
+        { label: CARDINALS[1], angle: 0 },
+        { label: CARDINALS[2], angle: 90 },
+        { label: CARDINALS[3], angle: 180 },
+      ];
+      for (const item of placements) {
+        const rad = item.angle * (Math.PI / 180);
+        const x = center + Math.cos(rad) * (r * 0.64);
+        const y = center + Math.sin(rad) * (r * 0.64);
+        positions.push({ label: item.label, x, y, kind: "cardinal" });
+      }
+      return positions;
+    }
+    const labels = variant === "roman" ? ROMAN : variant === "arabic" ? ARABIC : ROMAN;
+    labels.forEach((label, i) => {
+      const angle = (i * 30 - 60) * (Math.PI / 180);
+      const x = center + Math.cos(angle) * (r * 0.72);
+      const y = center + Math.sin(angle) * (r * 0.72);
+      positions.push({ label, x, y, kind: "full" });
+    });
+    return positions;
+  }, [variant, colors.numberMode, center, r]);
+
   const numbers = useMemo(() => {
+    if (isWeb) return null;
     if (colors.numberMode === "none") return null;
     if (colors.numberMode === "cardinal") {
       const placements = [
@@ -338,6 +370,31 @@ export default function AnalogClock({
         <Circle cx={center} cy={center} r={6} fill={colors.accent} />
         <Circle cx={center} cy={center} r={3} fill="#FFFFFF" opacity={0.8} />
       </Svg>
+      {isWeb && labelPositions.length ? (
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: size, height: size }}>
+          {labelPositions.map((item) => {
+            const fontSize = item.kind === "cardinal" ? cardinalFontSize : (variant === "roman" ? romanFontSize : numberFontSize);
+            return (
+              <Text
+                key={`${item.label}-${item.x}-${item.y}`}
+                style={{
+                  position: "absolute",
+                  left: item.x,
+                  top: item.y,
+                  transform: [{ translateX: -10 }, { translateY: -8 }],
+                  minWidth: 20,
+                  textAlign: "center",
+                  color: colors.text,
+                  fontSize,
+                  fontWeight: "700",
+                }}
+              >
+                {item.label}
+              </Text>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
