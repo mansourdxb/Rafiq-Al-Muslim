@@ -1,7 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import {
   I18nManager,
-  LayoutAnimation,
   Platform,
   FlatList,
   Pressable,
@@ -139,11 +138,10 @@ const CLOCK_FACE_OPTIONS: Array<{ key: ClockVariant; label: string }> = [
   { key: "graphite", label: "\u062c\u0631\u0627\u0641\u064a\u062a" },
 ];
 
-
 const CLOCK_VARIANT_KEY = "prayerClock:variant";
-const CLOCK_CAROUSEL_ITEM = 86;
-const CLOCK_CAROUSEL_GAP = 12;
-const CLOCK_CAROUSEL_SNAP = CLOCK_CAROUSEL_ITEM + CLOCK_CAROUSEL_GAP;
+const CLOCK_FACES = CLOCK_FACE_OPTIONS;
+const CLOCK_SIZE = 170;
+const HALO_SIZE = Math.round(CLOCK_SIZE * 1.9);
 const CLOCK_HINT_OPEN = "\u0627\u0636\u063a\u0637 \u0644\u062a\u063a\u064a\u064a\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 const CLOCK_HINT_CLOSE = "\u0625\u062e\u0641\u0627\u0621 \u0623\u0634\u0643\u0627\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 
@@ -162,12 +160,11 @@ export default function SalatukPrayerTimesScreen() {
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
   const [clockFace, setClockFace] = useState<ClockVariant>("mint");
   const [facePickerOpen, setFacePickerOpen] = useState(false);
-
   const openFacePicker = () => setFacePickerOpen(true);
   const toggleFacePicker = () => setFacePickerOpen((v) => !v);
   const closeFacePicker = () => setFacePickerOpen(false);
 
-  const contentWidth = Math.min(width, 430); = Math.min(width, 430);
+  const contentWidth = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
   const tz = useMemo(
     () => (city ? tzLookup(city.lat, city.lon) : null),
@@ -315,20 +312,6 @@ export default function SalatukPrayerTimesScreen() {
     [nowMs, tz]
   );
 
-  const openFacePicker = React.useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setFacePickerOpen(true);
-  }, []);
-
-  const clockFaceListRef = React.useRef<FlatList<any>>(null);
-
-  const handleClockFaceMomentumEnd = React.useCallback((event: any) => {
-    const offset = event?.nativeEvent?.contentOffset?.x ?? 0;
-    const index = Math.round(offset / CLOCK_CAROUSEL_SNAP);
-    const item = CLOCK_FACE_OPTIONS[index];
-    if (item) setClockFace(item.key);
-  }, []);
-
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
 
@@ -409,9 +392,6 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.unitText}>دقيقة</Text>
                 <Text style={styles.unitText}>ثانية</Text>
               </View>
-              <Pressable onPress={toggleFacePicker} hitSlop={12} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
-              <Text style={styles.clockPickerHint}>{facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}</Text>
-            </Pressable>
               <Text style={styles.cityMeta}>{subtitle}</Text>
             </View>
 
@@ -455,6 +435,9 @@ export default function SalatukPrayerTimesScreen() {
             <View style={styles.dateDivider} />
 
             <View style={styles.clockWrap}>
+              <View pointerEvents="none" style={styles.clockHaloContainer}>
+                <View style={styles.clockHalo} />
+              </View>
               <Pressable
                 onPress={toggleFacePicker}
                 onLongPress={openFacePicker}
@@ -467,7 +450,7 @@ export default function SalatukPrayerTimesScreen() {
                 <View style={styles.clock}>
                   <View style={styles.clockRing} />
                   <AnalogClock
-                    size={170}
+                    size={CLOCK_SIZE}
                     hours={timeParts.hours}
                     minutes={timeParts.minutes}
                     seconds={timeParts.seconds}
@@ -478,46 +461,29 @@ export default function SalatukPrayerTimesScreen() {
               </Pressable>
             </View>
 
-            <Pressable
-              onPress={() => setFacePickerOpen((v) => !v)}
-              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel={CLOCK_HINT_OPEN}
-            >
+            <Pressable onPress={toggleFacePicker} hitSlop={12}>
               <Text style={styles.clockPickerHint}>
-                {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
+                {facePickerOpen ? "إخفاء أشكال الساعة" : "اضغط لتغيير شكل الساعة"}
               </Text>
             </Pressable>
 
-            {facePickerOpen ? (
-              <View style={styles.clockCarouselWrap}>
+            {facePickerOpen && (
+              <View style={styles.faceSliderWrap}>
                 <FlatList
-                  ref={clockFaceListRef}
+                  data={CLOCK_FACES}
                   horizontal
-                  data={CLOCK_FACE_OPTIONS}
-                  keyExtractor={(item) => item.key}
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.clockCarouselContent}
-                  snapToInterval={CLOCK_CAROUSEL_SNAP}
-                  decelerationRate="fast"
-                  onMomentumScrollEnd={handleClockFaceMomentumEnd}
-                  inverted={I18nManager.isRTL}
+                  contentContainerStyle={{ paddingHorizontal: 12, gap: 10 }}
+                  keyExtractor={(i) => i.key}
                   renderItem={({ item }) => {
-                    const isActive = item.key === clockFace;
+                    const active = item.key === clockFace;
                     return (
                       <Pressable
                         onPress={() => {
                           setClockFace(item.key);
                           closeFacePicker();
-                          const index = CLOCK_FACE_OPTIONS.findIndex((x) => x.key === item.key);
-                          if (index >= 0) {
-                            clockFaceListRef.current?.scrollToOffset({
-                              offset: index * CLOCK_CAROUSEL_SNAP,
-                              animated: true,
-                            });
-                          }
                         }}
-                        style={[styles.clockCarouselItem, isActive && styles.clockCarouselItemActive]}
+                        style={[styles.clockCarouselItem, active && styles.clockCarouselItemActive]}
                       >
                         <AnalogClock
                           size={56}
@@ -527,7 +493,7 @@ export default function SalatukPrayerTimesScreen() {
                           variant={item.key}
                           accent={COLORS.primary}
                         />
-                        <Text style={[styles.clockCarouselLabel, isActive && styles.clockCarouselLabelActive]}>
+                        <Text style={[styles.clockCarouselLabel, active && styles.clockCarouselLabelActive]}>
                           {item.label}
                         </Text>
                       </Pressable>
@@ -535,7 +501,7 @@ export default function SalatukPrayerTimesScreen() {
                   }}
                 />
               </View>
-            ) : null}
+            )}
 
             <View style={styles.quickActions}>
               {[
@@ -764,20 +730,25 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
     marginTop: 14,
     marginBottom: 8,
   },
-  clockGlow: {
-    position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+  clockHaloContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clockHalo: {
+    width: HALO_SIZE,
+    height: HALO_SIZE,
+    borderRadius: HALO_SIZE / 2,
     backgroundColor: "rgba(121, 159, 132, 0.08)",
   },
   clock: {
-    width: 170,
-    height: 170,
-    borderRadius: 85,
+    width: CLOCK_SIZE,
+    height: CLOCK_SIZE,
+    borderRadius: CLOCK_SIZE / 2,
     backgroundColor: "#E6F0E9",
     borderWidth: 6,
     borderColor: "#FFFFFF",
@@ -798,18 +769,14 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: "rgba(121, 159, 132, 0.35)",
   },
-  clockCarouselWrap: {
+  faceSliderWrap: {
     width: "100%",
     marginTop: 8,
     marginBottom: 12,
     minHeight: 110,
   },
-  clockCarouselContent: {
-    paddingHorizontal: 8,
-    gap: CLOCK_CAROUSEL_GAP,
-  },
   clockCarouselItem: {
-    width: CLOCK_CAROUSEL_ITEM,
+    width: 86,
     borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 8,
