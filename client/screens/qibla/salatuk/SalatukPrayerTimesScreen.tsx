@@ -1,12 +1,14 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import {
   I18nManager,
+  LayoutAnimation,
   Platform,
   FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  UIManager,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -161,7 +163,11 @@ export default function SalatukPrayerTimesScreen() {
   const [clockFace, setClockFace] = useState<ClockVariant>("mint");
   const [facePickerOpen, setFacePickerOpen] = useState(false);
 
-  const contentWidth = Math.min(width, 430);
+  const openFacePicker = () => setFacePickerOpen(true);
+  const toggleFacePicker = () => setFacePickerOpen((v) => !v);
+  const closeFacePicker = () => setFacePickerOpen(false);
+
+  const contentWidth = Math.min(width, 430); = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
   const tz = useMemo(
     () => (city ? tzLookup(city.lat, city.lon) : null),
@@ -233,7 +239,7 @@ export default function SalatukPrayerTimesScreen() {
     AsyncStorage.getItem(CLOCK_VARIANT_KEY).then((stored) => {
       if (!active || !stored) return;
       if (CLOCK_VARIANTS.includes(stored as ClockVariant)) {
-        setClockVariant(stored as ClockVariant);
+        setClockFace(stored as ClockVariant);
       }
     });
     return () => {
@@ -403,10 +409,8 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.unitText}>دقيقة</Text>
                 <Text style={styles.unitText}>ثانية</Text>
               </View>
-              <Pressable onPress={() => setFacePickerOpen((v) => !v)} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
-              <Text style={styles.clockPickerHint}>
-                {facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}
-              </Text>
+              <Pressable onPress={toggleFacePicker} hitSlop={12} accessibilityRole="button" accessibilityLabel={CLOCK_HINT_OPEN}>
+              <Text style={styles.clockPickerHint}>{facePickerOpen ? CLOCK_HINT_CLOSE : CLOCK_HINT_OPEN}</Text>
             </Pressable>
               <Text style={styles.cityMeta}>{subtitle}</Text>
             </View>
@@ -452,8 +456,10 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.clockWrap}>
               <Pressable
-                onLongPress={() => setFacePickerOpen(true)}
+                onPress={toggleFacePicker}
+                onLongPress={openFacePicker}
                 delayLongPress={250}
+                hitSlop={12}
                 accessibilityRole="button"
                 accessibilityLabel={CLOCK_HINT_OPEN}
               >
@@ -502,8 +508,7 @@ export default function SalatukPrayerTimesScreen() {
                       <Pressable
                         onPress={() => {
                           setClockFace(item.key);
-                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                          setFacePickerOpen(false);
+                          closeFacePicker();
                           const index = CLOCK_FACE_OPTIONS.findIndex((x) => x.key === item.key);
                           if (index >= 0) {
                             clockFaceListRef.current?.scrollToOffset({
@@ -797,6 +802,7 @@ const styles = StyleSheet.create({
     width: "100%",
     marginTop: 8,
     marginBottom: 12,
+    minHeight: 110,
   },
   clockCarouselContent: {
     paddingHorizontal: 8,
