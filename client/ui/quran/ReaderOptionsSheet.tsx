@@ -7,6 +7,7 @@ import {
   Text,
   View,
   ScrollView,
+  FlatList,
   Alert,
   Platform,
 } from "react-native";
@@ -562,24 +563,34 @@ export default function ReaderOptionsSheet({
             <View style={styles.section}>
               <View style={styles.sectionCard}>
                 {playToTab === "ayah" ? (
-                  ayahList.map((item: any, idx: number) => {
-                    const ayahNo = item?.ayah_number ?? item?.number ?? item?.ayah ?? item?.id ?? idx + 1;
-                    const ayahText = String(item?.text ?? item?.textUthmani ?? item?.arabic ?? "").trim();
-                    return (
-                    <Pressable
-                      key={`ayah-${ayahNo}`}
-                      style={[styles.playToAyahRow, idx < ayahList.length - 1 ? styles.rowDivider : null]}
-                      onPress={() => {
-                        void startPlayTo({ kind: "ayah", surah: currentSurah, ayah: ayahNo });
-                      }}
-                    >
-                      <Text style={styles.playToAyahTitle}>{`${currentSurahName}: ${arabicIndicMushaf(ayahNo)}`}</Text>
-                      <Text style={styles.playToAyahText} numberOfLines={2}>
-                        {ayahText}
-                      </Text>
-                    </Pressable>
-                  );
-                  })
+                  <FlatList
+                    style={styles.playToAyahList}
+                    contentContainerStyle={styles.playToAyahListContent}
+                    data={ayahList}
+                    keyExtractor={(item, index) => String(item?.ayah_number ?? item?.number ?? item?.ayah ?? item?.id ?? index + 1)}
+                    renderItem={({ item, index }) => {
+                      const ayahNo = item?.ayah_number ?? item?.number ?? item?.ayah ?? item?.id ?? index + 1;
+                      const ayahText = String(item?.text ?? item?.textUthmani ?? item?.arabic ?? "").trim();
+                      return (
+                        <Pressable
+                          onPress={() => {
+                            void startPlayTo({ kind: "ayah", surah: currentSurah, ayah: ayahNo });
+                          }}
+                          style={({ pressed }) => [
+                            styles.playToAyahItem,
+                            pressed && styles.playToAyahItemPressed,
+                          ]}
+                        >
+                          <Text style={styles.playToAyahTitle}>
+                            {currentSurahName}:{` `}{arabicIndicMushaf(ayahNo)}
+                          </Text>
+                          <Text style={styles.playToAyahPreview} numberOfLines={2} ellipsizeMode="tail">
+                            {ayahText}
+                          </Text>
+                        </Pressable>
+                      );
+                    }}
+                  />
                 ) : playToTab === "page" ? (
                   pageList.map((p, idx) => (
                     <Pressable
@@ -810,23 +821,37 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: "#FFFFFF",
   },
-  playToAyahRow: {
+  playToAyahList: {
+    flex: 1,
+  },
+  playToAyahListContent: {
+    paddingVertical: 8,
+  },
+  playToAyahItem: {
+    width: "100%",
+    paddingHorizontal: 16,
     paddingVertical: 14,
-    paddingHorizontal: 14,
-    alignItems: "flex-end",
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.08)",
+  },
+  playToAyahItemPressed: {
+    opacity: 0.92,
   },
   playToAyahTitle: {
     fontFamily: "CairoBold",
     fontSize: 18,
-    color: "#1F3B2E",
+    color: quranTheme.colors.text ?? "#1F3B2E",
     textAlign: "right",
+    writingDirection: "rtl",
     marginBottom: 6,
   },
-  playToAyahText: {
+  playToAyahPreview: {
     fontFamily: "Cairo",
     fontSize: 16,
-    color: "rgba(0,0,0,0.55)",
+    color: "rgba(0,0,0,0.60)",
     textAlign: "right",
+    writingDirection: "rtl",
     lineHeight: 26,
   },
 });
