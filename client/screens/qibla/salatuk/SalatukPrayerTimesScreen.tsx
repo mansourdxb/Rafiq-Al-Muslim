@@ -2,8 +2,7 @@
 import {
   I18nManager,
   Platform,
-  GestureResponderEvent,
-  Modal,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -140,10 +139,9 @@ const CLOCK_FACE_OPTIONS: Array<{ key: ClockVariant; label: string }> = [
 
 
 const CLOCK_VARIANT_KEY = "prayerClock:variant";
-
-const CLOCK_SHEET_TITLE = "\u0627\u062e\u062a\u064a\u0627\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
-const CLOCK_SHEET_ACCESSIBILITY = "\u0627\u062e\u062a\u064a\u0627\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
-
+const CLOCK_CAROUSEL_ITEM = 86;
+const CLOCK_CAROUSEL_GAP = 12;
+const CLOCK_CAROUSEL_SNAP = CLOCK_CAROUSEL_ITEM + CLOCK_CAROUSEL_GAP;
 
 export default function SalatukPrayerTimesScreen() {
   const navigation = useNavigation<any>();
@@ -159,7 +157,6 @@ export default function SalatukPrayerTimesScreen() {
   const [athanPrefs, setAthanPrefs] = useState<AthanPrefs | null>(null);
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
   const [clockVariant, setClockVariant] = useState<ClockVariant>("mint");
-  const [isClockSheetOpen, setIsClockSheetOpen] = useState(false);
 
   const contentWidth = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
@@ -303,18 +300,14 @@ export default function SalatukPrayerTimesScreen() {
     [nowMs, tz]
   );
 
-  const openClockSheet = React.useCallback(() => {
-    setIsClockSheetOpen(true);
-  }, []);
+  const clockFaceListRef = React.useRef<FlatList<any>>(null);
 
-  const handleClockContextMenu = React.useCallback(
-    (event: GestureResponderEvent) => {
-      if (Platform.OS !== "web") return;
-      event.preventDefault?.();
-      setIsClockSheetOpen(true);
-    },
-    []
-  );
+  const handleClockFaceMomentumEnd = React.useCallback((event: any) => {
+    const offset = event?.nativeEvent?.contentOffset?.x ?? 0;
+    const index = Math.round(offset / CLOCK_CAROUSEL_SNAP);
+    const item = CLOCK_FACE_OPTIONS[index];
+    if (item) setClockVariant(item.key);
+  }, []);
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
@@ -456,11 +449,6 @@ export default function SalatukPrayerTimesScreen() {
 
             <View style={styles.clockWrap}>
               <Pressable
-                onLongPress={openClockSheet}
-                onContextMenu={handleClockContextMenu as any}
-                delayLongPress={350}
-                accessibilityRole="button"
-                accessibilityLabel={CLOCK_SHEET_ACCESSIBILITY}
               >
                 <View style={styles.clockGlow} />
                 <View style={styles.clock}>
@@ -556,43 +544,6 @@ export default function SalatukPrayerTimesScreen() {
         onSelect={handleCitySelect}
       />
 
-      <Modal
-        visible={isClockSheetOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setIsClockSheetOpen(false)}
-      >
-        <Pressable style={styles.sheetOverlay} onPress={() => setIsClockSheetOpen(false)} />
-        <View style={styles.sheetContainer}>
-          <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>{CLOCK_SHEET_TITLE}</Text>
-          <View style={styles.sheetList}>
-            {CLOCK_FACE_OPTIONS.map((option) => {
-              const isActive = option.key === clockVariant;
-              return (
-                <Pressable
-                  key={option.key}
-                  style={[styles.sheetRow, isActive && styles.sheetRowActive]}
-                  onPress={() => {
-                    setClockVariant(option.key);
-                    setIsClockSheetOpen(false);
-                  }}
-                >
-                  <AnalogClock
-                    size={56}
-                    hours={timeParts.hours}
-                    minutes={timeParts.minutes}
-                    seconds={timeParts.seconds}
-                    variant={option.key}
-                    accent={COLORS.primary}
-                  />
-                  <Text style={[styles.sheetLabel, isActive && styles.sheetLabelActive]}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </Modal>
     </>
   );
 }
@@ -774,6 +725,40 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: "dashed",
     borderColor: "rgba(121, 159, 132, 0.35)",
+  },
+  clockCarouselWrap: {
+    width: "100%",
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  clockCarouselContent: {
+    paddingHorizontal: 8,
+    gap: CLOCK_CAROUSEL_GAP,
+  },
+  clockCarouselItem: {
+    width: CLOCK_CAROUSEL_ITEM,
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EFE8D8",
+    backgroundColor: "#FFFFFF",
+  },
+  clockCarouselItemActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: "rgba(180, 148, 92, 0.08)",
+    transform: [{ scale: 1.03 }],
+  },
+  clockCarouselLabel: {
+    marginTop: 6,
+    fontFamily: "CairoBold",
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: "center",
+  },
+  clockCarouselLabelActive: {
+    color: COLORS.primary,
   },
   quickActions: {
     width: "100%",
