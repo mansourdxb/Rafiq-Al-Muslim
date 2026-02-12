@@ -18,10 +18,14 @@ import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import { useTheme } from "@/context/ThemeContext";
 import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
 import { getPrayerSettings, getSelectedCity, setSelectedCity } from "@/screens/qibla/services/preferences";
-import { reschedulePrayerNotificationsIfEnabled } from "@/screens/qibla/services/prayerNotifications";
 import { computePrayerTimes, formatTimeInTZ, type PrayerName, type PrayerTimesResult } from "@/screens/qibla/services/prayerTimes";
 import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 import tzLookup from "tz-lookup";
+import {
+  cancelAllPrayerNotifications,
+  initPrayerNotifications,
+  schedulePrayerNotifications,
+} from "@/src/services/prayerNotifications";
 
 const PRAYER_ARABIC: Record<PrayerName, string> = {
   Fajr: "الفجر",
@@ -223,8 +227,29 @@ export default function QiblaScreen() {
   ]);
 
   useEffect(() => {
-    if (!selectedCity) return;
-    void reschedulePrayerNotificationsIfEnabled({ city: selectedCity, settings: prayerSettings });
+    void (async () => {
+      if (!prayerSettings.notificationsEnabled) {
+        await cancelAllPrayerNotifications();
+        return;
+      }
+      if (!selectedCity || !pt) {
+        await cancelAllPrayerNotifications();
+        return;
+      }
+      const ok = await initPrayerNotifications();
+      if (!ok) return;
+      await schedulePrayerNotifications({
+        prayerTimes: {
+          fajr: pt.fajr,
+          dhuhr: pt.dhuhr,
+          asr: pt.asr,
+          maghrib: pt.maghrib,
+          isha: pt.isha,
+        },
+        cityName: selectedCity.name,
+        tz,
+      });
+    })();
   }, [
     selectedCity?.lat,
     selectedCity?.lon,
@@ -236,6 +261,8 @@ export default function QiblaScreen() {
     prayerSettings.adjustments.maghrib,
     prayerSettings.adjustments.isha,
     prayerSettings.notificationsEnabled,
+    pt,
+    tz,
   ]);
 
   // Recompute once the next prayer passes
@@ -265,7 +292,6 @@ export default function QiblaScreen() {
     });
     setPt(res);
 
-    await reschedulePrayerNotificationsIfEnabled({ city, settings: prayerSettings });
   };
 
   const cityTitle =

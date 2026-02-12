@@ -29,6 +29,11 @@ import {
   type PrayerTimesResult,
 } from "@/screens/qibla/services/prayerTimes";
 import { getCityFromGPS } from "@/screens/qibla/services/cityService";
+import {
+  cancelAllPrayerNotifications,
+  initPrayerNotifications,
+  schedulePrayerNotifications,
+} from "@/src/services/prayerNotifications";
 
 function pad2(v: number) {
   return String(v).padStart(2, "0");
@@ -274,6 +279,42 @@ export default function SalatukPrayerTimesScreen() {
     });
     setTimes(computed);
   }, [city?.lat, city?.lon, city?.tz, settings, selectedDate, tz]);
+
+  useEffect(() => {
+    void (async () => {
+      if (!settings?.notificationsEnabled) {
+        await cancelAllPrayerNotifications();
+        return;
+      }
+      if (!city || !times) {
+        await cancelAllPrayerNotifications();
+        return;
+      }
+      const ok = await initPrayerNotifications();
+      if (!ok) return;
+      await schedulePrayerNotifications({
+        prayerTimes: {
+          fajr: times.fajr,
+          dhuhr: times.dhuhr,
+          asr: times.asr,
+          maghrib: times.maghrib,
+          isha: times.isha,
+        },
+        cityName: city.name,
+        tz,
+      });
+    })();
+  }, [
+    city?.lat,
+    city?.lon,
+    city?.tz,
+    settings?.method,
+    settings?.madhab,
+    settings?.adjustments,
+    settings?.notificationsEnabled,
+    times,
+    tz,
+  ]);
 
   const handleCitySelect = async (selected: City) => {
     setCity(selected);

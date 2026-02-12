@@ -17,11 +17,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { City, PrayerSettings } from "@/screens/qibla/services/preferences";
 import { getPrayerSettings, getSelectedCity, setPrayerSettings } from "@/screens/qibla/services/preferences";
+import { computePrayerTimes } from "@/screens/qibla/services/prayerTimes";
+import tzLookup from "tz-lookup";
 import {
-  reschedulePrayerNotificationsIfEnabled,
+  cancelAllPrayerNotifications,
+  initPrayerNotifications,
+  schedulePrayerNotifications,
   scheduleTestNotification,
-} from "@/screens/qibla/services/prayerNotifications";
-import { initLocalNotifications } from "@/src/services/notificationsInit";
+} from "@/src/services/prayerNotifications";
 
 const METHODS: PrayerSettings["method"][] = [
   "MWL",
@@ -87,13 +90,37 @@ export default function PrayerSettingsScreen() {
   }, []);
 
   useEffect(() => {
-    void initLocalNotifications();
-  }, []);
-
-  useEffect(() => {
     if (!loaded) return;
     const id = setTimeout(() => {
-      void reschedulePrayerNotificationsIfEnabled({ city, settings });
+      void (async () => {
+        if (!settings.notificationsEnabled) {
+          await cancelAllPrayerNotifications();
+          return;
+        }
+        if (!city) {
+          await cancelAllPrayerNotifications();
+          return;
+        }
+        const ok = await initPrayerNotifications();
+        if (!ok) return;
+        const tz = city.tz ?? tzLookup(city.lat, city.lon);
+        const computed = computePrayerTimes({
+          city: { lat: city.lat, lon: city.lon, tz },
+          settings,
+          timeZone: tz,
+        });
+        await schedulePrayerNotifications({
+          prayerTimes: {
+            fajr: computed.fajr,
+            dhuhr: computed.dhuhr,
+            asr: computed.asr,
+            maghrib: computed.maghrib,
+            isha: computed.isha,
+          },
+          cityName: city.name,
+          tz,
+        });
+      })();
     }, 150);
     return () => clearTimeout(id);
   }, [loaded, city, settings]);
@@ -277,10 +304,20 @@ export default function PrayerSettingsScreen() {
             />
           </View>
           <Pressable
-            onPress={() => void scheduleTestNotification(30000)}
+            onPress={() =>
+              void (async () => {
+                const ok = await initPrayerNotifications();
+                if (!ok) {
+                  Alert.alert("تنبيه", "لم يتم منح إذن الإشعارات.");
+                  return;
+                }
+                await scheduleTestNotification();
+                Alert.alert("تنبيه", "سيظهر إشعار خلال 5 ثوانٍ");
+              })()
+            }
             style={[styles.testNotifBtn, { backgroundColor: goldSoft }]}
           >
-            <Text style={[styles.testNotifText, { color: green }]}>اختبار إشعار بعد 30 ثانية</Text>
+            <Text style={[styles.testNotifText, { color: green }]}>اختبار الأذان / الإشعار</Text>
           </Pressable>
         </View>
       </ScrollView>
