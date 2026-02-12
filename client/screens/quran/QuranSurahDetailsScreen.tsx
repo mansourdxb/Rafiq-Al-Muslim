@@ -10,6 +10,8 @@ import QuranMiniPlayer from "@/src/components/quran/QuranMiniPlayer";
 import { getQuranPlaybackState, subscribeQuranPlayback } from "@/src/services/quranAudio";
 
 const DEBUG_QURAN_NAV = true;
+const SANITIZE_SURAHS = new Set([7, 23, 26, 56, 62, 70, 79, 87, 96, 101, 107]);
+const sanitizeAyah = (s: string) => s.replace(/\u06DF/g, "");
 
 type Props = {
   initialPageNo?: number;
@@ -367,6 +369,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                 {ayahs.map((a, idx) => {
                   const prefix = idx === 0 ? "" : a.aya === 1 ? "\n\n" : " ";
                   const number = arabicIndic(a.aya);
+                  const displayText =
+                    SANITIZE_SURAHS.has(a.sura) ? sanitizeAyah(a.text) : a.text;
                   const mark = markFor(a.sura, a.aya);
                   const bookmarkDot = mark?.bookmarkColor ?? null;
                   const isHighlighted =
@@ -390,7 +394,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                         isActiveRecitation ? styles.activeRecitation : null,
                       ]}
                     >
-                      {`${prefix}${a.text} ${number}`}
+                      {`${prefix}${displayText} ${number}`}
                       {bookmarkDot ? (
                         <Text style={[styles.bookmarkDot, { color: bookmarkDot }]}>{" \u25cf"}</Text>
                       ) : null}
