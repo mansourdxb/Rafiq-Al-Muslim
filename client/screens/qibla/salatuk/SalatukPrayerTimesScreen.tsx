@@ -128,15 +128,16 @@ const CLOCK_VARIANTS = ["mint", "minimal", "classic", "arabic", "roman", "sky", 
 type ClockVariant = (typeof CLOCK_VARIANTS)[number];
 
 const CLOCK_FACE_OPTIONS: Array<{ key: ClockVariant; label: string }> = [
-  { key: "mint", label: "?????" },
-  { key: "minimal", label: "????" },
-  { key: "classic", label: "??????" },
-  { key: "arabic", label: "????? ?????" },
-  { key: "roman", label: "????? ???????" },
-  { key: "sky", label: "???? ?????" },
-  { key: "ring", label: "???? ?? ????" },
-  { key: "graphite", label: "??????" },
+  { key: "mint", label: "نعناع" },
+  { key: "minimal", label: "بسيط" },
+  { key: "classic", label: "كلاسيك" },
+  { key: "arabic", label: "أرقام عربية" },
+  { key: "roman", label: "أرقام رومانية" },
+  { key: "sky", label: "أزرق سماوي" },
+  { key: "ring", label: "أزرق مع حلقة" },
+  { key: "graphite", label: "جرافيت" },
 ];
+
 
 const CLOCK_VARIANT_KEY = "prayerClock:variant";
 

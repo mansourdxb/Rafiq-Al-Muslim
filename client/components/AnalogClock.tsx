@@ -39,7 +39,7 @@ type VariantStyle = {
 };
 
 const ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
-const ARABIC = ["??", "?", "?", "?", "?", "?", "?", "?", "?", "?", "??", "??"];
+const ARABIC = ["١٢", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "١٠", "١١"];
 const CARDINALS = ["12", "3", "6", "9"];
 
 function variantColors(variant: ClockVariant, accent?: string): VariantStyle {
