@@ -141,7 +141,8 @@ const CLOCK_FACE_OPTIONS: Array<{ key: ClockVariant; label: string }> = [
 const CLOCK_VARIANT_KEY = "prayerClock:variant";
 const CLOCK_FACES = CLOCK_FACE_OPTIONS;
 const CLOCK_SIZE = 170;
-const HALO_SIZE = Math.round(CLOCK_SIZE * 1.9);
+const HALO_SIZE = Math.round(CLOCK_SIZE * 1.28);
+const HALO2 = Math.round(CLOCK_SIZE * 1.1);
 const CLOCK_HINT_OPEN = "\u0627\u0636\u063a\u0637 \u0644\u062a\u063a\u064a\u064a\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 const CLOCK_HINT_CLOSE = "\u0625\u062e\u0641\u0627\u0621 \u0623\u0634\u0643\u0627\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 
@@ -437,6 +438,7 @@ export default function SalatukPrayerTimesScreen() {
             <View style={styles.clockWrap}>
               <View pointerEvents="none" style={styles.clockHaloContainer}>
                 <View style={styles.clockHalo} />
+                <View style={styles.clockHaloInner} />
               </View>
               <Pressable
                 onPress={toggleFacePicker}
@@ -738,12 +740,25 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
+    pointerEvents: "none",
   },
   clockHalo: {
     width: HALO_SIZE,
     height: HALO_SIZE,
     borderRadius: HALO_SIZE / 2,
-    backgroundColor: "rgba(121, 159, 132, 0.08)",
+    backgroundColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
+  },
+  clockHaloInner: {
+    position: "absolute",
+    width: HALO2,
+    height: HALO2,
+    borderRadius: HALO2 / 2,
+    backgroundColor: "rgba(0,0,0,0.03)",
   },
   clock: {
     width: CLOCK_SIZE,
