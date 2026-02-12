@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   I18nManager,
   Platform,
@@ -143,6 +143,9 @@ const CLOCK_FACES = CLOCK_FACE_OPTIONS;
 const CLOCK_SIZE = 170;
 const HALO_SIZE = Math.round(CLOCK_SIZE * 1.28);
 const HALO2 = Math.round(CLOCK_SIZE * 1.1);
+const FACE_ITEM_W = 86;
+const FACE_ITEM_GAP = 10;
+const FACE_ITEM_SNAP = FACE_ITEM_W + FACE_ITEM_GAP;
 const CLOCK_HINT_OPEN = "\u0627\u0636\u063a\u0637 \u0644\u062a\u063a\u064a\u064a\u0631 \u0634\u0643\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 const CLOCK_HINT_CLOSE = "\u0625\u062e\u0641\u0627\u0621 \u0623\u0634\u0643\u0627\u0644 \u0627\u0644\u0633\u0627\u0639\u0629";
 
@@ -161,6 +164,8 @@ export default function SalatukPrayerTimesScreen() {
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
   const [clockFace, setClockFace] = useState<ClockVariant>("mint");
   const [facePickerOpen, setFacePickerOpen] = useState(false);
+  const faceListRef = useRef<FlatList<any>>(null);
+  const [faceIndex, setFaceIndex] = useState(0);
   const openFacePicker = () => setFacePickerOpen(true);
   const toggleFacePicker = () => setFacePickerOpen((v) => !v);
   const closeFacePicker = () => setFacePickerOpen(false);
@@ -250,6 +255,11 @@ export default function SalatukPrayerTimesScreen() {
   }, [clockFace]);
 
   useEffect(() => {
+    const idx = CLOCK_FACES.findIndex((face) => face.key === clockFace);
+    if (idx >= 0) setFaceIndex(idx);
+  }, [clockFace]);
+
+  useEffect(() => {
     if (!city || !settings) {
       setTimes(null);
       return;
@@ -315,6 +325,19 @@ export default function SalatukPrayerTimesScreen() {
 
   const modeForPrayer = (key: PrayerName): AthanMode =>
     athanPrefs?.[key as keyof AthanPrefs]?.mode ?? "sound";
+
+  const goToFace = (idx: number) => {
+    const clamped = Math.max(0, Math.min(CLOCK_FACES.length - 1, idx));
+    setFaceIndex(clamped);
+    setClockFace(CLOCK_FACES[clamped].key);
+    requestAnimationFrame(() => {
+      faceListRef.current?.scrollToIndex({
+        index: clamped,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    });
+  };
 
   const openAthanSettings = () => {
     const parent = navigation.getParent?.();
@@ -479,37 +502,83 @@ export default function SalatukPrayerTimesScreen() {
 
             {facePickerOpen && (
               <View style={styles.faceSliderWrap}>
-                <FlatList
-                  data={CLOCK_FACES}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ paddingHorizontal: 12, gap: 10 }}
-                  keyExtractor={(i) => i.key}
-                  renderItem={({ item }) => {
-                    const active = item.key === clockFace;
-                    return (
-                      <Pressable
-                        onPress={() => {
-                          setClockFace(item.key);
-                          closeFacePicker();
-                        }}
-                        style={[styles.clockCarouselItem, active && styles.clockCarouselItemActive]}
-                      >
-                        <AnalogClock
-                          size={56}
-                          hours={timeParts.hours}
-                          minutes={timeParts.minutes}
-                          seconds={timeParts.seconds}
-                          variant={item.key}
-                          accent={COLORS.primary}
-                        />
-                        <Text style={[styles.clockCarouselLabel, active && styles.clockCarouselLabelActive]}>
-                          {item.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  }}
-                />
+                <View style={styles.faceSliderRow}>
+                  <Pressable
+                    onPress={() => goToFace(faceIndex - 1)}
+                    disabled={faceIndex === 0}
+                    style={[
+                      styles.faceArrowBtn,
+                      styles.faceArrowLeft,
+                      faceIndex === 0 && styles.faceArrowDisabled,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="السابق"
+                    hitSlop={12}
+                  >
+                    <Feather name="chevron-left" size={18} color={COLORS.primary} />
+                  </Pressable>
+
+                  <View style={styles.faceSliderCenter}>
+                    <FlatList
+                      ref={faceListRef}
+                      data={CLOCK_FACES}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingHorizontal: 12, gap: FACE_ITEM_GAP }}
+                      keyExtractor={(i) => i.key}
+                      snapToInterval={FACE_ITEM_SNAP}
+                      decelerationRate="fast"
+                      onMomentumScrollEnd={(e) => {
+                        const x = e.nativeEvent.contentOffset.x;
+                        const idx = Math.round(x / FACE_ITEM_SNAP);
+                        if (CLOCK_FACES[idx]) {
+                          setFaceIndex(idx);
+                          setClockFace(CLOCK_FACES[idx].key);
+                        }
+                      }}
+                      renderItem={({ item, index }) => {
+                        const active = item.key === clockFace;
+                        return (
+                          <Pressable
+                            onPress={() => {
+                              setClockFace(item.key);
+                              setFaceIndex(index);
+                              closeFacePicker();
+                            }}
+                            style={[styles.clockCarouselItem, active && styles.clockCarouselItemActive]}
+                          >
+                            <AnalogClock
+                              size={56}
+                              hours={timeParts.hours}
+                              minutes={timeParts.minutes}
+                              seconds={timeParts.seconds}
+                              variant={item.key}
+                              accent={COLORS.primary}
+                            />
+                            <Text style={[styles.clockCarouselLabel, active && styles.clockCarouselLabelActive]}>
+                              {item.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      }}
+                    />
+                  </View>
+
+                  <Pressable
+                    onPress={() => goToFace(faceIndex + 1)}
+                    disabled={faceIndex === CLOCK_FACES.length - 1}
+                    style={[
+                      styles.faceArrowBtn,
+                      styles.faceArrowRight,
+                      faceIndex === CLOCK_FACES.length - 1 && styles.faceArrowDisabled,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="التالي"
+                    hitSlop={12}
+                  >
+                    <Feather name="chevron-right" size={18} color={COLORS.primary} />
+                  </Pressable>
+                </View>
               </View>
             )}
 
@@ -798,8 +867,36 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     minHeight: 110,
   },
+  faceSliderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  faceSliderCenter: {
+    flex: 1,
+  },
+  faceArrowBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  faceArrowLeft: {
+    marginRight: 8,
+  },
+  faceArrowRight: {
+    marginLeft: 8,
+  },
+  faceArrowDisabled: {
+    opacity: 0.35,
+  },
   clockCarouselItem: {
-    width: 86,
+    width: FACE_ITEM_W,
     borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 8,
