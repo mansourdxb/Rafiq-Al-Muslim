@@ -220,9 +220,66 @@ export default function ReaderOptionsSheet({
   const playToLabel = buildPlayToLabel();
   const stopAt = buildStopAt();
 
+  const compareAyahRef = (a: { surah: number; ayah: number }, b: { surah: number; ayah: number }) => {
+    if (a.surah !== b.surah) return a.surah - b.surah;
+    return a.ayah - b.ayah;
+  };
+
+  const startPlayTo = async (mode: PlayToMode) => {
+    if (!surahNumber) return;
+    const computedStopAt = (() => {
+      if (mode.kind === "continuous") return undefined;
+      if (mode.kind === "surahEnd") return { surah: currentSurah, ayah: currentAyahCount };
+      if (mode.kind === "ayah") return { surah: mode.surah, ayah: mode.ayah };
+      if (mode.kind === "surah") {
+        const meta = SURAH_META.find((s) => s.number === mode.surah);
+        return { surah: mode.surah, ayah: meta?.ayahCount ?? 0 };
+      }
+      const pageNo = mode.kind === "pageEnd" ? currentPage : mode.page;
+      const pageData = getPageData(Math.min(getPageCount(), Math.max(1, pageNo)));
+      const last = pageData.ayahs[pageData.ayahs.length - 1];
+      return last ? { surah: last.sura, ayah: last.aya } : undefined;
+    })();
+
+    if (computedStopAt && compareAyahRef(computedStopAt, { surah: currentSurah, ayah: currentAyah }) < 0) {
+      Alert.alert("تنبيه", "الهدف قبل موضع البداية");
+      return;
+    }
+
+    setPlayTo(mode);
+    setPlayToOpen(false);
+    onClose();
+
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      console.log("PLAY pressed", surahNumber, ayahNumber);
+      const url = buildEveryAyahUrl(surahNumber, ayahNumber, "Abu Bakr Ash-Shaatree_128kbps");
+      console.log("[QuranAudio] play", url);
+      await playAyah({
+        surah: surahNumber,
+        ayah: ayahNumber,
+        surahName,
+        reciterKey: "Abu Bakr Ash-Shaatree_128kbps",
+        ayahCount: SURAH_META.find((s) => s.number === surahNumber)?.ayahCount ?? 0,
+        stopAt: computedStopAt,
+      });
+      setIsPlaying(true);
+    } catch (error) {
+      console.error("[QuranAudio] play failed", error);
+      if (Platform.OS === "web") {
+        Alert.alert("تعذر التشغيل", "يرجى المحاولة مرة أخرى.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const ayahList = useMemo(() => {
-    return Array.from({ length: currentAyahCount || 0 }, (_, idx) => idx + 1);
-  }, [currentAyahCount]);
+    const surahData = quranFiles.find((f) => f.number === currentSurah)?.data;
+    const ayahs = Array.isArray(surahData?.ayahs) ? surahData.ayahs : [];
+    return ayahs;
+  }, [currentSurah]);
 
   const pageList = useMemo(() => {
     const total = getPageCount();
@@ -298,31 +355,7 @@ export default function ReaderOptionsSheet({
                   <Pressable
                     style={styles.actionRow}
                     onPress={async () => {
-                      if (isLoading) return;
-                      setIsLoading(true);
-                      try {
-                        if (!surahNumber) return;
-                        console.log("PLAY pressed", surahNumber, ayahNumber);
-                        const url = buildEveryAyahUrl(surahNumber, ayahNumber, "Abu Bakr Ash-Shaatree_128kbps");
-                        console.log("[QuranAudio] play", url);
-                        await playAyah({
-                          surah: surahNumber,
-                          ayah: ayahNumber,
-                          surahName,
-                          reciterKey: "Abu Bakr Ash-Shaatree_128kbps",
-                          ayahCount: SURAH_META.find((s) => s.number === surahNumber)?.ayahCount ?? 0,
-                          stopAt,
-                        });
-                        setIsPlaying(true);
-                        onClose();
-                      } catch (error) {
-                        console.error("[QuranAudio] play failed", error);
-                        if (Platform.OS === "web") {
-                          Alert.alert("تعذر التشغيل", "يرجى المحاولة مرة أخرى.");
-                        }
-                      } finally {
-                        setIsLoading(false);
-                      }
+                      await startPlayTo(playTo);
                     }}
                   >
                     <View style={styles.rowRight}>
@@ -462,8 +495,7 @@ export default function ReaderOptionsSheet({
                 <Pressable
                   style={styles.actionRow}
                   onPress={() => {
-                    setPlayTo({ kind: "pageEnd" });
-                    setPlayToOpen(false);
+                    void startPlayTo({ kind: "pageEnd" });
                   }}
                 >
                   <View style={styles.rowRight}>
@@ -478,8 +510,7 @@ export default function ReaderOptionsSheet({
                 <Pressable
                   style={styles.actionRow}
                   onPress={() => {
-                    setPlayTo({ kind: "surahEnd" });
-                    setPlayToOpen(false);
+                    void startPlayTo({ kind: "surahEnd" });
                   }}
                 >
                   <View style={styles.rowRight}>
@@ -494,8 +525,7 @@ export default function ReaderOptionsSheet({
                 <Pressable
                   style={styles.actionRow}
                   onPress={() => {
-                    setPlayTo({ kind: "continuous" });
-                    setPlayToOpen(false);
+                    void startPlayTo({ kind: "continuous" });
                   }}
                 >
                   <View style={styles.rowRight}>
@@ -532,28 +562,31 @@ export default function ReaderOptionsSheet({
             <View style={styles.section}>
               <View style={styles.sectionCard}>
                 {playToTab === "ayah" ? (
-                  ayahList.map((n, idx) => (
+                  ayahList.map((item: any, idx: number) => {
+                    const ayahNo = item?.ayah_number ?? item?.number ?? item?.ayah ?? item?.id ?? idx + 1;
+                    const ayahText = String(item?.text ?? item?.textUthmani ?? item?.arabic ?? "").trim();
+                    return (
                     <Pressable
-                      key={`ayah-${n}`}
-                      style={[styles.actionRow, idx < ayahList.length - 1 ? styles.rowDivider : null]}
+                      key={`ayah-${ayahNo}`}
+                      style={[styles.playToAyahRow, idx < ayahList.length - 1 ? styles.rowDivider : null]}
                       onPress={() => {
-                        setPlayTo({ kind: "ayah", surah: currentSurah, ayah: n });
-                        setPlayToOpen(false);
+                        void startPlayTo({ kind: "ayah", surah: currentSurah, ayah: ayahNo });
                       }}
                     >
-                      <View style={styles.rowRight}>
-                        <Text style={styles.rowTitle}>{`آية ${arabicIndicMushaf(n)}`}</Text>
-                      </View>
+                      <Text style={styles.playToAyahTitle}>{`${currentSurahName}: ${arabicIndicMushaf(ayahNo)}`}</Text>
+                      <Text style={styles.playToAyahText} numberOfLines={2}>
+                        {ayahText}
+                      </Text>
                     </Pressable>
-                  ))
+                  );
+                  })
                 ) : playToTab === "page" ? (
                   pageList.map((p, idx) => (
                     <Pressable
                       key={`page-${p}`}
                       style={[styles.actionRow, idx < pageList.length - 1 ? styles.rowDivider : null]}
                       onPress={() => {
-                        setPlayTo({ kind: "page", page: p });
-                        setPlayToOpen(false);
+                        void startPlayTo({ kind: "page", page: p });
                       }}
                     >
                       <View style={styles.rowRight}>
@@ -567,8 +600,7 @@ export default function ReaderOptionsSheet({
                       key={`surah-${s.number}`}
                       style={[styles.actionRow, idx < SURAH_META.length - 1 ? styles.rowDivider : null]}
                       onPress={() => {
-                        setPlayTo({ kind: "surah", surah: s.number });
-                        setPlayToOpen(false);
+                        void startPlayTo({ kind: "surah", surah: s.number });
                       }}
                     >
                       <View style={styles.rowRight}>
@@ -777,5 +809,24 @@ const styles = StyleSheet.create({
   },
   segmentTextActive: {
     color: "#FFFFFF",
+  },
+  playToAyahRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    alignItems: "flex-end",
+  },
+  playToAyahTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: "#1F3B2E",
+    textAlign: "right",
+    marginBottom: 6,
+  },
+  playToAyahText: {
+    fontFamily: "Cairo",
+    fontSize: 16,
+    color: "rgba(0,0,0,0.55)",
+    textAlign: "right",
+    lineHeight: 26,
   },
 });
