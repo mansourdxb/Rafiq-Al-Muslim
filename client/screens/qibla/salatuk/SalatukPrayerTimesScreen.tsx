@@ -169,6 +169,8 @@ export default function SalatukPrayerTimesScreen() {
   const openFacePicker = () => setFacePickerOpen(true);
   const toggleFacePicker = () => setFacePickerOpen((v) => !v);
   const closeFacePicker = () => setFacePickerOpen(false);
+  const openCityPicker = () => setIsCityPickerOpen(true);
+  const closeCityPicker = () => setIsCityPickerOpen(false);
 
   const contentWidth = Math.min(width, 430);
   const topPad = useMemo(() => insets.top + 8, [insets.top]);
@@ -416,7 +418,17 @@ export default function SalatukPrayerTimesScreen() {
                 <Text style={styles.unitText}>دقيقة</Text>
                 <Text style={styles.unitText}>ثانية</Text>
               </View>
-              <Text style={styles.cityMeta}>{subtitle}</Text>
+              <Pressable style={styles.cityRow} onPress={openCityPicker} hitSlop={8}>
+                <Text style={styles.cityName}>{cityLabel}</Text>
+              </Pressable>
+              <View style={styles.cityLineRow}>
+                <Pressable onPress={openCityPicker} hitSlop={8}>
+                  <Text style={styles.cityMeta}>{subtitle}</Text>
+                </Pressable>
+                <Pressable onPress={openCityPicker} style={styles.cityPickBtn} hitSlop={12}>
+                  <Feather name="map-pin" size={16} color={COLORS.primary} />
+                </Pressable>
+              </View>
             </View>
 
             <View style={styles.dateRow}>
@@ -657,7 +669,7 @@ export default function SalatukPrayerTimesScreen() {
 
       <CityPickerModal
         visible={isCityPickerOpen}
-        onClose={() => setIsCityPickerOpen(false)}
+        onClose={closeCityPicker}
         onSelect={handleCitySelect}
       />
 
@@ -748,8 +760,22 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     paddingHorizontal: 6,
   },
-  cityMeta: {
+  cityLineRow: {
     marginTop: 2,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  cityPickBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(47,110,82,0.08)",
+  },
+  cityMeta: {
     color: COLORS.textMuted,
     fontFamily: "Cairo",
     fontSize: 13,
