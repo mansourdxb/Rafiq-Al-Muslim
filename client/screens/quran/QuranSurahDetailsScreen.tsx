@@ -32,6 +32,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [tafsirVisible, setTafsirVisible] = useState(false);
   const [playback, setPlayback] = useState(getQuranPlaybackState());
+  const [readerBounds, setReaderBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [selectedAyah, setSelectedAyah] = useState<{
     surahName: string;
     surahNumber: number;
@@ -286,9 +287,16 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
 
   return (
     <View style={styles.container}>
-      <FlatList
-        ref={listRef}
-        data={displayPages}
+      <View
+        style={styles.readerFrame}
+        onLayout={(e) => {
+          if (Platform.OS !== "web") return;
+          setReaderBounds(e.nativeEvent.layout);
+        }}
+      >
+        <FlatList
+          ref={listRef}
+          data={displayPages}
         keyExtractor={(item) => String(item)}
         extraData={activeAyahKey}
         initialScrollIndex={
@@ -418,7 +426,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         maxToRenderPerBatch={20}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
-      />
+        />
+      </View>
 
         <ReaderOptionsSheet
           visible={sheetVisible}
@@ -426,6 +435,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
           ayahNumber={selectedAyah?.ayahNumber ?? 1}
           surahName={selectedAyah?.surahName}
           surahNumber={selectedAyah?.surahNumber}
+          readerBounds={readerBounds}
           bookmarkColor={
           selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.bookmarkColor ?? null : null
         }
@@ -459,6 +469,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EFE8DD" },
+  readerFrame: { flex: 1 },
   scroll: {
     ...(Platform.OS === "web"
       ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as any)

@@ -10,6 +10,7 @@ import {
   FlatList,
   Alert,
   Platform,
+  Dimensions,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { quranTheme } from "./theme";
@@ -37,6 +38,7 @@ type Props = {
   ayahNumber: number;
   surahName?: string;
   surahNumber?: number;
+  readerBounds?: { x: number; y: number; width: number; height: number } | null;
   bookmarkColor?: string | null;
   highlightColor?: string | null;
   onClose: () => void;
@@ -69,6 +71,7 @@ export default function ReaderOptionsSheet({
   ayahNumber,
   surahName,
   surahNumber,
+  readerBounds,
   bookmarkColor,
   highlightColor,
   onClose,
@@ -78,6 +81,10 @@ export default function ReaderOptionsSheet({
   onCopy,
   onOpenTafsir,
 }: Props) {
+  const isWeb = Platform.OS === "web";
+  const winW = Dimensions.get("window").width;
+  const padLeft = readerBounds?.x ?? 0;
+  const padRight = readerBounds ? Math.max(0, winW - (readerBounds.x + readerBounds.width)) : 0;
   const translateY = useRef(new Animated.Value(400)).current;
   const playToTranslateY = useRef(new Animated.Value(420)).current;
   const [view, setView] = useState<"main" | "fawasil">("main");
@@ -325,8 +332,9 @@ export default function ReaderOptionsSheet({
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <Animated.View style={[styles.sheet, Platform.OS === "web" && styles.sheetWeb, { transform: [{ translateY }] }]}>
+      <View style={[styles.overlay, isWeb && readerBounds ? { paddingLeft: padLeft, paddingRight: padRight, alignItems: "center" } : null]}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY }] }]}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeftGroup}>
             {view === "fawasil" ? (
@@ -502,10 +510,12 @@ export default function ReaderOptionsSheet({
           )}
         </ScrollView>
       </Animated.View>
+      </View>
 
       <Modal visible={playToOpen} transparent animationType="none" onRequestClose={() => setPlayToOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setPlayToOpen(false)} />
-        <Animated.View style={[styles.sheet, Platform.OS === "web" && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
+        <View style={[styles.overlay, isWeb && readerBounds ? { paddingLeft: padLeft, paddingRight: padRight, alignItems: "center" } : null]}>
+          <Pressable style={styles.backdrop} onPress={() => setPlayToOpen(false)} />
+          <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeftGroup}>
               <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
@@ -664,14 +674,19 @@ export default function ReaderOptionsSheet({
             </View>
           </ScrollView>
         </Animated.View>
+        </View>
       </Modal>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  overlay: {
     flex: 1,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.2)",
   },
   sheet: {
