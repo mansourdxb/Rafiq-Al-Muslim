@@ -16,6 +16,12 @@ type RouteParams = {
 };
 
 const RESULT_LIMIT = 50;
+const AR = {
+  cancel: "\u0625\u0644\u063a\u0627\u0621",
+  searchPlaceholder: "\u0628\u062d\u062b \u0641\u064a \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645",
+  results: "\u0646\u062a\u0627\u0626\u062c \u0627\u0644\u0628\u062d\u062b",
+  noResults: "\u0644\u0627 \u062a\u0648\u062c\u062f \u0646\u062a\u0627\u0626\u062c",
+};
 
 export default function QuranSearchScreen() {
   const insets = useSafeAreaInsets();
@@ -99,21 +105,20 @@ export default function QuranSearchScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.headerCard}>
-        <View style={styles.headerTop}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Feather name="chevron-right" size={22} color="#F7F4EE" />
-          </Pressable>
-          <Text style={styles.headerTitle}>{"\u0627\u0644\u0628\u062d\u062b \u0641\u064a \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645"}</Text>
-        </View>
-
+      <View style={styles.topBar}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.cancelButton}>
+          <Text style={styles.cancelText}>{AR.cancel}</Text>
+          <View style={styles.cancelDot}>
+            <Feather name="x" size={14} color="#6E5A46" />
+          </View>
+        </Pressable>
         <View style={styles.searchWrap}>
-          <Feather name="search" size={18} color="#5E6D64" style={styles.searchIcon} />
+          <Feather name="search" size={18} color="#7C6B5A" style={styles.searchIcon} />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder={"\u0628\u062d\u062b \u0641\u064a \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645"}
-            placeholderTextColor="#9AA5A1"
+            placeholder={AR.cancel}
+            placeholderTextColor="#9A8C7A"
             style={styles.searchInput}
             textAlign="right"
             writingDirection="rtl"
@@ -122,14 +127,10 @@ export default function QuranSearchScreen() {
         </View>
       </View>
 
+      <View style={styles.resultsHeader}></View>
+
       <View style={styles.resultsHeader}>
-        <Text style={styles.resultsCount}>
-          {query.trim().length >= 2 ? `نتائج البحث (${results.length} نتيجة)` : "نتائج البحث (٠ نتيجة)"}
-        </Text>
-        <View style={styles.filterRow}>
-          <Feather name="sliders" size={16} color="#6C7A73" />
-          <Text style={styles.filterText}>تصفية</Text>
-        </View>
+        <Text style={styles.resultsCount}>{`${AR.results} (${results.length})`}</Text>
       </View>
 
       {loadingIndex ? (
@@ -141,15 +142,14 @@ export default function QuranSearchScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <Pressable onPress={() => openResult(item)} style={styles.resultRow}>
-              <View style={styles.metaRow}>
-                <View style={styles.ayahBadge}>
-                  <Text style={styles.ayahBadgeText}>{`آية ${arabicIndic(item.aya)}`}</Text>
-                </View>
-                <Text style={styles.metaText}>{item.surahName}</Text>
+              <Text style={styles.pageNumber}>{arabicIndic(getPageForAyah(item.sura, item.aya))}</Text>
+              <View style={styles.resultBody}>
+                <Text style={styles.metaText}>{`${item.surahName}: ${arabicIndic(item.aya)}`}</Text>
+                <View style={styles.snippetWrap}>{renderHighlightedText(item.text, query)}</View>
               </View>
-              <View style={styles.snippetWrap}>{renderHighlightedText(item.text, query)}</View>
             </Pressable>
           )}
+
           ListEmptyComponent={
             showEmpty ? (
               <View style={styles.empty}>
@@ -166,25 +166,25 @@ export default function QuranSearchScreen() {
 
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
         <Pressable style={styles.navItem} onPress={() => {/* Navigate to More */}}>
-          <Ionicons name="ellipsis-horizontal" size={22} color="#9AA5A1" />
+          <Ionicons name="ellipsis-horizontal" size={26} color="#8B7B6A" />
           <Text style={styles.navText}>المزيد</Text>
         </Pressable>
         <Pressable style={styles.navItem} onPress={() => {/* Navigate to Athkar */}}>
-          <Ionicons name="color-palette-outline" size={22} color="#9AA5A1" />
+          <Ionicons name="color-palette-outline" size={26} color="#8B7B6A" />
           <Text style={styles.navText}>الأذكار</Text>
         </Pressable>
         <Pressable style={styles.navItem} onPress={() => {/* Navigate to Hadith */}}>
-          <Ionicons name="chatbubbles-outline" size={22} color="#9AA5A1" />
+          <Ionicons name="chatbubbles-outline" size={26} color="#8B7B6A" />
           <Text style={styles.navText}>الحديث</Text>
         </Pressable>
         <Pressable style={styles.navItem} onPress={() => {/* Current: Quran */}}>
           <View style={styles.quranIconContainer}>
-            <Ionicons name="book" size={22} color="#1B4332" />
+            <Ionicons name="book" size={26} color="#D4A56A" />
           </View>
           <Text style={[styles.navText, styles.navTextActive]}>القرآن</Text>
         </Pressable>
         <Pressable style={styles.navItem} onPress={() => {/* Navigate to Prayer */}}>
-          <Ionicons name="moon-outline" size={22} color="#9AA5A1" />
+          <Ionicons name="moon-outline" size={26} color="#8B7B6A" />
           <Text style={styles.navText}>الصلاة</Text>
         </Pressable>
       </View>
@@ -195,40 +195,41 @@ export default function QuranSearchScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F5F6F2",
+    backgroundColor: "#F7F1E8",
   },
-  headerCard: {
-    backgroundColor: "#1B4332",
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+  topBar: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 18,
-    gap: 14,
+    paddingTop: 8,
+    paddingBottom: 6,
+    gap: 12,
   },
-  headerTop: {
+  cancelButton: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 8,
   },
-  header: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    padding: 6,
-  },
-  headerTitle: {
-    color: "#F7F4EE",
+  cancelText: {
     fontFamily: "CairoBold",
-    fontSize: 18,
+    fontSize: 16,
+    color: "#2F6E52",
+  },
+  cancelDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#D7D2C9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchWrap: {
-    backgroundColor: "#F7F4EE",
+    flex: 1,
+    backgroundColor: "#F3EEE4",
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 10,
@@ -240,19 +241,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: "Cairo",
     fontSize: 15,
-    color: "#1C2B23",
+    color: "#1F2A24",
   },
   resultsHeader: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingTop: 6,
   },
   resultsCount: {
-    color: "#6C7A73",
-    fontFamily: "Cairo",
-    fontSize: 13,
+    color: "#1F2A24",
+    fontFamily: "CairoBold",
+    fontSize: 22,
   },
   filterRow: {
     flexDirection: "row-reverse",
@@ -265,61 +266,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   list: {
-    gap: 16,
-    paddingBottom: 110,
+    paddingBottom: 120,
     paddingHorizontal: 18,
-    paddingTop: 10,
+    paddingTop: 6,
   },
   resultRow: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: "#EEF2EE",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  metaRow: {
     flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E4D8C8",
+    backgroundColor: "transparent",
+  },
+  resultBody: {
+    flex: 1,
+    gap: 8,
+  },
+  pageNumber: {
+    minWidth: 36,
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: "#A49384",
+    textAlign: "left",
   },
   metaText: {
-    color: "#1B4332",
+    color: "#1F2A24",
     fontFamily: "CairoBold",
-    fontSize: 14,
-  },
-  ayahBadge: {
-    backgroundColor: "#F0F2EE",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  ayahBadgeText: {
-    color: "#1B4332",
-    fontFamily: "Cairo",
-    fontSize: 12,
+    fontSize: 18,
   },
   snippetWrap: {
-    borderTopWidth: 1,
-    borderTopColor: "#EEF2EE",
-    paddingTop: 10,
+    paddingTop: 2,
   },
   snippet: {
-    color: "#1C2B23",
+    color: "#8B7B6A",
     fontFamily: "UthmanicHafs",
     fontSize: 18,
-    lineHeight: 30,
+    lineHeight: 34,
     writingDirection: "rtl",
     textAlign: "right",
   },
   snippetHighlight: {
-    color: "#D4AF37",
+    color: "#8B7B6A",
     fontFamily: "UthmanicHafs",
   },
   loadingText: {
@@ -342,14 +331,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 10,
-    paddingHorizontal: 12,
+    backgroundColor: "#F5F1E8",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 8,
   },
   navItem: {
     alignItems: "center",
@@ -358,18 +347,13 @@ const styles = StyleSheet.create({
   navText: {
     fontFamily: "Cairo",
     fontSize: 11,
-    color: "#9AA5A1",
+    color: "#8B7B6A",
   },
   navTextActive: {
-    color: "#1B4332",
+    color: "#D4A56A",
     fontFamily: "CairoBold",
   },
   quranIconContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E9EEE9",
+    // Match Quran index nav styling
   },
 });
