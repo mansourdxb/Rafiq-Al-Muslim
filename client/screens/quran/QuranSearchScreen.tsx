@@ -141,11 +141,11 @@ export default function QuranSearchScreen() {
           keyExtractor={(item) => `${item.sura}-${item.aya}`}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <Pressable onPress={() => openResult(item)} style={styles.resultRow}>
-              <Text style={styles.pageNumber}>{arabicIndic(getPageForAyah(item.sura, item.aya))}</Text>
+            <Pressable onPress={() => openResult(item)} style={styles.resultCard}>
+              <Text style={styles.pageInline}>{arabicIndic(getPageForAyah(item.sura, item.aya))}</Text>
               <View style={styles.resultBody}>
-                <Text style={styles.metaText}>{`${item.surahName}: ${arabicIndic(item.aya)}`}</Text>
-                <View style={styles.snippetWrap}>{renderHighlightedText(item.text, query)}</View>
+                <Text style={styles.resultTitle}>{`${item.surahName}: ${arabicIndic(item.aya)}`}</Text>
+                <Text style={styles.resultAyahText}>{item.text}</Text>
               </View>
             </Pressable>
           )}
@@ -270,26 +270,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 6,
   },
-  resultRow: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E4D8C8",
-    backgroundColor: "transparent",
+  resultCard: {
+    position: "relative",
+    backgroundColor: "#F7F1E6",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  pageInline: {
+    position: "absolute",
+    left: 14,
+    top: 18,
+    fontSize: 22,
+    fontWeight: "700",
+    opacity: 0.28,
+    color: "#8B7B6A",
+    fontFamily: "CairoBold",
   },
   resultBody: {
-    flex: 1,
-    gap: 8,
+    paddingLeft: 44,
   },
-  pageNumber: {
-    minWidth: 36,
-    fontFamily: "CairoBold",
+  resultTitle: {
+    textAlign: "right",
     fontSize: 18,
-    color: "#A49384",
-    textAlign: "left",
+    fontWeight: "800",
+    fontFamily: "CairoBold",
+    color: "#1F2A24",
+  },
+  resultAyahText: {
+    marginTop: 10,
+    textAlign: "right",
+    lineHeight: 30,
+    opacity: 0.9,
+    fontFamily: "UthmanicHafs",
+    fontSize: 18,
+    color: "#8B7B6A",
+    writingDirection: "rtl",
   },
   metaText: {
     color: "#1F2A24",
