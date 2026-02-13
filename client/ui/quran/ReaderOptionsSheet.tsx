@@ -326,7 +326,7 @@ export default function ReaderOptionsSheet({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+      <Animated.View style={[styles.sheet, Platform.OS === "web" && styles.sheetWeb, { transform: [{ translateY }] }]}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeftGroup}>
             {view === "fawasil" ? (
@@ -505,7 +505,7 @@ export default function ReaderOptionsSheet({
 
       <Modal visible={playToOpen} transparent animationType="none" onRequestClose={() => setPlayToOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setPlayToOpen(false)} />
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: playToTranslateY }] }]}>
+        <Animated.View style={[styles.sheet, Platform.OS === "web" && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeftGroup}>
               <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
@@ -684,6 +684,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22,
     padding: 18,
     maxHeight: "88%",
+  },
+  sheetWeb: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 420,
   },
   headerRow: {
     flexDirection: "row",
