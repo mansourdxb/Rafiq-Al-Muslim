@@ -326,14 +326,7 @@ export default function ReaderOptionsSheet({
 
   const renderContent = () => (
     <>
-      <Animated.View
-        style={[
-          styles.sheet,
-          isWeb ? styles.sheetWebInline : null,
-          { transform: [{ translateY }] },
-        ]}
-      >
-        <View style={styles.headerRow}>
+      <View style={styles.headerRow}>
           <View style={styles.headerLeftGroup}>
             {view === "fawasil" ? (
               <Pressable style={styles.backButton} onPress={() => setView("main")} hitSlop={8}>
@@ -510,13 +503,7 @@ export default function ReaderOptionsSheet({
       </Animated.View>
 
       {playToOpen ? (
-        <Animated.View
-          style={[
-            styles.sheet,
-            isWeb ? styles.sheetWebInline : null,
-            { transform: [{ translateY: playToTranslateY }] },
-          ]}
-        >
+        <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeftGroup}>
               <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
@@ -723,13 +710,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     maxWidth: 420,
-  },
-  sheetWebInline: {
-    position: "relative",
-    left: undefined,
-    right: undefined,
-    bottom: undefined,
-    maxHeight: "100%",
   },
   webFrameOverlay: {
     position: "absolute",
