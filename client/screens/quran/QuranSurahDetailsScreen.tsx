@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions, Dimensions } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { typography } from "@/theme/typography";
 import { clearMark, loadMarks, setMark, type AyahMark } from "@/src/lib/quran/ayahMarks";
@@ -50,6 +50,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const hasSettledRef = useRef(false);
   const lockUntilRef = useRef<number>(0);
   const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
   const estimatedPageHeight = Math.max(640, windowHeight + 120);
   const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
   const MINI_PLAYER_HEIGHT = 140;
@@ -126,6 +127,14 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     lockedPageRef.current = initialPageNo;
     hasSettledRef.current = false;
   }, [disableAutoScroll, initialPageNo]);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!readerBounds) return;
+    const winW = Dimensions.get("window").width;
+    const nextX = Math.max(0, Math.round((winW - readerBounds.width) / 2));
+    if (Math.abs(nextX - readerBounds.x) < 1) return;
+    setReaderBounds((prev) => (prev ? { ...prev, x: nextX } : prev));
+  }, [readerBounds?.width, windowWidth]);
   const pageCount = getPageCount();
   const pages = useMemo(() => Array.from({ length: pageCount }, (_, i) => i + 1), [pageCount]);
   const displayPages = useMemo(() => {
