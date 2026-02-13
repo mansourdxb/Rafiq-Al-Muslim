@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions, Dimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { typography } from "@/theme/typography";
 import { clearMark, loadMarks, setMark, type AyahMark } from "@/src/lib/quran/ayahMarks";
@@ -32,7 +32,6 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [tafsirVisible, setTafsirVisible] = useState(false);
   const [playback, setPlayback] = useState(getQuranPlaybackState());
-  const [readerBounds, setReaderBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [selectedAyah, setSelectedAyah] = useState<{
     surahName: string;
     surahNumber: number;
@@ -50,7 +49,6 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const hasSettledRef = useRef(false);
   const lockUntilRef = useRef<number>(0);
   const { height: windowHeight } = useWindowDimensions();
-  const { width: windowWidth } = useWindowDimensions();
   const estimatedPageHeight = Math.max(640, windowHeight + 120);
   const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
   const MINI_PLAYER_HEIGHT = 140;
@@ -127,14 +125,6 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     lockedPageRef.current = initialPageNo;
     hasSettledRef.current = false;
   }, [disableAutoScroll, initialPageNo]);
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (!readerBounds) return;
-    const winW = Dimensions.get("window").width;
-    const nextX = Math.max(0, Math.round((winW - readerBounds.width) / 2));
-    if (Math.abs(nextX - readerBounds.x) < 1) return;
-    setReaderBounds((prev) => (prev ? { ...prev, x: nextX } : prev));
-  }, [readerBounds?.width, windowWidth]);
   const pageCount = getPageCount();
   const pages = useMemo(() => Array.from({ length: pageCount }, (_, i) => i + 1), [pageCount]);
   const displayPages = useMemo(() => {
@@ -297,11 +287,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   return (
     <View style={styles.container}>
       <View
-        style={styles.readerFrame}
-        onLayout={(e) => {
-          if (Platform.OS !== "web") return;
-          setReaderBounds(e.nativeEvent.layout);
-        }}
+        style={[styles.readerFrame, Platform.OS === "web" ? styles.readerFrameWeb : null]}
       >
         <FlatList
           ref={listRef}
@@ -444,7 +430,6 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
           ayahNumber={selectedAyah?.ayahNumber ?? 1}
           surahName={selectedAyah?.surahName}
           surahNumber={selectedAyah?.surahNumber}
-          readerBounds={readerBounds}
           bookmarkColor={
           selectedAyah ? markFor(selectedAyah.surahNumber, selectedAyah.ayahNumber)?.bookmarkColor ?? null : null
         }
@@ -479,6 +464,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EFE8DD" },
   readerFrame: { flex: 1 },
+  readerFrameWeb: { position: "relative" },
   scroll: {
     ...(Platform.OS === "web"
       ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as any)
