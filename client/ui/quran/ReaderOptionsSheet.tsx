@@ -310,19 +310,34 @@ export default function ReaderOptionsSheet({
     );
   }, [ayahTargets, currentAyah, currentSurah]);
 
+  const safeScrollToIndex = useCallback(
+    (index: number) => {
+      const len = ayahTargets?.length ?? 0;
+      if (!ayahListRef.current || len === 0) return;
+      const clamped = Math.max(0, Math.min(index, len - 1));
+      try {
+        requestAnimationFrame(() => {
+          ayahListRef.current?.scrollToIndex({ index: clamped, animated: false });
+        });
+      } catch {
+        // Never crash the sheet on web.
+      }
+    },
+    [ayahTargets]
+  );
+
   useEffect(() => {
     if (!playToOpen) {
       didAutoScrollRef.current = false;
       return;
     }
     if (playToTab !== "ayah") return;
+    const len = ayahTargets?.length ?? 0;
+    if (len === 0) return;
     if (didAutoScrollRef.current) return;
-    if (ayahStartIndex < 0) return;
-    requestAnimationFrame(() => {
-      ayahListRef.current?.scrollToIndex({ index: ayahStartIndex, animated: false });
-    });
+    if (ayahStartIndex >= 0) safeScrollToIndex(ayahStartIndex);
     didAutoScrollRef.current = true;
-  }, [ayahStartIndex, playToOpen, playToTab]);
+  }, [ayahStartIndex, ayahTargets, playToOpen, playToTab, safeScrollToIndex]);
 
   const ensureSurahLoaded = useCallback(
     (surah: number) => {
@@ -356,6 +371,7 @@ export default function ReaderOptionsSheet({
   const playToSubtitle = playToLabel.subtitle
     ? `${playToLabel.title} • ${playToLabel.subtitle}`
     : playToLabel.title;
+  const ROW_H = 92;
 
   const renderContent = () => (
     <>
@@ -635,46 +651,62 @@ export default function ReaderOptionsSheet({
             <View style={styles.section}>
               <View style={styles.sectionCard}>
                 {playToTab === "ayah" ? (
-                  <FlatList
-                    ref={ayahListRef}
-                    style={styles.playToAyahList}
-                    contentContainerStyle={styles.playToAyahListContent}
-                    data={ayahTargets}
-                    keyExtractor={(item) => `${item.surah}:${item.ayah}`}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    viewabilityConfig={{ itemVisiblePercentThreshold: 25 }}
-                    initialNumToRender={20}
-                    maxToRenderPerBatch={24}
-                    windowSize={10}
-                    removeClippedSubviews
-                    scrollEnabled
-                    getItemLayout={(_, index) => ({ length: 86, offset: 86 * index, index })}
-                    renderItem={({ item }) => {
-                      const surahMeta = SURAH_META.find((s) => s.number === item.surah);
-                      const surahName = surahMeta?.name_ar ?? `سورة ${arabicIndic(item.surah)}`;
-                      const verses = surahCache[item.surah];
-                      const verseObj = verses?.[item.ayah - 1];
-                      const ayahText = String(verseObj?.text ?? verseObj?.textUthmani ?? verseObj?.arabic ?? "...").trim();
-                      return (
-                        <Pressable
-                          onPress={() => {
-                            void startPlayTo({ kind: "ayah", surah: item.surah, ayah: item.ayah });
-                          }}
-                          style={({ pressed }) => [
-                            styles.playToAyahItem,
-                            pressed && styles.playToAyahItemPressed,
-                          ]}
-                        >
-                          <Text style={styles.playToAyahTitle}>
-                            {surahName}:{` `}{arabicIndicMushaf(item.ayah)}
-                          </Text>
-                          <Text style={styles.playToAyahPreview} numberOfLines={2} ellipsizeMode="tail">
-                            {ayahText}
-                          </Text>
-                        </Pressable>
-                      );
-                    }}
-                  />
+                  ayahTargets.length === 0 ? (
+                    <Text style={{ textAlign: "center", padding: 16, opacity: 0.6 }}>
+                      {"جارٍ التحميل..."}
+                    </Text>
+                  ) : (
+                    <FlatList
+                      ref={ayahListRef}
+                      style={styles.playToAyahList}
+                      contentContainerStyle={styles.playToAyahListContent}
+                      data={ayahTargets}
+                      keyExtractor={(item) => `${item.surah}:${item.ayah}`}
+                      onViewableItemsChanged={onViewableItemsChanged}
+                      viewabilityConfig={{ itemVisiblePercentThreshold: 25 }}
+                      initialNumToRender={20}
+                      maxToRenderPerBatch={24}
+                      windowSize={10}
+                      removeClippedSubviews
+                      scrollEnabled
+                      getItemLayout={(_, index) => ({ length: ROW_H, offset: ROW_H * index, index })}
+                      onScrollToIndexFailed={({ index, averageItemLength }) => {
+                        const len = ayahTargets?.length ?? 0;
+                        if (!ayahListRef.current || len === 0) return;
+                        const clamped = Math.max(0, Math.min(index, len - 1));
+                        const itemLen = averageItemLength || ROW_H;
+                        ayahListRef.current.scrollToOffset({
+                          offset: itemLen * clamped,
+                          animated: false,
+                        });
+                      }}
+                      renderItem={({ item }) => {
+                        const surahMeta = SURAH_META.find((s) => s.number === item.surah);
+                        const surahName = surahMeta?.name_ar ?? `سورة ${arabicIndic(item.surah)}`;
+                        const verses = surahCache[item.surah];
+                        const verseObj = verses?.[item.ayah - 1];
+                        const ayahText = String(verseObj?.text ?? verseObj?.textUthmani ?? verseObj?.arabic ?? "...").trim();
+                        return (
+                          <Pressable
+                            onPress={() => {
+                              void startPlayTo({ kind: "ayah", surah: item.surah, ayah: item.ayah });
+                            }}
+                            style={({ pressed }) => [
+                              styles.playToAyahItem,
+                              pressed && styles.playToAyahItemPressed,
+                            ]}
+                          >
+                            <Text style={styles.playToAyahTitle}>
+                              {surahName}:{` `}{arabicIndicMushaf(item.ayah)}
+                            </Text>
+                            <Text style={styles.playToAyahPreview} numberOfLines={2} ellipsizeMode="tail">
+                              {ayahText}
+                            </Text>
+                          </Pressable>
+                        );
+                      }}
+                    />
+                  )
                 ) : playToTab === "page" ? (
                   pageList.map((p, idx) => (
                     <Pressable
