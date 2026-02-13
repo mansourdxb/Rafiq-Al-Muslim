@@ -82,7 +82,6 @@ export default function ReaderOptionsSheet({
   const translateY = useRef(new Animated.Value(400)).current;
   const playToTranslateY = useRef(new Animated.Value(420)).current;
   const ayahListRef = useRef<FlatList<any>>(null);
-  const playToScrollRef = useRef<ScrollView>(null);
   const didAutoScrollRef = useRef(false);
   const [view, setView] = useState<"main" | "fawasil">("main");
   const [fawasilLatest, setFawasilLatest] = useState<Record<string, { sura: number; aya: number; updatedAt?: string }>>({});
@@ -336,16 +335,9 @@ export default function ReaderOptionsSheet({
     const len = ayahTargets?.length ?? 0;
     if (len === 0) return;
     if (didAutoScrollRef.current) return;
-    if (ayahStartIndex < 0) return;
-    if (isWeb) {
-      requestAnimationFrame(() => {
-        playToScrollRef.current?.scrollTo({ y: ROW_H * ayahStartIndex, animated: false });
-      });
-    } else {
-      safeScrollToIndex(ayahStartIndex);
-    }
+    if (ayahStartIndex >= 0) safeScrollToIndex(ayahStartIndex);
     didAutoScrollRef.current = true;
-  }, [ayahStartIndex, ayahTargets, isWeb, playToOpen, playToTab, safeScrollToIndex]);
+  }, [ayahStartIndex, ayahTargets, playToOpen, playToTab, safeScrollToIndex]);
 
   const ensureSurahLoaded = useCallback(
     (surah: number) => {
@@ -586,11 +578,7 @@ export default function ReaderOptionsSheet({
 
           <Text style={styles.contextText}>{`${currentSurahName}: ${arabicIndic(currentAyah)}`}</Text>
 
-          <ScrollView
-            ref={playToScrollRef}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
               <View style={styles.sectionCard}>
                 <Pressable
@@ -667,37 +655,6 @@ export default function ReaderOptionsSheet({
                     <Text style={{ textAlign: "center", padding: 16, opacity: 0.6 }}>
                       {"جارٍ التحميل..."}
                     </Text>
-                  ) : isWeb ? (
-                    <View>
-                      {ayahTargets.map((item) => {
-                        const surahMeta = SURAH_META.find((s) => s.number === item.surah);
-                        const surahName = surahMeta?.name_ar ?? `سورة ${arabicIndic(item.surah)}`;
-                        const verses = surahCache[item.surah];
-                        const verseObj = verses?.[item.ayah - 1];
-                        const ayahText = String(
-                          verseObj?.text ?? verseObj?.textUthmani ?? verseObj?.arabic ?? "..."
-                        ).trim();
-                        return (
-                          <Pressable
-                            key={`${item.surah}:${item.ayah}`}
-                            onPress={() => {
-                              void startPlayTo({ kind: "ayah", surah: item.surah, ayah: item.ayah });
-                            }}
-                            style={({ pressed }) => [
-                              styles.playToAyahItem,
-                              pressed && styles.playToAyahItemPressed,
-                            ]}
-                          >
-                            <Text style={styles.playToAyahTitle}>
-                              {surahName}:{` `}{arabicIndicMushaf(item.ayah)}
-                            </Text>
-                            <Text style={styles.playToAyahPreview} numberOfLines={2} ellipsizeMode="tail">
-                              {ayahText}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
                   ) : (
                     <FlatList
                       ref={ayahListRef}
@@ -728,9 +685,7 @@ export default function ReaderOptionsSheet({
                         const surahName = surahMeta?.name_ar ?? `سورة ${arabicIndic(item.surah)}`;
                         const verses = surahCache[item.surah];
                         const verseObj = verses?.[item.ayah - 1];
-                        const ayahText = String(
-                          verseObj?.text ?? verseObj?.textUthmani ?? verseObj?.arabic ?? "..."
-                        ).trim();
+                        const ayahText = String(verseObj?.text ?? verseObj?.textUthmani ?? verseObj?.arabic ?? "...").trim();
                         return (
                           <Pressable
                             onPress={() => {
