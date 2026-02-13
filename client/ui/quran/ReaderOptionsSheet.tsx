@@ -10,6 +10,7 @@ import {
   FlatList,
   Alert,
   Platform,
+  Dimensions,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { quranTheme } from "./theme";
@@ -37,6 +38,7 @@ type Props = {
   ayahNumber: number;
   surahName?: string;
   surahNumber?: number;
+  readerBounds?: { x: number; y: number; width: number; height: number } | null;
   bookmarkColor?: string | null;
   highlightColor?: string | null;
   onClose: () => void;
@@ -69,6 +71,7 @@ export default function ReaderOptionsSheet({
   ayahNumber,
   surahName,
   surahNumber,
+  readerBounds,
   bookmarkColor,
   highlightColor,
   onClose,
@@ -79,6 +82,9 @@ export default function ReaderOptionsSheet({
   onOpenTafsir,
 }: Props) {
   const isWeb = Platform.OS === "web";
+  const winW = Dimensions.get("window").width;
+  const padLeft = readerBounds?.x ?? 0;
+  const padRight = readerBounds ? Math.max(0, winW - (readerBounds.x + readerBounds.width)) : 0;
   const translateY = useRef(new Animated.Value(400)).current;
   const playToTranslateY = useRef(new Animated.Value(420)).current;
   const [view, setView] = useState<"main" | "fawasil">("main");
@@ -324,9 +330,12 @@ export default function ReaderOptionsSheet({
     ? `${playToLabel.title} • ${playToLabel.subtitle}`
     : playToLabel.title;
 
-  const renderContent = () => (
-    <>
-      <View style={styles.headerRow}>
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <View style={[styles.overlay, isWeb && readerBounds ? { paddingLeft: padLeft, paddingRight: padRight, alignItems: "center" } : null]}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY }] }]}>
+        <View style={styles.headerRow}>
           <View style={styles.headerLeftGroup}>
             {view === "fawasil" ? (
               <Pressable style={styles.backButton} onPress={() => setView("main")} hitSlop={8}>
@@ -501,9 +510,12 @@ export default function ReaderOptionsSheet({
           )}
         </ScrollView>
       </Animated.View>
+      </View>
 
-      {playToOpen ? (
-        <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
+      <Modal visible={playToOpen} transparent animationType="none" onRequestClose={() => setPlayToOpen(false)}>
+        <View style={[styles.overlay, isWeb && readerBounds ? { paddingLeft: padLeft, paddingRight: padRight, alignItems: "center" } : null]}>
+          <Pressable style={styles.backdrop} onPress={() => setPlayToOpen(false)} />
+          <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeftGroup}>
               <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
@@ -662,26 +674,8 @@ export default function ReaderOptionsSheet({
             </View>
           </ScrollView>
         </Animated.View>
-      ) : null}
-    </>
-  );
-
-  if (isWeb) {
-    if (!visible) return null;
-    return (
-      <View style={styles.webFrameOverlay} pointerEvents="box-none">
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
-        <View style={styles.webSheet}>{renderContent()}</View>
-      </View>
-    );
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        {renderContent()}
-      </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -710,29 +704,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     maxWidth: 420,
-  },
-  webFrameOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 9999,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.18)",
-    padding: 12,
-  },
-  webSheet: {
-    width: "100%",
-    maxWidth: 460,
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#F7F2E9",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
   },
   headerRow: {
     flexDirection: "row",
