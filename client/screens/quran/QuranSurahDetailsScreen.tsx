@@ -12,6 +12,7 @@ import { getQuranPlaybackState, subscribeQuranPlayback } from "@/src/services/qu
 const DEBUG_QURAN_NAV = true;
 const SANITIZE_SURAHS = new Set([7, 23, 26, 56, 62, 70, 79, 87, 96, 101, 107]);
 const sanitizeAyah = (s: string) => s.replace(/\u06DF/g, "");
+const BASMALAH = "\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0640\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650";
 
 type Props = {
   initialPageNo?: number;
@@ -355,6 +356,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
           const bannerIndex = ayahs.findIndex((a) => a.aya === 1);
           const showBanner = bannerIndex >= 0;
           const bannerName = showBanner ? ayahs[bannerIndex].surahName : page.surahName;
+          const bannerSurahNumber = showBanner ? ayahs[bannerIndex].sura : null;
+          const showBasmalah = bannerSurahNumber !== 1 && bannerSurahNumber !== 9;
           return (
             <View
               style={styles.pageSection}
@@ -375,13 +378,16 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
               </View>
 
               {showBanner ? (
-                <ImageBackground
-                  source={require("../../assets/mushaf-frame.png")}
-                  style={styles.frame}
-                  imageStyle={styles.frameImage}
-                >
-                  <Text style={styles.frameTitle}>{`سورة ${bannerName.replace(/^سورة\s*/i, "")}`}</Text>
-                </ImageBackground>
+                <>
+                  <ImageBackground
+                    source={require("../../assets/mushaf-frame.png")}
+                    style={styles.frame}
+                    imageStyle={styles.frameImage}
+                  >
+                    <Text style={styles.frameTitle}>{`سورة ${bannerName.replace(/^سورة\s*/i, "")}`}</Text>
+                  </ImageBackground>
+                  {showBasmalah ? <Text style={styles.basmalahText}>{BASMALAH}</Text> : null}
+                </>
               ) : null}
 
               <Text style={styles.mushafText}>
@@ -547,6 +553,15 @@ const styles = StyleSheet.create({
   },
   ayahText: {
     fontFamily: "KFGQPCUthmanicScript",
+  },
+  basmalahText: {
+    fontFamily: "KFGQPCUthmanicScript",
+    textAlign: "center",
+    marginTop: 10,
+    marginBottom: 14,
+    fontSize: 30,
+    opacity: 0.95,
+    writingDirection: "rtl",
   },
   ayahHighlight: {
     backgroundColor: "rgba(30,139,90,0.18)",
