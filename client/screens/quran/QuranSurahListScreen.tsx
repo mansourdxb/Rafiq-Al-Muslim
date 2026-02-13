@@ -210,20 +210,25 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
     });
   };
 
+  const toArabicDigits = (n: number | string) =>
+    String(n).replace(/\d/g, (d) => "???"[Number(d)] ?? d);
+
   const renderSurah = ({ item }: { item: (typeof surahItems)[number] }) => {
-    const typeLabel = item.revelationType === "meccan" ? "??" : "???";
+    const isMeccan = item.revelationType === "meccan";
+    const page = item.startPage ?? 1;
+    const ayahs = item.ayahCount ?? 0;
+    const ayahWord = ayahs === 1 ? "?" : "??";
+    const typeArabic = isMeccan ? "??" : "???";
+    const metaString = `? ${toArabicDigits(page)} - ${toArabicDigits(ayahs)} ${ayahWord} - ${typeArabic}`;
     const isActive = lastRead?.surahNumber === item.number;
     return (
-      <Pressable
-        style={styles.row}
-        onPress={() => openSurah(item.number, 1, item.startPage)}
-      >
-        <View style={styles.rowRight}>
-          <Text style={styles.surahName}>{item.name_ar}</Text>
-          <Text style={styles.meta}>{`? ${arabicIndic(item.startPage)} - ${arabicIndic(item.ayahCount)} ? - ${typeLabel}`}</Text>
-        </View>
+      <Pressable style={styles.row} onPress={() => openSurah(item.number, 1, item.startPage)}>
         <View style={[styles.badge, isActive && styles.badgeActive]}>
-          <Text style={[styles.badgeText, isActive && styles.badgeTextActive]}>{arabicIndic(item.number)}</Text>
+          <Text style={[styles.badgeText, isActive && styles.badgeTextActive]}>{toArabicDigits(item.number)}</Text>
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.surahName}>{item.name_ar ?? ""}</Text>
+          <Text style={styles.meta}>{metaString}</Text>
         </View>
       </Pressable>
     );
@@ -232,6 +237,7 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
   const renderSectionHeader = ({ section }: { section: { title: string } }) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText}>{section.title}</Text>
+      <View style={styles.sectionDivider} />
     </View>
   );
 
@@ -286,14 +292,14 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
 
         <View style={styles.content}>
           {activeTab === "surah" ? (
-            <View style={styles.surahListWrap}>
+            <View style={styles.sheet}>
               <SectionList
                 ref={sectionListRef}
                 sections={surahSections}
                 keyExtractor={(item) => String(item.number)}
                 renderItem={renderSurah}
                 renderSectionHeader={renderSectionHeader}
-                contentContainerStyle={styles.sectionListContent}
+                contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 viewabilityConfig={viewabilityConfig}
                 onViewableItemsChanged={onViewableItemsChanged}
@@ -382,16 +388,21 @@ const styles = StyleSheet.create({
     paddingVertical: quranTheme.spacing.sm,
     paddingBottom: 30,
   },
-  surahListWrap: {
-    flex: 1,
+  sheet: {
+    backgroundColor: "#F2EADF",
+    borderRadius: 24,
+    marginTop: 12,
+    paddingTop: 10,
+    paddingBottom: 18,
+    overflow: "hidden",
   },
-  sectionListContent: {
-    paddingLeft: 40,
+  listContent: {
+    paddingLeft: 46,
     paddingBottom: 24,
   },
   sectionHeader: {
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   sectionHeaderText: {
     textAlign: "right",
@@ -399,6 +410,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#A58F78",
     fontFamily: "CairoBold",
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: "#E2D7C9",
+    marginTop: 8,
   },
   row: {
     flexDirection: "row-reverse",
@@ -409,7 +425,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#E2D7C9",
   },
-  rowRight: {
+  rowBody: {
     flex: 1,
     paddingLeft: 12,
   },
@@ -450,8 +466,8 @@ const styles = StyleSheet.create({
   juzRail: {
     position: "absolute",
     left: 8,
-    top: 190,
-    bottom: 110,
+    top: 16,
+    bottom: 16,
     justifyContent: "center",
   },
   juzRailItem: {
