@@ -10,7 +10,6 @@ import {
   FlatList,
   ScrollView,
   Alert,
-  TextInput,
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -254,28 +253,6 @@ export default function QuranIndexScreen({
       style={styles.root}
     >
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={22} color="#B8AC9B" style={styles.searchIcon} />
-         
-          <TextInput
-            style={[
-              styles.searchInput,
-              { direction: "rtl" } as any,
-            ]}
-            placeholder="??? ?? ?????? ??????"
-            placeholderTextColor="#B8AC9B"
-            textAlign="right"
-            writingDirection="rtl"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-
-
-        </View>
-
         {/* Continue Reading Card */}
         {lastRead && (
           <Pressable
@@ -433,27 +410,6 @@ const styles = StyleSheet.create({
   },
 
   // Search Bar
-  searchContainer: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    backgroundColor: 'rgba(78, 123, 101, 0.4)',
-    borderRadius: 28,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  searchIcon: {
-    marginLeft: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#fff",
-    textAlign: "right",
-    writingDirection: "rtl",
-    textAlignVertical: "center", // helps Android
-  },
 
 
 
