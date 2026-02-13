@@ -81,8 +81,6 @@ export default function ReaderOptionsSheet({
   const isWeb = Platform.OS === "web";
   const translateY = useRef(new Animated.Value(400)).current;
   const playToTranslateY = useRef(new Animated.Value(420)).current;
-  const ayahListRef = useRef<FlatList<any>>(null);
-  const didAutoScrollRef = useRef(false);
   const [view, setView] = useState<"main" | "fawasil">("main");
   const [fawasilLatest, setFawasilLatest] = useState<Record<string, { sura: number; aya: number; updatedAt?: string }>>({});
   const [isPlaying, setIsPlaying] = useState(false);
@@ -115,17 +113,6 @@ export default function ReaderOptionsSheet({
       setPlayToOpen(false);
     }
   }, [visible]);
-
-  useEffect(() => {
-    if (!isWeb) return;
-    const open = visible || playToOpen;
-    if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isWeb, playToOpen, visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -303,26 +290,6 @@ export default function ReaderOptionsSheet({
     }
     return out;
   }, [currentSurah, currentAyah]);
-
-  const ayahStartIndex = useMemo(() => {
-    return ayahTargets.findIndex(
-      (item) => item.surah === currentSurah && item.ayah === currentAyah
-    );
-  }, [ayahTargets, currentAyah, currentSurah]);
-
-  useEffect(() => {
-    if (!playToOpen) {
-      didAutoScrollRef.current = false;
-      return;
-    }
-    if (playToTab !== "ayah") return;
-    if (didAutoScrollRef.current) return;
-    if (ayahStartIndex < 0) return;
-    requestAnimationFrame(() => {
-      ayahListRef.current?.scrollToIndex({ index: ayahStartIndex, animated: false });
-    });
-    didAutoScrollRef.current = true;
-  }, [ayahStartIndex, playToOpen, playToTab]);
 
   const ensureSurahLoaded = useCallback(
     (surah: number) => {
@@ -636,7 +603,6 @@ export default function ReaderOptionsSheet({
               <View style={styles.sectionCard}>
                 {playToTab === "ayah" ? (
                   <FlatList
-                    ref={ayahListRef}
                     style={styles.playToAyahList}
                     contentContainerStyle={styles.playToAyahListContent}
                     data={ayahTargets}
@@ -647,8 +613,6 @@ export default function ReaderOptionsSheet({
                     maxToRenderPerBatch={24}
                     windowSize={10}
                     removeClippedSubviews
-                    scrollEnabled
-                    getItemLayout={(_, index) => ({ length: 86, offset: 86 * index, index })}
                     renderItem={({ item }) => {
                       const surahMeta = SURAH_META.find((s) => s.number === item.surah);
                       const surahName = surahMeta?.name_ar ?? `سورة ${arabicIndic(item.surah)}`;
@@ -718,18 +682,7 @@ export default function ReaderOptionsSheet({
   if (isWeb) {
     if (!visible) return null;
     return (
-      <View
-        style={styles.webFrameOverlay}
-        pointerEvents="box-none"
-        onWheel={(e: any) => {
-          e.preventDefault?.();
-          e.stopPropagation?.();
-        }}
-        onTouchMove={(e: any) => {
-          e.preventDefault?.();
-          e.stopPropagation?.();
-        }}
-      >
+      <View style={styles.webFrameOverlay} pointerEvents="box-none">
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         <View style={styles.webSheet}>{renderContent()}</View>
       </View>
