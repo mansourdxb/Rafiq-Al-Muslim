@@ -1,13 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  FlatList,
+  I18nManager,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 import { buildQuranSearchIndexOnce, searchQuran, type SearchHit } from "@/src/lib/quran/searchQuran";
 import { arabicIndic, getPageForAyah } from "@/src/lib/quran/mushaf";
+import { SURAH_META } from "@/constants/quran/surahMeta";
 import type { LibraryStackParamList } from "@/navigation/LibraryStackNavigator";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -17,11 +27,24 @@ type RouteParams = {
 
 const RESULT_LIMIT = 50;
 const AR = {
-  cancel: "\u0625\u0644\u063a\u0627\u0621",
-  searchPlaceholder: "\u0628\u062d\u062b \u0641\u064a \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645",
-  results: "\u0646\u062a\u0627\u0626\u062c \u0627\u0644\u0628\u062d\u062b",
+  title: "\u0646\u062a\u0627\u0626\u062c \u0627\u0644\u0628\u062d\u062b",
+  results: "\u0646\u062a\u064a\u062c\u0629",
+  searchPlaceholder: "\u0627\u0628\u062d\u062b \u0641\u064a \u0627\u0644\u0642\u0631\u0622\u0646",
   noResults: "\u0644\u0627 \u062a\u0648\u062c\u062f \u0646\u062a\u0627\u0626\u062c",
+  loadingIndex: "\u062c\u0627\u0631\u064d \u062a\u062c\u0647\u064a\u0632 \u0627\u0644\u0641\u0647\u0631\u0633...",
+  loadingSearch: "\u062c\u0627\u0631\u064d \u0627\u0644\u0628\u062d\u062b...",
 };
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getRevelationArabic(sura: number) {
+  const surah = SURAH_META.find((s) => s.number === sura);
+  return surah?.revelationType === "meccan"
+    ? "\u0645\u0643\u064a\u0629"
+    : "\u0645\u062f\u0646\u064a\u0629";
+}
 
 export default function QuranSearchScreen() {
   const insets = useSafeAreaInsets();
@@ -85,56 +108,67 @@ export default function QuranSearchScreen() {
   const renderHighlightedText = (text: string, rawQuery: string) => {
     const q = rawQuery.trim();
     if (q.length < 2) {
-      return <Text style={styles.snippet}>{text}</Text>;
+      return <Text style={styles.resultSnippet}>{text}</Text>;
     }
-    const idx = text.indexOf(q);
-    if (idx < 0) {
-      return <Text style={styles.snippet}>{text}</Text>;
-    }
-    const before = text.slice(0, idx);
-    const match = text.slice(idx, idx + q.length);
-    const after = text.slice(idx + q.length);
+
+    const regex = new RegExp(`(${escapeRegExp(q)})`, "gi");
+    const chunks = text.split(regex);
+
     return (
-      <Text style={styles.snippet}>
-        {before}
-        <Text style={styles.snippetHighlight}>{match}</Text>
-        {after}
+      <Text style={styles.resultSnippet}>
+        {chunks.map((chunk, index) => {
+          const isMatch = chunk.toLowerCase() === q.toLowerCase();
+          return (
+            <Text key={`${chunk}-${index}`} style={isMatch ? styles.resultSnippetHighlight : undefined}>
+              {chunk}
+            </Text>
+          );
+        })}
       </Text>
     );
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.cancelButton}>
-          <Text style={styles.cancelText}>{AR.cancel}</Text>
-          <View style={styles.cancelDot}>
-            <Feather name="x" size={14} color="#6E5A46" />
-          </View>
-        </Pressable>
-        <View style={styles.searchWrap}>
-          <Feather name="search" size={18} color="#7C6B5A" style={styles.searchIcon} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder={AR.cancel}
-            placeholderTextColor="#9A8C7A"
-            style={styles.searchInput}
-            textAlign="right"
-            writingDirection="rtl"
-            autoFocus
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerBack}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons
+            name={I18nManager.isRTL ? "chevron-forward" : "chevron-back"}
+            size={22}
+            color="#FFFFFF"
           />
+        </Pressable>
+
+        <Text style={styles.headerTitle}>{AR.title}</Text>
+
+        <View style={styles.headerCountWrap}>
+          <Text style={styles.headerCount}>{`${arabicIndic(results.length)} ${AR.results}`}</Text>
         </View>
       </View>
 
-      <View style={styles.resultsHeader}></View>
-
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsCount}>{`${AR.results} (${results.length})`}</Text>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search-outline" size={20} color="#9B958C" style={styles.searchIcon} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder={AR.searchPlaceholder}
+          placeholderTextColor="#A7A198"
+          style={styles.searchInput}
+          textAlign="right"
+          writingDirection="rtl"
+          autoFocus
+          returnKeyType="search"
+        />
       </View>
 
       {loadingIndex ? (
-        <Text style={styles.loadingText}>جارٍ تجهيز الفهرس...</Text>
+        <Text style={styles.loadingText}>{AR.loadingIndex}</Text>
       ) : (
         <FlatList
           data={results}
@@ -142,28 +176,33 @@ export default function QuranSearchScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <Pressable onPress={() => openResult(item)} style={styles.resultCard}>
-              <Text style={styles.pageInline}>{arabicIndic(getPageForAyah(item.sura, item.aya))}</Text>
-              <View style={styles.resultBody}>
-                <Text style={styles.resultTitle}>{`${item.surahName}: ${arabicIndic(item.aya)}`}</Text>
-                <Text style={styles.resultAyahText}>{item.text}</Text>
+              <View style={styles.resultHeaderRow}>
+                <Text style={styles.resultType}>{getRevelationArabic(item.sura)}</Text>
+                <Text style={styles.resultMeta}>
+                  <Text style={styles.resultSurah}>{`\u0633\u0648\u0631\u0629 ${item.surahName}`}</Text>
+                  <Text style={styles.resultBullet}>{" \u2022 "}</Text>
+                  <Text style={styles.resultAyahNo}>{arabicIndic(item.aya)}</Text>
+                </Text>
               </View>
+
+              <View style={styles.resultDivider} />
+
+              {renderHighlightedText(item.text, query)}
             </Pressable>
           )}
-
           ListEmptyComponent={
             showEmpty ? (
               <View style={styles.empty}>
-                <Text style={styles.emptyText}>لا توجد نتائج</Text>
+                <Text style={styles.emptyText}>{AR.noResults}</Text>
               </View>
             ) : null
           }
           ListFooterComponent={
-            loadingSearch ? <Text style={styles.loadingText}>جارٍ البحث...</Text> : null
+            loadingSearch ? <Text style={styles.loadingText}>{AR.loadingSearch}</Text> : null
           }
           showsVerticalScrollIndicator={false}
         />
       )}
-
     </View>
   );
 }
@@ -171,182 +210,136 @@ export default function QuranSearchScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F7F1E8",
+    backgroundColor: "#F6F4F0",
   },
-  topBar: {
+  header: {
+    backgroundColor: "#174A3D",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 6,
-    gap: 12,
   },
-  cancelButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
-  },
-  cancelText: {
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#2F6E52",
-  },
-  cancelDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#D7D2C9",
-    alignItems: "center",
+  headerBack: {
+    width: 44,
+    alignItems: "flex-end",
     justifyContent: "center",
   },
-  searchWrap: {
-    flex: 1,
-    backgroundColor: "#F3EEE4",
+  headerTitle: {
+    color: "#FFFFFF",
+    fontFamily: "CairoBold",
+    fontSize: 29,
+    textAlign: "center",
+  },
+  headerCountWrap: {
+    width: 76,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  headerCount: {
+    color: "#EAF2EE",
+    fontFamily: "Cairo",
+    fontSize: 14,
+  },
+  searchContainer: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 8,
+    minHeight: 54,
     borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#DAD5CC",
+    backgroundColor: "#F6F4F0",
     flexDirection: "row-reverse",
     alignItems: "center",
-    gap: 10,
+    paddingHorizontal: 12,
   },
   searchIcon: {
     marginStart: 6,
   },
   searchInput: {
     flex: 1,
+    color: "#26362F",
+    fontSize: 24,
     fontFamily: "Cairo",
-    fontSize: 15,
-    color: "#1F2A24",
-  },
-  resultsHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingTop: 6,
-  },
-  resultsCount: {
-    color: "#1F2A24",
-    fontFamily: "CairoBold",
-    fontSize: 22,
-  },
-  filterRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 6,
-  },
-  filterText: {
-    color: "#6C7A73",
-    fontFamily: "Cairo",
-    fontSize: 12,
   },
   list: {
-    paddingBottom: 120,
-    paddingHorizontal: 18,
-    paddingTop: 6,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 130,
+    gap: 14,
   },
   resultCard: {
-    position: "relative",
-    backgroundColor: "#F7F1E6",
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    paddingHorizontal: 16,
     paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  pageInline: {
-    position: "absolute",
-    left: 14,
-    top: 18,
-    fontSize: 22,
-    fontWeight: "700",
-    opacity: 0.28,
-    color: "#8B7B6A",
-    fontFamily: "CairoBold",
+  resultHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  resultBody: {
-    paddingLeft: 44,
+  resultType: {
+    color: "#B4AEA5",
+    fontFamily: "Cairo",
+    fontSize: 13,
   },
-  resultTitle: {
+  resultMeta: {
     textAlign: "right",
-    fontSize: 18,
-    fontWeight: "800",
-    fontFamily: "CairoBold",
-    color: "#1F2A24",
+    writingDirection: "rtl",
   },
-  resultAyahText: {
+  resultSurah: {
+    color: "#1B4F3E",
+    fontFamily: "CairoBold",
+    fontSize: 16,
+  },
+  resultBullet: {
+    color: "#B4AEA5",
+    fontFamily: "Cairo",
+    fontSize: 16,
+  },
+  resultAyahNo: {
+    color: "#C8A44C",
+    fontFamily: "CairoBold",
+    fontSize: 18,
+  },
+  resultDivider: {
     marginTop: 10,
-    textAlign: "right",
-    lineHeight: 30,
-    opacity: 0.9,
-    fontFamily: "UthmanicHafs",
-    fontSize: 18,
-    color: "#8B7B6A",
+    marginBottom: 10,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#EEEAE4",
+  },
+  resultSnippet: {
+    textAlign: "center",
     writingDirection: "rtl",
+    color: "#1F4E3B",
+    fontFamily: "KFGQPCUthmanicScript",
+    fontSize: 22,
+    lineHeight: 40,
   },
-  metaText: {
-    color: "#1F2A24",
-    fontFamily: "CairoBold",
-    fontSize: 18,
-  },
-  snippetWrap: {
-    paddingTop: 2,
-  },
-  snippet: {
-    color: "#8B7B6A",
-    fontFamily: "UthmanicHafs",
-    fontSize: 18,
-    lineHeight: 34,
-    writingDirection: "rtl",
-    textAlign: "right",
-  },
-  snippetHighlight: {
-    color: "#8B7B6A",
-    fontFamily: "UthmanicHafs",
+  resultSnippetHighlight: {
+    color: "#C8A44C",
+    fontFamily: "KFGQPCUthmanicScript",
   },
   loadingText: {
-    color: "#6C7A73",
+    textAlign: "center",
+    color: "#6E6A64",
     fontFamily: "Cairo",
-    textAlign: "right",
-    paddingVertical: 8,
-    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
   empty: {
-    paddingVertical: 24,
     alignItems: "center",
+    paddingVertical: 24,
   },
   emptyText: {
-    color: "#6C7A73",
+    color: "#7E776F",
     fontFamily: "Cairo",
-  },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row-reverse",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#F5F1E8",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    alignItems: "center",
-    gap: 2,
-  },
-  navText: {
-    fontFamily: "Cairo",
-    fontSize: 11,
-    color: "#8B7B6A",
-  },
-  navTextActive: {
-    color: "#D4A56A",
-    fontFamily: "CairoBold",
-  },
-  quranIconContainer: {
-    // Match Quran index nav styling
+    fontSize: 16,
   },
 });
