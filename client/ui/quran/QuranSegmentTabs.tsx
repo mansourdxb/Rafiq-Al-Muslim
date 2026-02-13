@@ -6,9 +6,9 @@ type TabKey = "surah" | "juz" | "favorites";
 type Tab = { key: TabKey; label: string };
 
 const TABS: Tab[] = [
-  { key: "surah", label: "السور" },
-  { key: "juz", label: "الأجزاء" },
-  { key: "favorites", label: "المفضلات" },
+  { key: "surah", label: "\u0627\u0644\u0633\u0648\u0631" },
+  { key: "juz", label: "\u0627\u0644\u0623\u062c\u0632\u0627\u0621" },
+  { key: "favorites", label: "\u0627\u0644\u0623\u0631\u0628\u0627\u0639" },
 ];
 
 type Props = {

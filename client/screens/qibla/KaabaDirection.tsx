@@ -13,7 +13,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
-import { useTheme } from "@/context/ThemeContext";
 import type { City } from "@/screens/qibla/services/preferences";
 import { getSelectedCity, setSelectedCity } from "@/screens/qibla/services/preferences";
 import { getCityFromGPS } from "@/screens/qibla/services/cityService";
@@ -23,15 +22,12 @@ const COLORS = {
   primary: "#3D5A47",
   accent: "#C19B53",
   backgroundLight: "#F3F5F4",
-  backgroundDark: "#1A241E",
-  cardDark: "#243129",
 };
 
 export default function KaabaDirection() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { isDarkMode } = useTheme();
 
   const maxW = 430;
   const contentWidth = Math.min(width, maxW);
@@ -139,8 +135,8 @@ export default function KaabaDirection() {
   const ringInset = 12;
   const innerInset = 24;
 
-  const bgColor = isDarkMode ? COLORS.backgroundDark : COLORS.backgroundLight;
-  const cardColor = isDarkMode ? COLORS.cardDark : "#FFFFFF";
+  const bgColor = COLORS.backgroundLight;
+  const cardColor = "#FFFFFF";
 
   return (
     <View style={[styles.root, { backgroundColor: bgColor }]}>

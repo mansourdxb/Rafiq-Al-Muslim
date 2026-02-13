@@ -164,30 +164,6 @@ export default function QuranSearchScreen() {
         />
       )}
 
-      <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
-        <Pressable style={styles.navItem} onPress={() => {/* Navigate to More */}}>
-          <Ionicons name="ellipsis-horizontal" size={26} color="#8B7B6A" />
-          <Text style={styles.navText}>المزيد</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => {/* Navigate to Athkar */}}>
-          <Ionicons name="color-palette-outline" size={26} color="#8B7B6A" />
-          <Text style={styles.navText}>الأذكار</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => {/* Navigate to Hadith */}}>
-          <Ionicons name="chatbubbles-outline" size={26} color="#8B7B6A" />
-          <Text style={styles.navText}>الحديث</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => {/* Current: Quran */}}>
-          <View style={styles.quranIconContainer}>
-            <Ionicons name="book" size={26} color="#D4A56A" />
-          </View>
-          <Text style={[styles.navText, styles.navTextActive]}>القرآن</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => {/* Navigate to Prayer */}}>
-          <Ionicons name="moon-outline" size={26} color="#8B7B6A" />
-          <Text style={styles.navText}>الصلاة</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }

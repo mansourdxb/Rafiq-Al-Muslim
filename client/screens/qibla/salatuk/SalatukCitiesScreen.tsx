@@ -281,7 +281,8 @@ export default function SalatukCitiesScreen() {
     }
 
     return (
-      <View style={styles.cityItem}>
+      <View style={[styles.cityItemWrap, { width: contentWidth }]}>
+        <View style={styles.cityItem}>
         <View style={styles.cityHeaderRow}>
           <View style={styles.headerLeftControls}>
             <Pressable
@@ -360,6 +361,7 @@ export default function SalatukCitiesScreen() {
             {renderFullRow("العشاء", times.isha, nextPrayerKey === "Isha")}
           </View>
         ) : null}
+        </View>
       </View>
     );
   };
@@ -408,9 +410,11 @@ export default function SalatukCitiesScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>لا توجد مدن بعد</Text>
-              <Text style={styles.emptyText}>اضغط على علامة + لإضافة مدينة</Text>
+            <View style={[styles.cityItemWrap, { width: contentWidth }]}>
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>لا توجد مدن بعد</Text>
+                <Text style={styles.emptyText}>اضغط على علامة + لإضافة مدينة</Text>
+              </View>
             </View>
           }
         />
@@ -550,13 +554,15 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     alignItems: "center",
   },
+  cityItemWrap: {
+    width: "100%",
+    alignSelf: "center",
+  },
   separator: {
     height: 12,
   },
   cityItem: {
     width: "100%",
-    maxWidth: 430,
-    alignSelf: "center",
     backgroundColor: COLORS.card,
     borderRadius: 18,
     padding: 16,
@@ -694,8 +700,6 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     width: "100%",
-    maxWidth: 430,
-    alignSelf: "center",
     padding: 18,
     borderRadius: 18,
     backgroundColor: COLORS.card,

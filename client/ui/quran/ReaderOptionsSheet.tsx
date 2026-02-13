@@ -10,7 +10,6 @@ import {
   FlatList,
   Alert,
   Platform,
-  Dimensions,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { quranTheme } from "./theme";
@@ -82,9 +81,28 @@ export default function ReaderOptionsSheet({
   onOpenTafsir,
 }: Props) {
   const isWeb = Platform.OS === "web";
-  const winW = Dimensions.get("window").width;
-  const padLeft = readerBounds?.x ?? 0;
-  const padRight = readerBounds ? Math.max(0, winW - (readerBounds.x + readerBounds.width)) : 0;
+  const overlayFrameStyle =
+    isWeb && readerBounds
+      ? {
+          position: "absolute" as const,
+          left: readerBounds.x,
+          top: readerBounds.y,
+          width: readerBounds.width,
+          height: readerBounds.height,
+          alignItems: "center" as const,
+        }
+      : null;
+  const sheetFrameStyle =
+    isWeb && readerBounds
+      ? {
+          width: readerBounds.width,
+          maxWidth: readerBounds.width,
+          top: 0,
+          bottom: undefined,
+          height: "100%",
+          maxHeight: "100%",
+        }
+      : null;
   const translateY = useRef(new Animated.Value(400)).current;
   const playToTranslateY = useRef(new Animated.Value(420)).current;
   const [view, setView] = useState<"main" | "fawasil">("main");
@@ -236,6 +254,9 @@ export default function ReaderOptionsSheet({
 
   const startPlayTo = async (mode: PlayToMode) => {
     if (!surahNumber) return;
+    const startSurahNumber = surahNumber;
+    const startAyahNumber = ayahNumber;
+    const startSurahName = surahName;
     const computedStopAt = (() => {
       if (mode.kind === "continuous") return undefined;
       if (mode.kind === "surahEnd") return { surah: currentSurah, ayah: currentAyahCount };
@@ -262,15 +283,15 @@ export default function ReaderOptionsSheet({
     if (isLoading) return;
     setIsLoading(true);
     try {
-      console.log("PLAY pressed", surahNumber, ayahNumber);
-      const url = buildEveryAyahUrl(surahNumber, ayahNumber, "Abu Bakr Ash-Shaatree_128kbps");
+      console.log("PLAY pressed", startSurahNumber, startAyahNumber);
+      const url = buildEveryAyahUrl(startSurahNumber, startAyahNumber, "Abu Bakr Ash-Shaatree_128kbps");
       console.log("[QuranAudio] play", url);
       await playAyah({
-        surah: surahNumber,
-        ayah: ayahNumber,
-        surahName,
+        surah: startSurahNumber,
+        ayah: startAyahNumber,
+        surahName: startSurahName,
         reciterKey: "Abu Bakr Ash-Shaatree_128kbps",
-        ayahCount: SURAH_META.find((s) => s.number === surahNumber)?.ayahCount ?? 0,
+        ayahCount: SURAH_META.find((s) => s.number === startSurahNumber)?.ayahCount ?? 0,
         stopAt: computedStopAt,
       });
       setIsPlaying(true);
@@ -332,9 +353,9 @@ export default function ReaderOptionsSheet({
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={[styles.overlay, isWeb && readerBounds ? { paddingLeft: padLeft, paddingRight: padRight, alignItems: "center" } : null]}>
+      <View style={[styles.overlay, overlayFrameStyle]}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY }] }]}>
+        <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, sheetFrameStyle, { transform: [{ translateY }] }]}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeftGroup}>
             {view === "fawasil" ? (
@@ -513,67 +534,49 @@ export default function ReaderOptionsSheet({
       </View>
 
       <Modal visible={playToOpen} transparent animationType="none" onRequestClose={() => setPlayToOpen(false)}>
-        <View style={[styles.overlay, isWeb && readerBounds ? { paddingLeft: padLeft, paddingRight: padRight, alignItems: "center" } : null]}>
+        <View style={[styles.overlay, overlayFrameStyle]}>
           <Pressable style={styles.backdrop} onPress={() => setPlayToOpen(false)} />
-          <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, { transform: [{ translateY: playToTranslateY }] }]}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerLeftGroup}>
-              <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
-                <Feather name="x" size={18} color="#7A7A7A" />
-              </Pressable>
+          <Animated.View style={[styles.sheet, isWeb && styles.sheetWeb, sheetFrameStyle, { transform: [{ translateY: playToTranslateY }] }]}>
+          <View style={styles.playToHeaderRow}>
+            <Pressable style={styles.closeButton} onPress={() => setPlayToOpen(false)} hitSlop={8}>
+              <Feather name="x" size={18} color="#7A7A7A" />
+            </Pressable>
+            <Text style={styles.playToHeaderTitle}>{"تشغيل إلى"}</Text>
+            <View style={styles.playToHeaderRight}>
+              <Text style={styles.playToHeaderMeta}>{`${currentSurahName}: ${arabicIndicMushaf(currentAyah)}`}</Text>
+              <Feather name="chevron-left" size={18} color="#2F6E52" />
             </View>
-            <Text style={styles.title}>{"تشغيل إلى"}</Text>
-            <View style={styles.headerSpacer} />
           </View>
-
-          <Text style={styles.contextText}>{`${currentSurahName}: ${arabicIndic(currentAyah)}`}</Text>
 
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
-              <View style={styles.sectionCard}>
+              <View style={styles.quickStopCard}>
                 <Pressable
-                  style={styles.actionRow}
+                  style={[styles.quickStopRow, styles.quickStopRowBorder]}
                   onPress={() => {
                     void startPlayTo({ kind: "pageEnd" });
                   }}
                 >
-                  <View style={styles.rowRight}>
-                    <Feather name="file-text" size={18} color="#2F6E52" />
-                    <View style={styles.rowTextWrap}>
-                      <Text style={styles.rowTitle}>{"نهاية الصفحة"}</Text>
-                      <Text style={styles.rowSubtitle}>{`الصفحة ${arabicIndicMushaf(currentPage)}`}</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.quickStopLabel}>{"نهاية الصفحة"}</Text>
+                  <Text style={styles.quickStopValue}>{arabicIndicMushaf(currentPage)}</Text>
                 </Pressable>
-                <View style={styles.rowDivider} />
                 <Pressable
-                  style={styles.actionRow}
+                  style={[styles.quickStopRow, styles.quickStopRowBorder]}
                   onPress={() => {
                     void startPlayTo({ kind: "surahEnd" });
                   }}
                 >
-                  <View style={styles.rowRight}>
-                    <Feather name="flag" size={18} color="#2F6E52" />
-                    <View style={styles.rowTextWrap}>
-                      <Text style={styles.rowTitle}>{"نهاية السورة"}</Text>
-                      <Text style={styles.rowSubtitle}>{currentSurahName}</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.quickStopLabel}>{"نهاية السورة"}</Text>
+                  <Text style={styles.quickStopValue}>{currentSurahName}</Text>
                 </Pressable>
-                <View style={styles.rowDivider} />
                 <Pressable
-                  style={styles.actionRow}
+                  style={styles.quickStopRow}
                   onPress={() => {
                     void startPlayTo({ kind: "continuous" });
                   }}
                 >
-                  <View style={styles.rowRight}>
-                    <Feather name="repeat" size={18} color="#2F6E52" />
-                    <View style={styles.rowTextWrap}>
-                      <Text style={styles.rowTitle}>{"تشغيل مستمر"}</Text>
-                      <Text style={styles.rowSubtitle}>{"لا يتوقف تلقائياً"}</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.quickStopLabel}>{"تشغيل مستمر"}</Text>
+                  <Text style={styles.quickStopValue}>{"\u221e"}</Text>
                 </Pressable>
               </View>
             </View>
@@ -639,34 +642,35 @@ export default function ReaderOptionsSheet({
                     }}
                   />
                 ) : playToTab === "page" ? (
-                  pageList.map((p, idx) => (
-                    <Pressable
-                      key={`page-${p}`}
-                      style={[styles.actionRow, idx < pageList.length - 1 ? styles.rowDivider : null]}
-                      onPress={() => {
-                        void startPlayTo({ kind: "page", page: p });
-                      }}
-                    >
-                      <View style={styles.rowRight}>
-                        <Text style={styles.rowTitle}>{`الصفحة ${arabicIndicMushaf(p)}`}</Text>
-                      </View>
-                    </Pressable>
-                  ))
+                  pageList.map((p, idx) => {
+                    const pageData = getPageData(p);
+                    const lastAyah = pageData.ayahs?.[pageData.ayahs.length - 1];
+                    const surahLabel = lastAyah?.surahName ?? pageData.surahName ?? "";
+                    const ayahLabel = lastAyah?.aya ? arabicIndicMushaf(lastAyah.aya) : "";
+                    return (
+                      <Pressable
+                        key={`page-${p}`}
+                        style={[styles.playToPageRow, idx < pageList.length - 1 ? styles.rowDivider : null]}
+                        onPress={() => {
+                          void startPlayTo({ kind: "page", page: p });
+                        }}
+                      >
+                        <Text style={styles.playToPageRight}>{`الصفحة ${arabicIndicMushaf(p)}`}</Text>
+                        <Text style={styles.playToPageLeft}>{`${surahLabel}: ${ayahLabel}`}</Text>
+                      </Pressable>
+                    );
+                  })
                 ) : (
                   SURAH_META.map((s, idx) => (
                     <Pressable
                       key={`surah-${s.number}`}
-                      style={[styles.actionRow, idx < SURAH_META.length - 1 ? styles.rowDivider : null]}
+                      style={[styles.playToSurahRow, idx < SURAH_META.length - 1 ? styles.rowDivider : null]}
                       onPress={() => {
                         void startPlayTo({ kind: "surah", surah: s.number });
                       }}
                     >
-                      <View style={styles.rowRight}>
-                        <View style={styles.rowTextWrap}>
-                          <Text style={styles.rowTitle}>{s.name_ar}</Text>
-                          <Text style={styles.rowSubtitle}>{arabicIndicMushaf(s.number)}</Text>
-                        </View>
-                      </View>
+                      <Text style={styles.playToSurahRight}>{s.name_ar}</Text>
+                      <Text style={styles.playToSurahLeft}>{`الصفحة ${arabicIndicMushaf(s.pageStart)}`}</Text>
                     </Pressable>
                   ))
                 )}
@@ -710,6 +714,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
+  },
+  playToHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  playToHeaderTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: quranTheme.colors.text,
+    textAlign: "center",
+  },
+  playToHeaderRight: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+  },
+  playToHeaderMeta: {
+    fontFamily: "CairoBold",
+    fontSize: 15,
+    color: "#2F6E52",
+    textAlign: "right",
   },
   headerLeftGroup: {
     flexDirection: "row",
@@ -765,6 +792,55 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
   },
+  quickStopCard: {
+    backgroundColor: "#F7F1E6",
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E7DECF",
+  },
+  playToPageRow: {
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F7F2E9",
+  },
+  playToPageRight: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: "#2A2118",
+    textAlign: "right",
+  },
+  playToPageLeft: {
+    fontFamily: "Cairo",
+    fontSize: 15,
+    color: "#A49384",
+    textAlign: "left",
+  },
+  playToSurahRow: {
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F9F5EE",
+  },
+  playToSurahRight: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: "#2A2118",
+    textAlign: "right",
+  },
+  playToSurahLeft: {
+    fontFamily: "Cairo",
+    fontSize: 15,
+    color: "#A49384",
+    textAlign: "left",
+  },
   sectionTitle: {
     fontFamily: "CairoBold",
     fontSize: 14,
@@ -779,6 +855,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  quickStopRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "transparent",
+  },
+  quickStopRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E3D8C6",
+  },
   rowDivider: {
     height: 1,
     backgroundColor: "rgba(0,0,0,0.06)",
@@ -788,6 +876,18 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 10,
+  },
+  quickStopLabel: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: "#1F2A24",
+    textAlign: "right",
+  },
+  quickStopValue: {
+    fontFamily: "CairoBold",
+    fontSize: 16,
+    color: "#7B6B57",
+    textAlign: "left",
   },
   rowTextWrap: {
     alignItems: "flex-end",

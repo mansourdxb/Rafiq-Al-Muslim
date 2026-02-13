@@ -698,10 +698,12 @@ export async function playAyah(opts: {
   if (reciterKey) {
     await persistReciterKey(reciterKey);
   }
-  if (stopAt && compareAyahRef({ surah, ayah }, stopAt) <= 0) {
-    stopAtTarget = stopAt;
-  } else {
-    stopAtTarget = null;
+  if (Object.prototype.hasOwnProperty.call(opts, "stopAt")) {
+    if (stopAt && compareAyahRef({ surah, ayah }, stopAt) <= 0) {
+      stopAtTarget = stopAt;
+    } else {
+      stopAtTarget = null;
+    }
   }
   currentAyahCount = ayahCount ?? SURAH_MAP.get(surah)?.ayahCount ?? null;
   const key = makeKey(surah, ayah, nextReciter);

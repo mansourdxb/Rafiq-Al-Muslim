@@ -2,6 +2,7 @@
   "extends": "expo/tsconfig.base.json",
   "compilerOptions": 
   {
+    "moduleSuffixes": [".native", ".ios", ".android", ".web", ""],
     "strict": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,

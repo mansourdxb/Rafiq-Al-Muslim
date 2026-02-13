@@ -16,6 +16,7 @@ const PRAYER_AR: Record<PrayerKey, string> = {
 };
 
 export async function initPrayerNotifications(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -45,6 +46,7 @@ export async function initPrayerNotifications(): Promise<boolean> {
 }
 
 export async function cancelAllPrayerNotifications(): Promise<void> {
+  if (Platform.OS === "web") return;
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     const ids: string[] = raw ? (JSON.parse(raw) as string[]) : [];
@@ -64,6 +66,7 @@ export async function schedulePrayerNotifications(params: {
   cityName?: string | null;
   tz?: string | null;
 }): Promise<void> {
+  if (Platform.OS === "web") return;
   const { prayerTimes, cityName } = params;
   await cancelAllPrayerNotifications();
 
@@ -103,6 +106,7 @@ export async function schedulePrayerNotifications(params: {
 }
 
 export async function scheduleTestNotification(): Promise<void> {
+  if (Platform.OS === "web") return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "اختبار الأذان",

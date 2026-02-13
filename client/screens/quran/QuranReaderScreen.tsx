@@ -222,7 +222,7 @@ export default function QuranReaderScreen() {
       }
       if (navToken) lastAppliedTokenRef.current = navToken;
       setCurrentSurahNumber(sura);
-      setCurrentSurahName(quranFiles.find((f) => f.number === sura)?.data?.surah ?? "??????");
+      setCurrentSurahName(quranFiles.find((f) => f.number === sura)?.data?.surah ?? "????");
       setInitialPageNo(page);
       if (source === "juz") {
         setJumpToPage(undefined);
@@ -257,7 +257,7 @@ export default function QuranReaderScreen() {
         const targetAya = lastRead.ayahNumber || 1;
         const targetPage = lastRead.page || getMushafPage(targetSura, targetAya);
         setCurrentSurahNumber(targetSura);
-        setCurrentSurahName(quranFiles.find((f) => f.number === targetSura)?.data?.surah ?? "??????");
+        setCurrentSurahName(quranFiles.find((f) => f.number === targetSura)?.data?.surah ?? "????");
         setInitialPageNo(targetPage);
         setJumpToPage(targetPage);
         setJumpId(Date.now());
@@ -459,13 +459,19 @@ export default function QuranReaderScreen() {
         </Pressable>
         <Text style={styles.toolbarTitle}>{surahName}</Text>
         <View style={styles.toolbarActions}>
-          <Text style={styles.juzText}>{`الجزء ${arabicIndic(currentJuz ?? 1)}`}</Text>
           <Pressable
-            onPress={() => setOptionsToken((v) => v + 1)}
+            onPress={() => (navigation as any).navigate("QuranSearch")}
             style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="settings-outline" size={20} color="#E8F2EC" />
+            <Ionicons name="search" size={22} color="#E8F2EC" />
+          </Pressable>
+          <Pressable
+            onPress={() => setIndexVisible(true)}
+            style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="menu" size={22} color="#E8F2EC" />
           </Pressable>
         </View>
       </View>

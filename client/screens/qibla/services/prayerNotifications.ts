@@ -38,6 +38,7 @@ function getUpcomingPrayersToday(
 }
 
 export async function cancelPrayerNotifications(): Promise<void> {
+  if (Platform.OS === "web") return;
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     const ids: string[] = raw ? (JSON.parse(raw) as string[]) : [];
@@ -55,6 +56,7 @@ export async function scheduleTodayPrayerNotifications(args: {
   city: City;
   settings: PrayerSettings;
 }): Promise<void> {
+  if (Platform.OS === "web") return;
   const { city, settings } = args;
   await cancelPrayerNotifications();
 
@@ -123,6 +125,7 @@ export async function reschedulePrayerNotificationsIfEnabled(args: {
   city: City | null;
   settings: PrayerSettings;
 }): Promise<void> {
+  if (Platform.OS === "web") return;
   const { city, settings } = args;
   if (!settings.notificationsEnabled) {
     await cancelPrayerNotifications();
@@ -136,6 +139,7 @@ export async function reschedulePrayerNotificationsIfEnabled(args: {
 }
 
 export async function scheduleTestNotification(delayMs = 30000): Promise<void> {
+  if (Platform.OS === "web") return;
   await initLocalNotifications();
   const fireDate = new Date(Date.now() + delayMs);
   const id = await Notifications.scheduleNotificationAsync({

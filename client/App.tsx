@@ -20,9 +20,8 @@ import AppDrawerNavigator from "@/navigation/AppDrawerNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { initLocalNotifications } from "@/src/services/notificationsInit";
 import { getPrayerSettings, getSelectedCity } from "@/screens/qibla/services/preferences";
-import { reschedulePrayerNotificationsIfEnabled } from "@/screens/qibla/services/prayerNotifications";
+import { initPrayerNotifications, schedulePrayerNotifications } from "@/src/services/prayerNotifications";
 import { playPreview, stopPreview } from "@/screens/qibla/services/athanAudio";
 import {
   computePrayerTimes,
@@ -83,13 +82,32 @@ export default function App() {
 
   useEffect(() => {
     if (!ready) return;
-    void initLocalNotifications();
+    if (Platform.OS === "web") return;
     (async () => {
       const [city, settings] = await Promise.all([
         getSelectedCity(),
         getPrayerSettings(),
       ]);
-      await reschedulePrayerNotificationsIfEnabled({ city, settings });
+      if (!city || !settings?.notificationsEnabled) return;
+      const ok = await initPrayerNotifications();
+      if (!ok) return;
+      const tz = city.tz ?? tzLookup(city.lat, city.lon);
+      const computed = computePrayerTimes({
+        city: { lat: city.lat, lon: city.lon, tz },
+        settings,
+        timeZone: tz,
+      });
+      await schedulePrayerNotifications({
+        prayerTimes: {
+          fajr: computed.fajr,
+          dhuhr: computed.dhuhr,
+          asr: computed.asr,
+          maghrib: computed.maghrib,
+          isha: computed.isha,
+        },
+        cityName: city.name,
+        tz,
+      });
     })();
   }, [ready]);
 

@@ -25,6 +25,8 @@ import {
   schedulePrayerNotifications,
   scheduleTestNotification,
 } from "@/src/services/prayerNotifications";
+import { getAthanSounds } from "@/screens/qibla/services/salatukAthanSounds";
+import { playPreview, stopPreview } from "@/screens/qibla/services/athanAudio";
 
 const METHODS: PrayerSettings["method"][] = [
   "MWL",
@@ -124,6 +126,12 @@ export default function PrayerSettingsScreen() {
     }, 150);
     return () => clearTimeout(id);
   }, [loaded, city, settings]);
+
+  useEffect(() => {
+    return () => {
+      void stopPreview();
+    };
+  }, []);
 
   const persistPartial = (partial: Partial<PrayerSettings>) => {
     setSettings((prev) => ({
@@ -311,6 +319,9 @@ export default function PrayerSettingsScreen() {
                   Alert.alert("الإشعارات", "الرجاء السماح بالإشعارات من الإعدادات.");
                   return;
                 }
+                const sounds = await getAthanSounds();
+                const soundId = sounds.perPrayerSound.fajr ?? "makkah";
+                await playPreview(soundId);
                 await scheduleTestNotification();
                 Alert.alert("تم", "سيظهر إشعار خلال 5 ثوانٍ");
               } catch (e) {
@@ -430,7 +441,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: "absolute",
-    right: 4,
+    left: 4,
     top: 6,
     zIndex: 5,
     padding: 8,

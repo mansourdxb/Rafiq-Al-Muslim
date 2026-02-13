@@ -18,11 +18,27 @@ export type MushafPage = {
 const mushafPages: { index: number; sura: number; aya: number }[] = require("../../../data/Quran/mushaf-pages.json");
 const mushafJuz: { index: number; sura: number; aya: number }[] = require("../../../data/Quran/mushaf-juz.json");
 
+const SURAH_BASMALA_NORMALIZE = new Set([7, 23, 26, 56, 62, 70, 79, 87, 96, 101, 107]);
+const BASMALA_REGEX = /بسم\s*الله|بِسْمِ\s*اللَّهِ/;
+
+function normalizeAyahs(sura: number, ayahs: any[]) {
+  if (!SURAH_BASMALA_NORMALIZE.has(sura) || !ayahs?.length) return ayahs;
+  const first = ayahs[0];
+  const firstText = String(first?.text ?? "");
+  if (!BASMALA_REGEX.test(firstText)) return ayahs;
+  // Drop basmala entry and reindex ayah_number to align with mushaf mapping.
+  return ayahs.slice(1).map((item: any, idx: number) => ({
+    ...item,
+    ayah_number: idx + 1,
+  }));
+}
+
 const surahMap = new Map<number, { name: string; ayahs: any[] }>();
 quranFiles.forEach((f) => {
   const data: any = f.data ?? {};
   const name = data?.surah ?? `\u0633\u0648\u0631\u0629 ${f.number}`;
-  const ayahs = Array.isArray(data?.ayahs) ? data.ayahs : [];
+  const raw = Array.isArray(data?.ayahs) ? data.ayahs : [];
+  const ayahs = normalizeAyahs(f.number, raw);
   surahMap.set(f.number, { name, ayahs });
 });
 
