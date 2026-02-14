@@ -1,5 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  FlatList,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -33,7 +47,11 @@ const LAST_READ_KEY = "quran:lastRead";
 const FAVORITES_KEY = "quran:favorites";
 const TOTAL_PAGES = 604;
 const JUZ_INDEX = Array.from({ length: 30 }, (_, i) => i + 1);
-const mushafJuz: { index: number; sura: number; aya: number }[] = require("../../data/Quran/mushaf-juz.json");
+const mushafJuz: {
+  index: number;
+  sura: number;
+  aya: number;
+}[] = require("../../data/Quran/mushaf-juz.json");
 const AR_JUZ_ORDINAL = [
   "",
   "\u0627\u0644\u0623\u0648\u0644",
@@ -68,16 +86,28 @@ const AR_JUZ_ORDINAL = [
   "\u0627\u0644\u062b\u0644\u0627\u062b\u0648\u0646",
 ];
 
-const juzTitle = (j: number) => `\u0627\u0644\u062c\u0632\u0621 ${AR_JUZ_ORDINAL[j] ?? j}`;
+const juzTitle = (j: number) =>
+  `\u0627\u0644\u062c\u0632\u0621 ${AR_JUZ_ORDINAL[j] ?? j}`;
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 export default function QuranSurahListScreen() {
-  const navigation = useNavigation<
-    CompositeNavigationProp<
-      NativeStackNavigationProp<LibraryStackParamList>,
-      NativeStackNavigationProp<RootStackParamList>
-    >
-  >();
+  const navigation =
+    useNavigation<
+      CompositeNavigationProp<
+        NativeStackNavigationProp<LibraryStackParamList>,
+        NativeStackNavigationProp<RootStackParamList>
+      >
+    >();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const baseWidth = Math.min(width, 430);
+  const scale = clamp(baseWidth / 390, 0.82, 1.1);
+  const fs = useCallback(
+    (n: number) => Math.round(clamp(n * scale, n * 0.85, n * 1.05)),
+    [scale],
+  );
+  const styles = useMemo(() => createStyles(fs), [fs]);
   const [activeTab, setActiveTab] = useState<TabKey>("surah");
   const [activeJuz, setActiveJuz] = useState(1);
   const [rub3ActiveJuz, setRub3ActiveJuz] = useState(1);
@@ -89,7 +119,6 @@ export default function QuranSurahListScreen() {
   useEffect(() => {
     console.log("QURAN TAB ENTRY:", "QuranSurahListScreen");
   }, []);
-
 
   useEffect(() => {
     let active = true;
@@ -109,20 +138,19 @@ export default function QuranSurahListScreen() {
     };
   }, []);
 
-const openSurah = (sura: number, aya = 1, page?: number) => {
-  const pageNo = page ?? getPageForAyah(sura, aya);
-  
-  console.log("🔵 OPENING SURAH:", sura, "PAGE:", pageNo);
-  
-  navigation.navigate("QuranReader", {
-    sura,
-    aya,
-    page: pageNo,
-    source: "manual",
-    navToken: Date.now(),
-  });
-};
+  const openSurah = (sura: number, aya = 1, page?: number) => {
+    const pageNo = page ?? getPageForAyah(sura, aya);
 
+    console.log("🔵 OPENING SURAH:", sura, "PAGE:", pageNo);
+
+    navigation.navigate("QuranReader", {
+      sura,
+      aya,
+      page: pageNo,
+      source: "manual",
+      navToken: Date.now(),
+    });
+  };
 
   const lastReadMeta = useMemo(() => {
     if (!lastRead) return null;
@@ -151,7 +179,7 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
       mushafJuz
         .map((j) => ({ index: j.index, page: getPageForAyah(j.sura, j.aya) }))
         .sort((a, b) => a.page - b.page),
-    []
+    [],
   );
 
   const getJuzForPage = (page: number) => {
@@ -211,16 +239,23 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
     setRub3ActiveJuz(rub3Sections[0].juz);
   }, [rub3Sections]);
 
-  const viewabilityConfig = useMemo(() => ({ itemVisiblePercentThreshold: 10 }), []);
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: any[] }) => {
-    const first = viewableItems?.find((v) => v?.section?.juz);
-    if (first?.section?.juz) setActiveJuz(first.section.juz);
-  }).current;
+  const viewabilityConfig = useMemo(
+    () => ({ itemVisiblePercentThreshold: 10 }),
+    [],
+  );
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: any[] }) => {
+      const first = viewableItems?.find((v) => v?.section?.juz);
+      if (first?.section?.juz) setActiveJuz(first.section.juz);
+    },
+  ).current;
 
-  const onRub3ViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: any[] }) => {
-    const first = viewableItems?.find((v) => v?.section?.juz);
-    if (first?.section?.juz) setRub3ActiveJuz(first.section.juz);
-  }).current;
+  const onRub3ViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: any[] }) => {
+      const first = viewableItems?.find((v) => v?.section?.juz);
+      if (first?.section?.juz) setRub3ActiveJuz(first.section.juz);
+    },
+  ).current;
 
   const railActiveJuz = useMemo(() => {
     let closest = 1;
@@ -275,23 +310,41 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
   };
 
   const toArabicDigits = (n: number | string) =>
-    String(n).replace(/\d/g, (d) => "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669"[Number(d)] ?? d);
+    String(n).replace(
+      /\d/g,
+      (d) =>
+        "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669"[
+          Number(d)
+        ] ?? d,
+    );
 
   const renderSurah = ({ item }: { item: (typeof surahItems)[number] }) => {
     const isMeccan = item.revelationType === "meccan";
     const page = item.startPage ?? 1;
     const ayahs = item.ayahCount ?? 0;
-    const ayahWord = ayahs === 1 ? "\u0622\u064a\u0629" : "\u0622\u064a\u0627\u062a";
-    const typeArabic = isMeccan ? "\u0645\u0643\u064a\u0629" : "\u0645\u062f\u0646\u064a\u0629";
+    const ayahWord =
+      ayahs === 1 ? "\u0622\u064a\u0629" : "\u0622\u064a\u0627\u062a";
+    const typeArabic = isMeccan
+      ? "\u0645\u0643\u064a\u0629"
+      : "\u0645\u062f\u0646\u064a\u0629";
     const metaString = `\u0627\u0644\u0635\u0641\u062d\u0629 ${toArabicDigits(page)} - ${toArabicDigits(ayahs)} ${ayahWord} - ${typeArabic}`;
     return (
-      <Pressable style={styles.row} onPress={() => openSurah(item.number, 1, item.startPage)}>
+      <Pressable
+        style={styles.row}
+        onPress={() => openSurah(item.number, 1, item.startPage)}
+      >
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>{toArabicDigits(item.number)}</Text>
+          <Text style={styles.badgeText} maxFontSizeMultiplier={1.1}>
+            {toArabicDigits(item.number)}
+          </Text>
         </View>
         <View style={styles.rowBody}>
-          <Text style={styles.surahName}>{item.name_ar ?? ""}</Text>
-          <Text style={styles.meta}>{metaString}</Text>
+          <Text style={styles.surahName} maxFontSizeMultiplier={1.1}>
+            {item.name_ar ?? ""}
+          </Text>
+          <Text style={styles.meta} maxFontSizeMultiplier={1.1}>
+            {metaString}
+          </Text>
         </View>
       </Pressable>
     );
@@ -299,39 +352,69 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
 
   const renderSectionHeader = ({ section }: { section: { title: string } }) => (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{section.title}</Text>
+      <Text style={styles.sectionHeaderText} maxFontSizeMultiplier={1.1}>
+        {section.title}
+      </Text>
     </View>
   );
 
-  const renderRub3SectionHeader = ({ section }: { section: { title: string } }) => (
+  const renderRub3SectionHeader = ({
+    section,
+  }: {
+    section: { title: string };
+  }) => (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{section.title}</Text>
+      <Text style={styles.sectionHeaderText} maxFontSizeMultiplier={1.1}>
+        {section.title}
+      </Text>
     </View>
   );
 
   const renderRub3Item = ({ item }: { item: Rub3Item }) => {
     const meta = `${item.surahName}: ${toArabicDigits(item.ayahNumber)} - \u0627\u0644\u0635\u0641\u062d\u0629 ${toArabicDigits(item.page)}`;
     return (
-      <Pressable style={styles.rub3Row} onPress={() => openSurah(item.surahNumber, item.ayahNumber, item.page)}>
+      <Pressable
+        style={styles.rub3Row}
+        onPress={() => openSurah(item.surahNumber, item.ayahNumber, item.page)}
+      >
         <View style={styles.rub3Chip}>
-          <Text style={styles.rub3ChipText}>{toArabicDigits(item.rubInJuz)}</Text>
+          <Text style={styles.rub3ChipText} maxFontSizeMultiplier={1.1}>
+            {toArabicDigits(item.rubInJuz)}
+          </Text>
         </View>
         <View style={styles.rub3Body}>
-          <Text style={styles.rub3Text} numberOfLines={2} ellipsizeMode="tail">
+          <Text
+            style={styles.rub3Text}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            maxFontSizeMultiplier={1.1}
+          >
             {item.text}
           </Text>
-          <Text style={styles.rub3Meta}>{meta}</Text>
+          <Text style={styles.rub3Meta} maxFontSizeMultiplier={1.1}>
+            {meta}
+          </Text>
         </View>
       </Pressable>
     );
   };
 
-  const renderJuz = ({ item }: { item: { index: number; sura: number; aya: number } }) => (
+  const renderJuz = ({
+    item,
+  }: {
+    item: { index: number; sura: number; aya: number };
+  }) => (
     <Pressable onPress={() => openSurah(item.sura, item.aya)}>
       <View style={styles.juzRow}>
-        <Text style={styles.juzTitle}>{`\u0627\u0644\u062c\u0632\u0621 ${toArabicDigits(item.index)}`}</Text>
-        <Text style={styles.juzMeta}>{`\u0633\u0648\u0631\u0629 ${toArabicDigits(item.sura)} \u2022 \u0622\u064a\u0629 ${toArabicDigits(
-          item.aya
+        <Text
+          style={styles.juzTitle}
+          maxFontSizeMultiplier={1.1}
+        >{`\u0627\u0644\u062c\u0632\u0621 ${toArabicDigits(item.index)}`}</Text>
+        <Text
+          style={styles.juzMeta}
+          maxFontSizeMultiplier={1.1}
+        >{`\u0633\u0648\u0631\u0629 ${toArabicDigits(item.sura)} \u2022 \u0622\u064a\u0629 ${toArabicDigits(
+          item.aya,
         )}`}</Text>
       </View>
     </Pressable>
@@ -342,8 +425,13 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
     return (
       <Pressable onPress={() => openSurah(item.surahNumber, item.ayahNumber)}>
         <View style={styles.favoriteRow}>
-          <Text style={styles.favoriteTitle}>{meta?.name_ar ?? "سورة"}</Text>
-          <Text style={styles.favoriteMeta}>{`\u0622\u064a\u0629 ${toArabicDigits(item.ayahNumber)}`}</Text>
+          <Text style={styles.favoriteTitle} maxFontSizeMultiplier={1.1}>
+            {meta?.name_ar ?? "سورة"}
+          </Text>
+          <Text
+            style={styles.favoriteMeta}
+            maxFontSizeMultiplier={1.1}
+          >{`\u0622\u064a\u0629 ${toArabicDigits(item.ayahNumber)}`}</Text>
         </View>
       </Pressable>
     );
@@ -355,17 +443,22 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
     : "ابدأ القراءة الآن";
 
   return (
-    <LinearGradient colors={quranTheme.colors.bgGradient} style={styles.gradient}>
-      <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
-        
-
+    <LinearGradient
+      colors={quranTheme.colors.bgGradient}
+      style={styles.gradient}
+    >
+      <View style={[styles.container, { paddingTop: insets.top + fs(12) }]}>
         <Pressable
           onPress={() => {
             if (!lastRead) return;
             openSurah(lastRead.surahNumber, lastRead.ayahNumber, lastRead.page);
           }}
         >
-          <ContinueReadingCard surahName={lastReadTitle} ayahText={lastReadSubtitle} progress={progress} />
+          <ContinueReadingCard
+            surahName={lastReadTitle}
+            ayahText={lastReadSubtitle}
+            progress={progress}
+          />
         </Pressable>
 
         <QuranSegmentTabs value={activeTab} onChange={setActiveTab} />
@@ -380,7 +473,10 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
                 renderItem={renderSurah}
                 renderSectionHeader={renderSectionHeader}
                 style={styles.sectionList}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[
+                  styles.listContent,
+                  { paddingBottom: insets.bottom + 90 },
+                ]}
                 showsVerticalScrollIndicator={false}
                 viewabilityConfig={viewabilityConfig}
                 onViewableItemsChanged={onViewableItemsChanged}
@@ -389,8 +485,18 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
                 {JUZ_INDEX.map((j) => {
                   const active = j === railActiveJuz;
                   return (
-                    <Pressable key={`juz-${j}`} style={styles.juzRailItem} onPress={() => jumpToJuz(j)}>
-                      <Text style={[styles.juzRailText, active && styles.juzRailTextActive]}>
+                    <Pressable
+                      key={`juz-${j}`}
+                      style={styles.juzRailItem}
+                      onPress={() => jumpToJuz(j)}
+                    >
+                      <Text
+                        style={[
+                          styles.juzRailText,
+                          active && styles.juzRailTextActive,
+                        ]}
+                        maxFontSizeMultiplier={1.0}
+                      >
                         {toArabicDigits(j)}
                       </Text>
                     </Pressable>
@@ -405,7 +511,10 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
               data={juzItems}
               keyExtractor={(item) => String(item.index)}
               renderItem={renderJuz}
-              contentContainerStyle={styles.list}
+              contentContainerStyle={[
+                styles.list,
+                { paddingBottom: insets.bottom + 90 },
+              ]}
               showsVerticalScrollIndicator={false}
             />
           ) : null}
@@ -419,7 +528,10 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
                 renderItem={renderRub3Item}
                 renderSectionHeader={renderRub3SectionHeader}
                 style={styles.sectionList}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[
+                  styles.listContent,
+                  { paddingBottom: insets.bottom + 90 },
+                ]}
                 showsVerticalScrollIndicator={false}
                 viewabilityConfig={viewabilityConfig}
                 onViewableItemsChanged={onRub3ViewableItemsChanged}
@@ -428,8 +540,18 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
                 {JUZ_INDEX.map((j) => {
                   const active = j === rub3RailActiveJuz;
                   return (
-                    <Pressable key={`rub3-juz-${j}`} style={styles.juzRailItem} onPress={() => jumpToRub3Juz(j)}>
-                      <Text style={[styles.juzRailText, active && styles.juzRailTextActive]}>
+                    <Pressable
+                      key={`rub3-juz-${j}`}
+                      style={styles.juzRailItem}
+                      onPress={() => jumpToRub3Juz(j)}
+                    >
+                      <Text
+                        style={[
+                          styles.juzRailText,
+                          active && styles.juzRailTextActive,
+                        ]}
+                        maxFontSizeMultiplier={1.0}
+                      >
                         {toArabicDigits(j)}
                       </Text>
                     </Pressable>
@@ -444,227 +566,234 @@ const openSurah = (sura: number, aya = 1, page?: number) => {
   );
 }
 
-const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: quranTheme.spacing.lg,
-    gap: quranTheme.spacing.md,
-  },
-  topHeader: {
-    paddingTop: 14,
-    paddingHorizontal: 6,
-    paddingBottom: 6,
-  },
-  title: {
-    textAlign: "right",
-    fontSize: 40,
-    fontWeight: "900",
-    color: "#111",
-    fontFamily: "CairoBold",
-  },
-  subtitle: {
-    textAlign: "right",
-    marginTop: 6,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#8A7B67",
-    fontFamily: "CairoBold",
-  },
-  content: {
-    flex: 1,
-  },
-  list: {
-    gap: quranTheme.spacing.md,
-    paddingVertical: quranTheme.spacing.sm,
-    paddingBottom: 30,
-  },
-  sheet: {
-    backgroundColor: "#F2EADF",
-    borderRadius: 24,
-    marginTop: 12,
-    paddingTop: 10,
-    paddingBottom: 18,
-    overflow: "hidden",
-    flex: 1,
-  },
-  sectionList: {
-    flex: 1,
-  },
-  listContent: {
-    paddingLeft: 46,
-    paddingBottom: 24,
-  },
-  sectionHeader: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-  sectionHeaderText: {
-    textAlign: "right",
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#A58F78",
-    fontFamily: "CairoBold",
-  },
-  row: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E2D7C9",
-  },
-  rowBody: {
-    flex: 1,
-    paddingLeft: 12,
-  },
-  surahName: {
-    textAlign: "right",
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#111",
-    fontFamily: "CairoBold",
-  },
-  meta: {
-    textAlign: "right",
-    marginTop: 6,
-    fontSize: 16,
-    color: "#9C8B78",
-    fontFamily: "Cairo",
-  },
-  rub3Row: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E2D7C9",
-  },
-  rub3Body: {
-    flex: 1,
-    paddingLeft: 12,
-  },
-  rub3Text: {
-    textAlign: "right",
-    fontSize: 22,
-    lineHeight: 34,
-    color: "#1F1A12",
-    fontFamily: "Uthmani",
-  },
-  rub3Meta: {
-    marginTop: 6,
-    textAlign: "right",
-    fontSize: 14,
-    color: "#9C8B78",
-    fontFamily: "Cairo",
-  },
-  rub3Chip: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E7DED1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rub3ChipText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#3A332A",
-    fontFamily: "CairoBold",
-  },
-  badge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#E7DED1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeActive: {
-    backgroundColor: "#1C6B50",
-  },
-  badgeText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#3A332A",
-    fontFamily: "CairoBold",
-  },
-  badgeTextActive: {
-    color: "#fff",
-  },
-  juzRail: {
-    position: "absolute",
-    left: 8,
-    top: 16,
-    bottom: 16,
-    justifyContent: "flex-start",
-  },
-  juzRailItem: {
-    paddingVertical: 1,
-    paddingHorizontal: 6,
-  },
-  juzRailText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#1C6B50",
-    opacity: 0.9,
-    fontFamily: "CairoBold",
-    lineHeight: 13,
-  },
-  juzRailTextActive: {
-    opacity: 1,
-    textDecorationLine: "underline",
-  },
-  juzRow: {
-    backgroundColor: quranTheme.colors.row,
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: "flex-end",
-    gap: 6,
-  },
-  juzTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: quranTheme.colors.textOnDark,
-  },
-  juzMeta: {
-    fontFamily: "Cairo",
-    fontSize: 13,
-    color: quranTheme.colors.textOnDark,
-    opacity: 0.8,
-  },
-  favoriteRow: {
-    backgroundColor: quranTheme.colors.row,
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: "flex-end",
-  },
-  favoriteTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: quranTheme.colors.textOnDark,
-  },
-  favoriteMeta: {
-    fontFamily: "Cairo",
-    fontSize: 13,
-    color: quranTheme.colors.textOnDark,
-    opacity: 0.8,
-    marginTop: 4,
-  },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: {
-    fontFamily: "Cairo",
-    fontSize: 14,
-    color: quranTheme.colors.textOnDark,
-  },
-});
+const createStyles = (fs: (n: number) => number) =>
+  StyleSheet.create({
+    gradient: {
+      flex: 1,
+    },
+    container: {
+      flex: 1,
+      width: "100%",
+      maxWidth: 430,
+      alignSelf: "center",
+      paddingHorizontal: fs(14),
+      gap: fs(10),
+    },
+    topHeader: {
+      paddingTop: fs(12),
+      paddingHorizontal: fs(6),
+      paddingBottom: fs(6),
+    },
+    title: {
+      textAlign: "right",
+      fontSize: fs(34),
+      fontWeight: "900",
+      color: "#111",
+      fontFamily: "CairoBold",
+    },
+    subtitle: {
+      textAlign: "right",
+      marginTop: fs(6),
+      fontSize: fs(16),
+      fontWeight: "700",
+      color: "#8A7B67",
+      fontFamily: "CairoBold",
+    },
+    content: {
+      flex: 1,
+    },
+    list: {
+      gap: fs(10),
+      paddingVertical: fs(8),
+    },
+    sheet: {
+      backgroundColor: "#F2EADF",
+      borderRadius: fs(22),
+      marginTop: fs(10),
+      paddingTop: fs(10),
+      paddingBottom: fs(14),
+      overflow: "hidden",
+      flex: 1,
+    },
+    sectionList: {
+      flex: 1,
+    },
+    listContent: {
+      paddingLeft: fs(36),
+    },
+    sectionHeader: {
+      paddingHorizontal: fs(16),
+      paddingVertical: fs(10),
+    },
+    sectionHeaderText: {
+      textAlign: "right",
+      fontSize: clamp(fs(18), 16, 18),
+      fontWeight: "800",
+      color: "#A58F78",
+      fontFamily: "CairoBold",
+    },
+    row: {
+      flexDirection: "row-reverse",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: fs(16),
+      paddingVertical: fs(15),
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: "#E2D7C9",
+      minHeight: fs(90),
+    },
+    rowBody: {
+      flex: 1,
+      paddingLeft: fs(10),
+    },
+    surahName: {
+      textAlign: "right",
+      fontSize: clamp(fs(26), 22, 26),
+      fontWeight: "900",
+      color: "#111",
+      fontFamily: "CairoBold",
+    },
+    meta: {
+      textAlign: "right",
+      marginTop: fs(4),
+      fontSize: clamp(fs(14), 12, 14),
+      color: "#9C8B78",
+      fontFamily: "Cairo",
+    },
+    rub3Row: {
+      flexDirection: "row-reverse",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      paddingHorizontal: fs(16),
+      paddingVertical: fs(14),
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: "#E2D7C9",
+    },
+    rub3Body: {
+      flex: 1,
+      paddingLeft: fs(10),
+    },
+    rub3Text: {
+      textAlign: "right",
+      fontSize: fs(21),
+      lineHeight: fs(32),
+      color: "#1F1A12",
+      fontFamily: "Uthmani",
+    },
+    rub3Meta: {
+      marginTop: fs(5),
+      textAlign: "right",
+      fontSize: fs(13),
+      color: "#9C8B78",
+      fontFamily: "Cairo",
+    },
+    rub3Chip: {
+      width: fs(30),
+      height: fs(30),
+      borderRadius: fs(15),
+      backgroundColor: "#E7DED1",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    rub3ChipText: {
+      fontSize: fs(13),
+      fontWeight: "800",
+      color: "#3A332A",
+      fontFamily: "CairoBold",
+    },
+    badge: {
+      width: fs(32),
+      height: fs(32),
+      borderRadius: fs(16),
+      backgroundColor: "#E7DED1",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeActive: {
+      backgroundColor: "#1C6B50",
+    },
+    badgeText: {
+      fontSize: fs(14),
+      fontWeight: "800",
+      color: "#3A332A",
+      fontFamily: "CairoBold",
+    },
+    badgeTextActive: {
+      color: "#fff",
+    },
+    juzRail: {
+      position: "absolute",
+      left: fs(4),
+      top: fs(12),
+      bottom: fs(12),
+      justifyContent: "flex-start",
+      alignItems: "center",
+    },
+    juzRailItem: {
+      paddingVertical: 0,
+      paddingHorizontal: fs(4),
+    },
+    juzRailText: {
+      fontSize: clamp(fs(13), 12, 14),
+      fontWeight: "800",
+      color: "#1C6B50",
+      opacity: 0.85,
+      fontFamily: "CairoBold",
+      lineHeight: clamp(fs(19), 18, 20),
+      textAlign: "center",
+    },
+    juzRailTextActive: {
+      opacity: 1,
+      textDecorationLine: "underline",
+    },
+    juzRow: {
+      backgroundColor: quranTheme.colors.row,
+      borderRadius: fs(16),
+      paddingVertical: fs(14),
+      paddingHorizontal: fs(14),
+      alignItems: "flex-end",
+      gap: fs(4),
+      minHeight: fs(78),
+    },
+    juzTitle: {
+      fontFamily: "CairoBold",
+      fontSize: fs(16),
+      color: quranTheme.colors.textOnDark,
+    },
+    juzMeta: {
+      fontFamily: "Cairo",
+      fontSize: fs(13),
+      color: quranTheme.colors.textOnDark,
+      opacity: 0.8,
+    },
+    favoriteRow: {
+      backgroundColor: quranTheme.colors.row,
+      borderRadius: fs(16),
+      paddingVertical: fs(14),
+      paddingHorizontal: fs(14),
+      alignItems: "flex-end",
+      minHeight: fs(74),
+    },
+    favoriteTitle: {
+      fontFamily: "CairoBold",
+      fontSize: fs(16),
+      color: quranTheme.colors.textOnDark,
+    },
+    favoriteMeta: {
+      fontFamily: "Cairo",
+      fontSize: fs(13),
+      color: quranTheme.colors.textOnDark,
+      opacity: 0.8,
+      marginTop: fs(4),
+    },
+    empty: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    emptyText: {
+      fontFamily: "Cairo",
+      fontSize: fs(14),
+      color: quranTheme.colors.textOnDark,
+    },
+  });
