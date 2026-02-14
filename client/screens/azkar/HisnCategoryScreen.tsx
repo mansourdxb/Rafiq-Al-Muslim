@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  SafeAreaView,
 } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { typography } from "@/theme/typography";
 import adhkarData from "@/assets/data/adhkar.json";
@@ -36,7 +39,54 @@ type RouteParams = {
   categoryTitle?: string;
 };
 
+type ProgressRingProps = {
+  progress: number;
+  current: number;
+  total: number;
+};
+
 const CATEGORIES = adhkarData as DhikrCategory[];
+const HISN_PROGRESS_KEY = "athkar:hisnProgress";
+
+function ProgressRing({ progress, current, total }: ProgressRingProps) {
+  const size = 160;
+  const stroke = 8;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dash = Math.max(0, Math.min(1, progress)) * circumference;
+
+  return (
+    <View style={styles.ringWrap}>
+      <Svg width={size} height={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#BEEEDB"
+          strokeWidth={stroke}
+          fill="none"
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#C9A23A"
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${circumference - dash}`}
+          rotation={-90}
+          originX={size / 2}
+          originY={size / 2}
+        />
+      </Svg>
+      <View style={styles.ringTextWrap}>
+        <Text style={styles.ringCurrent}>{current}</Text>
+        <Text style={styles.ringTotal}>{`من ${total}`}</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function HisnCategoryScreen() {
   const insets = useSafeAreaInsets();
@@ -57,100 +107,64 @@ export default function HisnCategoryScreen() {
 
   const items = category?.array ?? [];
   const total = items.length;
-
   const [index, setIndex] = useState(0);
-  const [repeat, setRepeat] = useState(0);
-
   const current = items[index];
-  const target = current?.count ?? 0;
+  const currentNumber = index + 1;
+  const progress = total > 0 ? currentNumber / total : 0;
+  const sourceLabel =
+    current?.filename || current?.audio || category?.filename || category?.audio || "مرجع الذكر";
 
-  const goPrev = () => {
-    const nextIndex = Math.max(0, index - 1);
-    setIndex(nextIndex);
-    setRepeat(0);
-  };
+  useEffect(() => {
+    if (!category || total <= 0) return;
+    if (category.category !== "أذكار الصباح والمساء") return;
 
-  const goNext = () => {
-    const nextIndex = Math.min(total - 1, index + 1);
-    setIndex(nextIndex);
-    setRepeat(0);
-  };
+    const payload = {
+      completed: Math.min(total, Math.max(0, currentNumber)),
+      total,
+      updatedAt: new Date().toISOString(),
+    };
 
-  const onRepeat = () => {
-    if (!current) return;
-    const nextRepeat = repeat + 1;
+    AsyncStorage.setItem(HISN_PROGRESS_KEY, JSON.stringify(payload)).catch(() => undefined);
+  }, [category, currentNumber, total]);
 
-    if (nextRepeat >= target && target > 0) {
-      if (index < total - 1) setIndex(index + 1);
-      setRepeat(0);
-      return;
-    }
-
-    setRepeat(nextRepeat);
-  };
+  const goPrev = () => setIndex((prev) => Math.max(0, prev - 1));
+  const goNext = () => setIndex((prev) => Math.min(total - 1, prev + 1));
+  const isPrevDisabled = index <= 0;
+  const isNextDisabled = index >= total - 1;
 
   if (!category || total === 0) {
     return (
-      <View style={styles.root}>
-        <View style={[styles.header, { paddingTop: topInset + 12, minHeight: topInset + 150 }]}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerSpacer} />
-            <Text style={styles.headerTitle}>حصن المسلم</Text>
-            <Pressable
-              style={styles.headerIcon}
-              onPress={() => navigation.goBack()}
-              hitSlop={10}
-            >
-              <Feather name="chevron-right" size={22} color="#FFFFFF" />
-            </Pressable>
-          </View>
+      <SafeAreaView style={styles.safe}>
+        <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+          <Text style={styles.headerTitle}>حصن المسلم</Text>
+          <Pressable style={styles.headerBackBtn} onPress={() => navigation.goBack()} hitSlop={10}>
+            <Feather name="chevron-right" size={24} color="#FFFFFF" />
+          </Pressable>
         </View>
-
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyText}>لا توجد أذكار متاحة في هذا القسم.</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
-  const progressText = `${index + 1} من ${total}`;
-  const progressPct = total > 0 ? (index + 1) / total : 0;
-
-  // ↑ زوّد/قلّل الرقم لو حبيت تنزّل/ترفع بلوك التقدم داخل الهيدر
-  const HEADER_MIN_HEIGHT = 170;
-
   return (
-    <View style={styles.root}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: topInset + 12,
-            minHeight: topInset + HEADER_MIN_HEIGHT,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {category.category}
-          </Text>
-          <Pressable style={styles.headerIcon} onPress={() => navigation.goBack()} hitSlop={10}>
-            <Feather name="chevron-right" size={22} color="#FFFFFF" />
-          </Pressable>
+    <SafeAreaView style={styles.safe}>
+      <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {category.category}
+        </Text>
+
+        <View style={styles.headerProgressWrap}>
+          <View style={styles.headerProgressTrack}>
+            <View style={[styles.headerProgressFill, { width: `${progress * 100}%` }]} />
+          </View>
+          <Text style={styles.headerProgressText}>{`${currentNumber} من ${total}`}</Text>
         </View>
 
-        {/* ✅ التقدم داخل الهيدر لكن "أسفل" وليس في بداية الهيدر */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressMetaRow}>
-            <Text style={styles.progressCount}>{progressText}</Text>
-            <Text style={styles.progressLabel}>التقدم الإجمالي</Text>
-          </View>
-
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPct * 100}%` }]} />
-          </View>
-        </View>
+        <Pressable style={styles.headerBackBtn} onPress={() => navigation.goBack()} hitSlop={10}>
+          <Feather name="chevron-right" size={24} color="#FFFFFF" />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -158,282 +172,295 @@ export default function HisnCategoryScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
-          <View style={styles.cardTopRow}>
-            <Pressable style={styles.iconGhost} onPress={() => console.log("hisn:share")}>
-              <Feather name="share-2" size={18} color="#B3BAB7" />
+          <View style={styles.cardTopActions}>
+            <Pressable style={styles.iconGhost} onPress={() => console.log("zikr:share-top")}>
+              <Feather name="share-2" size={18} color="#A8B0AD" />
             </Pressable>
-
-            <View style={styles.cardTitleWrap}>
-              <Text style={styles.cardTitleText}>الذكر رقم {index + 1}</Text>
-            </View>
-
-            <Pressable style={styles.playBtn} onPress={() => console.log("hisn:play")}>
+            <Pressable style={styles.iconPlay} onPress={() => console.log("zikr:audio-top")}>
               <Feather name="play" size={18} color="#FFFFFF" />
             </Pressable>
           </View>
 
-          <Text style={styles.dhikrText}>{current?.text ?? ""}</Text>
+          <ScrollView
+            style={styles.zikrTextScroll}
+            contentContainerStyle={styles.zikrTextScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.zikrText}>{current?.text ?? ""}</Text>
+          </ScrollView>
 
-          <Pressable style={styles.ringWrap} onPress={onRepeat}>
-            <View style={styles.ringOuter}>
-              <View style={styles.ringInner}>
-                <Text style={styles.ringText}>
-                  {target} / {repeat}
-                </Text>
-                <Text style={styles.ringCaption}>اضغط للتكرار</Text>
-              </View>
-            </View>
+          <View style={styles.sourceDivider} />
+          <Text style={styles.sourceText}>{sourceLabel}</Text>
+        </View>
+
+        <View style={styles.mintSection}>
+          <ProgressRing progress={progress} current={currentNumber} total={total} />
+        </View>
+
+        <View style={styles.navRow}>
+          <Pressable
+            style={[styles.navBtnSecondary, isPrevDisabled && styles.disabledBtn]}
+            onPress={goPrev}
+            disabled={isPrevDisabled}
+          >
+            <Feather name="arrow-right" size={18} color="#C9A23A" />
+            <Text style={[styles.navBtnSecondaryText, isPrevDisabled && styles.disabledText]}>
+              السابق
+            </Text>
           </Pressable>
 
-          <View style={styles.navRow}>
-            <Pressable style={styles.navBtn} onPress={goNext}>
-              <Text style={styles.navText}>التالي</Text>
-              <Feather name="arrow-left" size={16} color="#D4AF37" />
-            </Pressable>
+          <Pressable
+            style={[styles.navBtnPrimary, isNextDisabled && styles.disabledBtn]}
+            onPress={goNext}
+            disabled={isNextDisabled}
+          >
+            <Text style={[styles.navBtnPrimaryText, isNextDisabled && styles.disabledText]}>
+              التالي
+            </Text>
+            <Feather name="arrow-left" size={18} color="#143A2D" />
+          </Pressable>
+        </View>
 
-            <View style={styles.navDivider} />
-
-            <Pressable style={styles.navBtn} onPress={goPrev}>
-              <Feather name="arrow-right" size={16} color="#D4AF37" />
-              <Text style={styles.navText}>السابق</Text>
-            </Pressable>
-          </View>
+        <View style={styles.toolsRow}>
+          {/* TODO: connect text size controls to a real font scale setting */}
+          <Pressable style={styles.toolBtn} onPress={() => console.log("zikr:text-size")}>
+            <Text style={styles.toolText}>TT</Text>
+          </Pressable>
+          {/* TODO: wire zikr audio playback */}
+          <Pressable style={styles.toolBtn} onPress={() => console.log("zikr:audio")}>
+            <Feather name="volume-2" size={22} color="#13835D" />
+          </Pressable>
+          {/* TODO: wire native share */}
+          <Pressable style={styles.toolBtn} onPress={() => console.log("zikr:share")}>
+            <Feather name="share-2" size={22} color="#13835D" />
+          </Pressable>
         </View>
       </ScrollView>
-
-      <Pressable style={[styles.fab, { bottom: insets.bottom + 16 }]} onPress={() => {}}>
-        <Feather name="moon" size={22} color="#1B4332" />
-      </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  safe: {
     flex: 1,
     backgroundColor: "#F4F4F2",
   },
-
   header: {
-    position: "relative",
-    backgroundColor: "#1B4332",
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    paddingBottom: 18,
+    backgroundColor: "#174B3B",
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    paddingBottom: 14,
     paddingHorizontal: 18,
-    marginHorizontal: -18,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  headerSpacer: {
-    width: 36,
-    height: 36,
   },
   headerTitle: {
     ...typography.screenTitle,
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 34,
     textAlign: "center",
-    flex: 1,
   },
-
-  // ✅ بلوك التقدم في منتصف/أسفل الهيدر مثل الصورة
-  progressContainer: {
+  headerBackBtn: {
     position: "absolute",
-    left: 18,
-    right: 18,
-    bottom: 14,
-  },
-  progressMetaRow: {
-    flexDirection: "row",
+    right: 12,
+    top: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
-    justifyContent: "space-between",
-
-    // يحرك "التقدم الإجمالي" قليلاً لليسار، والعدد قليلاً لليمين (للداخل)
-    paddingHorizontal: 10,
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
   },
-  progressLabel: {
-    ...typography.itemSubtitle,
-    color: "#D6DED7",
-    fontSize: 13,
-    textAlign: "right",
-  },
-  progressCount: {
-    ...typography.itemSubtitle,
-    color: "#D6DED7",
-    fontSize: 13,
-    textAlign: "left",
-  },
-  progressTrack: {
+  headerProgressWrap: {
     marginTop: 8,
-    height: 6,
-    borderRadius: 6,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  headerProgressTrack: {
+    height: 8,
+    borderRadius: 99,
+    backgroundColor: "#6C8D84",
     overflow: "hidden",
-    flexDirection: "row-reverse", // fill من اليمين لليسار
   },
-  progressFill: {
+  headerProgressFill: {
     height: "100%",
-    backgroundColor: "#D4AF37",
-    borderRadius: 6,
+    borderRadius: 99,
+    backgroundColor: "#C9A23A",
   },
-
+  headerProgressText: {
+    ...typography.itemSubtitle,
+    marginTop: 6,
+    color: "#C9A23A",
+    fontSize: 16,
+    textAlign: "center",
+  },
   scroll: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingHorizontal: 14,
+    paddingTop: 12,
   },
-
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#E3E8E3",
+    borderRadius: 24,
+    padding: 16,
     shadowColor: "#000",
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    elevation: 3,
   },
-  cardTopRow: {
+  cardTopActions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   iconGhost: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F2F4F3",
+    backgroundColor: "#F3F5F4",
   },
-  cardTitleWrap: {
-    alignItems: "center",
-    flex: 1,
-  },
-  cardTitleText: {
-    ...typography.itemTitle,
-    fontSize: 16,
-    color: "#D4AF37",
-  },
-  playBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  iconPlay: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#D4AF37",
+    backgroundColor: "#C9A23A",
   },
-  dhikrText: {
+  zikrTextScroll: {
+    maxHeight: 360,
+    marginTop: 12,
+  },
+  zikrTextScrollContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  zikrText: {
     ...typography.itemSubtitle,
-    fontSize: 18,
-    color: "#1F2D25",
+    color: "#123B2E",
     textAlign: "center",
     writingDirection: "rtl",
-    marginTop: 16,
-    lineHeight: 30,
+    fontSize: 48,
+    lineHeight: 76,
   },
-
-  ringWrap: {
-    marginTop: 20,
-    alignItems: "center",
-  },
-  ringOuter: {
+  sourceDivider: {
     width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 2,
-    borderColor: "#DDE7DF",
-    alignItems: "center",
-    justifyContent: "center",
+    height: 1,
+    backgroundColor: "#E8DBAF",
+    alignSelf: "center",
+    marginTop: 12,
   },
-  ringInner: {
-    width: 116,
-    height: 116,
-    borderRadius: 58,
-    borderWidth: 2,
-    borderColor: "#F2E7C8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringText: {
-    ...typography.numberText,
-    fontSize: 20,
-    color: "#D4AF37",
-  },
-  ringCaption: {
+  sourceText: {
     ...typography.itemSubtitle,
-    fontSize: 12,
-    color: "#A7B0AB",
-    marginTop: 6,
-  },
-
-  navRow: {
-    marginTop: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  navBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  navText: {
-    ...typography.itemTitle,
+    marginTop: 10,
+    textAlign: "center",
+    color: "#C9A23A",
     fontSize: 14,
-    color: "#D4AF37",
   },
-  navDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: "#E3E8E3",
+  mintSection: {
+    marginTop: 10,
+    borderRadius: 24,
+    backgroundColor: "#EAF7F1",
+    paddingVertical: 16,
+    alignItems: "center",
   },
-
-  fab: {
-    position: "absolute",
-    left: 18,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#D4AF37",
+  ringWrap: {
+    width: 160,
+    height: 160,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
   },
-
+  ringTextWrap: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringCurrent: {
+    ...typography.numberText,
+    color: "#174B3B",
+    fontSize: 52,
+  },
+  ringTotal: {
+    ...typography.itemSubtitle,
+    color: "#C9A23A",
+    fontSize: 18,
+    marginTop: 2,
+  },
+  navRow: {
+    marginTop: 14,
+    flexDirection: "row-reverse",
+    gap: 12,
+  },
+  navBtnPrimary: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
+    backgroundColor: "#C9A23A",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  navBtnPrimaryText: {
+    ...typography.buttonText,
+    color: "#143A2D",
+    fontSize: 20,
+  },
+  navBtnSecondary: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#C9A23A",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  navBtnSecondaryText: {
+    ...typography.buttonText,
+    color: "#C9A23A",
+    fontSize: 20,
+  },
+  disabledBtn: {
+    opacity: 0.45,
+  },
+  disabledText: {
+    opacity: 0.7,
+  },
+  toolsRow: {
+    marginTop: 14,
+    flexDirection: "row-reverse",
+    justifyContent: "center",
+    gap: 14,
+  },
+  toolBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "#BEEEDB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toolText: {
+    ...typography.buttonText,
+    color: "#13835D",
+    fontSize: 20,
+  },
   emptyWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 24,
   },
   emptyText: {
     ...typography.itemSubtitle,
-    fontSize: 14,
-    color: "#7C8A82",
+    color: "#6E7A73",
     textAlign: "center",
+    fontSize: 16,
   },
 });
