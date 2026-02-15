@@ -120,6 +120,25 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
     return () => clearTimeout(t);
   }, [jumpId, jumpToPage, scrollToPageIndex]);
 
+  // Ensure exact ayah targeting (e.g. Juz entry points) by resolving the page
+  // from rendered page data, not only from page-start index tables.
+  useEffect(() => {
+    if (!highlightAyah) return;
+    if (disableAutoScroll) return;
+    const targetPage = displayPages.find((pageNo) => {
+      const page = getPageData(pageNo);
+      return page.ayahs.some(
+        (a) => a.sura === highlightAyah.sura && a.aya === highlightAyah.aya,
+      );
+    });
+    if (!targetPage) return;
+    const index = Math.max(0, displayPages.indexOf(targetPage));
+    const t = setTimeout(() => {
+      scrollToPageIndex(index);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [disableAutoScroll, displayPages, highlightAyah, jumpId, scrollToPageIndex]);
+
   useEffect(() => {
     if (!disableAutoScroll) return;
     if (!initialPageNo) return;
@@ -360,7 +379,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
           const showBasmalah = bannerSurahNumber !== 1 && bannerSurahNumber !== 9;
           return (
             <View
-              style={styles.pageSection}
+              style={[styles.pageSection, { height: pageHeight }]}
               onLayout={
                 disableAutoScroll && !measuredPageHeight
                   ? (event) => {
@@ -407,7 +426,8 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                   return (
                       <Text
                         key={`${page.pageNo}-${a.sura}-${a.aya}`}
-                        onPress={() => openAyahSheet(page.pageNo, page.juzNo, a)}
+                        onLongPress={() => openAyahSheet(page.pageNo, page.juzNo, a)}
+                        delayLongPress={220}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openAyahSheet(page.pageNo, page.juzNo, a);
@@ -435,8 +455,15 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
             </View>
           );
         }}
-        contentContainerStyle={[styles.page, { paddingBottom: MINI_PLAYER_HEIGHT + 24 }]}
+        contentContainerStyle={[
+          styles.page,
+          {
+            paddingBottom: MINI_PLAYER_HEIGHT + 24,
+            ...(Platform.OS === "ios" ? { paddingRight: 30 } : null),
+          },
+        ]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={Platform.OS === "ios" ? { right: 12 } : undefined}
         style={styles.scroll}
         windowSize={10}
         initialNumToRender={20}
