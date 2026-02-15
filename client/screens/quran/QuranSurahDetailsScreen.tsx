@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, ImageBackground, Platform, Alert, Share, useWindowDimensions, Pressable, ScrollView } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { typography } from "@/theme/typography";
 import { clearMark, loadMarks, setMark, type AyahMark } from "@/src/lib/quran/ayahMarks";
 import { getPageCount, getPageData, getPageForAyah, arabicIndic } from "@/src/lib/quran/mushaf";
@@ -13,6 +14,11 @@ const DEBUG_QURAN_NAV = true;
 const SANITIZE_SURAHS = new Set([7, 23, 26, 56, 62, 70, 79, 87, 96, 101, 107]);
 const sanitizeAyah = (s: string) => s.replace(/\u06DF/g, "");
 const BASMALAH = "\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0640\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650";
+const HEADER_HEIGHT = 64;
+const MINI_PLAYER_HEIGHT = 140;
+const MIN_SCALE = 0.78;
+const MAX_SCALE = 1.05;
+const MAX_FIT_ITERATIONS = 20;
 
 type Props = {
   initialPageNo?: number;
@@ -25,15 +31,20 @@ type Props = {
   onPageChange?: (pageNo: number) => void;
   onVisiblePageChange?: (pageNo: number, sura: number, surahName: string) => void;
   openOptionsToken?: number;
+  onToggleHeader?: () => void;
 };
 
-export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, jumpToPage, jumpId, jumpLockMs = 1200, trimBeforeSura, disableAutoScroll, onPageChange, onVisiblePageChange, openOptionsToken }: Props) {
+export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, jumpToPage, jumpId, jumpLockMs = 1200, trimBeforeSura, disableAutoScroll, onPageChange, onVisiblePageChange, openOptionsToken, onToggleHeader }: Props) {
+  const insets = useSafeAreaInsets();
   const [marks, setMarks] = useState<Record<string, AyahMark>>({});
   const [measuredPageHeight, setMeasuredPageHeight] = useState<number | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [tafsirVisible, setTafsirVisible] = useState(false);
   const [playback, setPlayback] = useState(getQuranPlaybackState());
   const [readerBounds, setReaderBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [pageScales, setPageScales] = useState<Record<number, number>>({});
+  const [fitIterations, setFitIterations] = useState<Record<number, number>>({});
+  const [fallbackScrollPages, setFallbackScrollPages] = useState<Record<number, boolean>>({});
   const [selectedAyah, setSelectedAyah] = useState<{
     surahName: string;
     surahNumber: number;
@@ -52,9 +63,11 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
   const hasSettledRef = useRef(false);
   const lockUntilRef = useRef<number>(0);
   const { height: windowHeight } = useWindowDimensions();
-  const estimatedPageHeight = Math.max(640, windowHeight + 120);
-  const pageHeight = disableAutoScroll ? measuredPageHeight ?? estimatedPageHeight : estimatedPageHeight;
-  const MINI_PLAYER_HEIGHT = 140;
+  const availableHeight = Math.max(
+    420,
+    Math.floor(windowHeight - HEADER_HEIGHT - MINI_PLAYER_HEIGHT - insets.top - insets.bottom)
+  );
+  const pageHeight = disableAutoScroll ? measuredPageHeight ?? availableHeight : availableHeight;
   const getItemLayout = useCallback(
     (_: ArrayLike<number> | null | undefined, index: number) => ({
       length: pageHeight,
@@ -62,6 +75,40 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
       index,
     }),
     [pageHeight]
+  );
+
+  useEffect(() => {
+    setPageScales({});
+    setFitIterations({});
+    setFallbackScrollPages({});
+  }, [pageHeight]);
+
+  const handlePageContentLayout = useCallback(
+    (pageNo: number, contentHeight: number) => {
+      const currentScale = pageScales[pageNo] ?? 1;
+      const currentIterations = fitIterations[pageNo] ?? 0;
+      const targetHeight = pageHeight;
+      if (contentHeight <= 0 || targetHeight <= 0) return;
+
+      if (currentIterations >= MAX_FIT_ITERATIONS) {
+        if (contentHeight > targetHeight && currentScale <= MIN_SCALE + 0.001) {
+          setFallbackScrollPages((prev) => (prev[pageNo] ? prev : { ...prev, [pageNo]: true }));
+        }
+        return;
+      }
+
+      let nextScale = currentScale;
+      if (contentHeight > targetHeight && currentScale > MIN_SCALE) {
+        nextScale = Math.max(MIN_SCALE, Number((currentScale * 0.97).toFixed(4)));
+      } else if (contentHeight < targetHeight * 0.9 && currentScale < MAX_SCALE) {
+        nextScale = Math.min(MAX_SCALE, Number((currentScale * 1.02).toFixed(4)));
+      }
+
+      if (Math.abs(nextScale - currentScale) < 0.0005) return;
+      setPageScales((prev) => ({ ...prev, [pageNo]: nextScale }));
+      setFitIterations((prev) => ({ ...prev, [pageNo]: currentIterations + 1 }));
+    },
+    [fitIterations, pageHeight, pageScales]
   );
 
   const scrollToPageIndex = useCallback(
@@ -308,9 +355,10 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
 
   return (
     <View style={styles.container}>
-      <View
+      <Pressable
         ref={readerFrameRef}
         style={styles.readerFrame}
+        onPress={onToggleHeader}
         onLayout={(e) => {
           if (Platform.OS !== "web") return;
           const { width, height } = e.nativeEvent.layout;
@@ -372,11 +420,87 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
               ayahs = ayahs.slice(startIdx);
             }
           }
+
           const bannerIndex = ayahs.findIndex((a) => a.aya === 1);
           const showBanner = bannerIndex >= 0;
           const bannerName = showBanner ? ayahs[bannerIndex].surahName : page.surahName;
           const bannerSurahNumber = showBanner ? ayahs[bannerIndex].sura : null;
           const showBasmalah = bannerSurahNumber !== 1 && bannerSurahNumber !== 9;
+
+          const scale = pageScales[pageNo] ?? 1;
+          const useFallbackScroll = !!fallbackScrollPages[pageNo];
+          const scaledMushafFont = Math.max(20, Math.round(26 * scale));
+          const scaledMushafLine = Math.max(34, Math.round(46 * scale));
+          const scaledBasmalaFont = Math.max(24, Math.round(30 * scale));
+
+          const pageBody = (
+            <View style={styles.pageContent} onLayout={(event) => handlePageContentLayout(pageNo, event.nativeEvent.layout.height)}>
+              <View style={styles.pageHeaderRow}>
+                <Text style={styles.pageHeaderLeft} allowFontScaling={false}>{page.surahName}</Text>
+                <Text style={styles.pageHeaderRight} allowFontScaling={false}>{`الجزء ${arabicIndic(page.juzNo)}`}</Text>
+              </View>
+
+              {showBanner ? (
+                <>
+                  <ImageBackground
+                    source={require("../../assets/mushaf-frame.png")}
+                    style={styles.frame}
+                    imageStyle={styles.frameImage}
+                  >
+                    <Text style={styles.frameTitle} allowFontScaling={false}>{`سورة ${bannerName.replace(/^سورة\s*/i, "")}`}</Text>
+                  </ImageBackground>
+                  {showBasmalah ? (
+                    <Text style={[styles.basmalahText, { fontSize: scaledBasmalaFont }]} allowFontScaling={false}>{BASMALAH}</Text>
+                  ) : null}
+                </>
+              ) : null}
+
+              <Text style={[styles.mushafText, { fontSize: scaledMushafFont, lineHeight: scaledMushafLine }]} allowFontScaling={false}>
+                {ayahs.map((a, idx) => {
+                  const prefix = idx === 0 ? "" : a.aya === 1 ? "\n\n" : " ";
+                  const number = arabicIndic(a.aya);
+                  const displayText = SANITIZE_SURAHS.has(a.sura) ? sanitizeAyah(a.text) : a.text;
+                  const mark = markFor(a.sura, a.aya);
+                  const bookmarkDot = mark?.bookmarkColor ?? null;
+                  const isHighlighted = highlightAyah && highlightAyah.sura === a.sura && highlightAyah.aya === a.aya;
+                  const isActiveRecitation =
+                    playback.surahNumber === a.sura &&
+                    playback.ayahNumber === a.aya &&
+                    (playback.isPlaying || playback.isPaused);
+                  return (
+                    <Text
+                      key={`${page.pageNo}-${a.sura}-${a.aya}`}
+                      onPress={onToggleHeader}
+                      onLongPress={() => openAyahSheet(page.pageNo, page.juzNo, a)}
+                      delayLongPress={220}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        openAyahSheet(page.pageNo, page.juzNo, a);
+                      }}
+                      allowFontScaling={false}
+                      style={[
+                        styles.ayahText,
+                        mark?.highlightColor ? { backgroundColor: mark.highlightColor } : null,
+                        isHighlighted ? styles.ayahHighlight : null,
+                        isActiveRecitation ? styles.activeRecitation : null,
+                      ]}
+                    >
+                      {`${prefix}${displayText} ${number}`}
+                      {bookmarkDot ? (
+                        <Text style={[styles.bookmarkDot, { color: bookmarkDot }]} allowFontScaling={false}>{" \u25cf"}</Text>
+                      ) : null}
+                    </Text>
+                  );
+                })}
+              </Text>
+
+              <View style={styles.pageFooter}>
+                <Text style={styles.pageNumber} allowFontScaling={false}>{page.pageNo}</Text>
+              </View>
+              <View style={styles.pageDivider} />
+            </View>
+          );
+
           return (
             <View
               style={[styles.pageSection, { height: pageHeight }]}
@@ -391,79 +515,27 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
                   : undefined
               }
             >
-              <View style={styles.pageHeaderRow}>
-                <Text style={styles.pageHeaderLeft}>{page.surahName}</Text>
-                <Text style={styles.pageHeaderRight}>{`الجزء ${arabicIndic(page.juzNo)}`}</Text>
-              </View>
-
-              {showBanner ? (
-                <>
-                  <ImageBackground
-                    source={require("../../assets/mushaf-frame.png")}
-                    style={styles.frame}
-                    imageStyle={styles.frameImage}
-                  >
-                    <Text style={styles.frameTitle}>{`سورة ${bannerName.replace(/^سورة\s*/i, "")}`}</Text>
-                  </ImageBackground>
-                  {showBasmalah ? <Text style={styles.basmalahText}>{BASMALAH}</Text> : null}
-                </>
-              ) : null}
-
-              <Text style={styles.mushafText}>
-                {ayahs.map((a, idx) => {
-                  const prefix = idx === 0 ? "" : a.aya === 1 ? "\n\n" : " ";
-                  const number = arabicIndic(a.aya);
-                  const displayText =
-                    SANITIZE_SURAHS.has(a.sura) ? sanitizeAyah(a.text) : a.text;
-                  const mark = markFor(a.sura, a.aya);
-                  const bookmarkDot = mark?.bookmarkColor ?? null;
-                  const isHighlighted =
-                    highlightAyah && highlightAyah.sura === a.sura && highlightAyah.aya === a.aya;
-                  const isActiveRecitation =
-                    playback.surahNumber === a.sura &&
-                    playback.ayahNumber === a.aya &&
-                    (playback.isPlaying || playback.isPaused);
-                  return (
-                      <Text
-                        key={`${page.pageNo}-${a.sura}-${a.aya}`}
-                        onLongPress={() => openAyahSheet(page.pageNo, page.juzNo, a)}
-                        delayLongPress={220}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          openAyahSheet(page.pageNo, page.juzNo, a);
-                        }}
-                      style={[
-                        styles.ayahText,
-                        mark?.highlightColor ? { backgroundColor: mark.highlightColor } : null,
-                        isHighlighted ? styles.ayahHighlight : null,
-                        isActiveRecitation ? styles.activeRecitation : null,
-                      ]}
-                    >
-                      {`${prefix}${displayText} ${number}`}
-                      {bookmarkDot ? (
-                        <Text style={[styles.bookmarkDot, { color: bookmarkDot }]}>{" \u25cf"}</Text>
-                      ) : null}
-                    </Text>
-                  );
-                })}
-              </Text>
-
-              <View style={styles.pageFooter}>
-                <Text style={styles.pageNumber}>{page.pageNo}</Text>
-              </View>
-              <View style={styles.pageDivider} />
+              {useFallbackScroll ? (
+                <ScrollView
+                  style={styles.pageContentFlex}
+                  contentContainerStyle={styles.pageContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {pageBody}
+                </ScrollView>
+              ) : (
+                pageBody
+              )}
             </View>
           );
         }}
-        contentContainerStyle={[
-          styles.page,
-          {
-            paddingBottom: MINI_PLAYER_HEIGHT + 24,
-            ...(Platform.OS === "ios" ? { paddingRight: 30 } : null),
-          },
-        ]}
+        contentContainerStyle={[styles.page, { paddingBottom: MINI_PLAYER_HEIGHT + 24 }]}
         showsVerticalScrollIndicator={false}
-        scrollIndicatorInsets={Platform.OS === "ios" ? { right: 12 } : undefined}
+        pagingEnabled
+        decelerationRate="fast"
+        disableIntervalMomentum
+        snapToInterval={pageHeight}
+        snapToAlignment="start"
         style={styles.scroll}
         windowSize={10}
         initialNumToRender={20}
@@ -471,7 +543,7 @@ export default function QuranSurahDetailsScreen({ initialPageNo, highlightAyah, 
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
         />
-      </View>
+      </Pressable>
 
         <ReaderOptionsSheet
           visible={sheetVisible}
@@ -547,7 +619,14 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
   },
   pageSection: {
+    overflow: "hidden",
     paddingBottom: 18,
+  },
+  pageContent: {
+    minHeight: "100%",
+  },
+  pageContentFlex: {
+    flex: 1,
   },
   pageHeaderRow: {
     width: "100%",
@@ -615,3 +694,4 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.08)",
   },
 });
+
