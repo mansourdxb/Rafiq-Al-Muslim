@@ -19,6 +19,7 @@ If user didn’t list regressions to protect, assume these are critical and must
 - RTL Arabic rendering stays correct (no punctuation/markers flipping sides).
 - Quran reader paging doesn’t “bleed” pages together.
 - Quran reader footer stays pinned correctly and page number pill size stays stable.
+- Quran reader pages: no `overflow: 'hidden'` on page items, `HEADER_HEIGHT = 0` for overlay toolbars, last line renders fully.
 - Prayer Times/Qibla location + notifications keep working.
 - Offline Quran audio behavior (cache/download logic) stays intact.
 
@@ -79,6 +80,7 @@ The Quran reader uses a paged FlatList/SectionList.
 - One screen = one page (no mixed text from next page).
 - Snap must match the real viewport height.
 - Footer stays pinned; pill size doesn’t stretch.
+- Last line of each page must render fully (no “scratched” or garbled text).
 
 **Implementation contract (preferred):**
 - Measure page height using `onLayout` on a full-screen container.
@@ -87,9 +89,30 @@ The Quran reader uses a paged FlatList/SectionList.
   - `snapToInterval`
   - `getItemLayout`
 
+**Page height calculation rules:**
+- `HEADER_HEIGHT` must be `0` when the toolbar is an absolutely-positioned overlay (it does not consume layout space, so subtracting it shrinks pages and causes overflow).
+- Never subtract the same inset twice (e.g. don’t subtract `insets.top` if `frameHeight` from `onLayout` already excludes it).
+- Formula: `availableHeight = max(420, round(frameHeight ?? (windowHeight - HEADER_HEIGHT - insets.top - insets.bottom)))`.
+
+**Page content must fit — spacing budget:**
+When content overflows `pageHeight`, it bleeds into the next page or gets clipped mid-line. To prevent this:
+- Keep vertical spacing tight: `pageSection.paddingTop ≤ 8`, `pageContent.paddingBottom ≤ 2`, `pageHeaderRow.marginBottom ≤ 4`.
+- Keep `mushafText.lineHeight` at `44` (not 46+). Each 2px adds ~30px on a 15-line page.
+- Surah banner frame height `≤ 100`, marginBottom `≤ 6`.
+- Footer/divider margins `≤ 4` each.
+- Content container `paddingBottom ≤ 8`.
+- Use `minHeight: pageHeight` (not fixed `height`) on the page wrapper so content can grow if needed while still filling its FlatList slot.
+
+**Never use `overflow: 'hidden'` on page items:**
+- Clipping Arabic text mid-line creates garbled/scratched rendering.
+- Instead, ensure content fits by correct height calculation + tight spacing.
+- Each page’s solid `backgroundColor` naturally covers any minor overflow from the previous page.
+
 **Avoid common regression:**
 - Do not “double-subtract” safe area (don’t subtract insets if using frame height already).
 - Never give footer `flex: 1` or pill `width: '100%'`.
+- Do not set `HEADER_HEIGHT > 0` for absolutely-positioned toolbars.
+- Do not add `overflow: 'hidden'` to page section or page content views.
 
 ---
 
@@ -162,6 +185,9 @@ Use this as the generic guardrails when user doesn’t specify:
   - snap height correct
   - footer pinned and stable
   - page number pill not stretched
+  - no `overflow: 'hidden'` on page items (causes garbled Arabic text)
+  - `HEADER_HEIGHT = 0` for absolutely-positioned toolbars
+  - last line of each page renders fully (no scratch/clip)
 - RTL Arabic layout preserved (markers remain on correct side).
 - Prayer Times + Qibla:
   - location + city selection works
