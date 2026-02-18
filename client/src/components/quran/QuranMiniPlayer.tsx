@@ -27,9 +27,15 @@ const formatTime = (ms: number) => {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 };
 
-export default function QuranMiniPlayer() {
+type MiniPlayerProps = {
+  controlsVisible?: boolean;
+  visibleAyahInfo?: { surah: number; ayah: number; surahName: string } | null;
+};
+
+export default function QuranMiniPlayer({ controlsVisible = true, visibleAyahInfo }: MiniPlayerProps) {
   const [state, setState] = useState(getPlayerState());
   const [reciterOpen, setReciterOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     return subscribePlayer(setState);
@@ -46,25 +52,137 @@ export default function QuranMiniPlayer() {
   const currentAyahCount =
     state.surah != null ? SURAH_META.find((surah) => surah.number === state.surah)?.ayahCount ?? 0 : 0;
 
-  if (!state.visible) return null;
+  if (!controlsVisible) return null;
+
+  // ── Minimized compact bar ── (always shows when controls visible)
+  if (!expanded) {
+    return (
+      <View style={styles.miniBar}>
+        <Pressable
+          style={styles.miniPlayButton}
+          onPress={() => {
+            // If audio is active (playing or paused), toggle play/pause
+            if (state.visible && (state.isPlaying || state.surah != null)) {
+              togglePlayPause();
+            } else if (visibleAyahInfo) {
+              // No audio active — start fresh from visible page
+              const meta = SURAH_META.find((s) => s.number === visibleAyahInfo.surah);
+              void playAyah({
+                surah: visibleAyahInfo.surah,
+                ayah: visibleAyahInfo.ayah,
+                surahName: visibleAyahInfo.surahName,
+                reciterKey: state.reciterKey,
+                ayahCount: meta?.ayahCount,
+              });
+            }
+          }}
+          hitSlop={8}
+        >
+          <Feather name={state.isPlaying ? "pause" : "play"} size={18} color="#FFFFFF" />
+        </Pressable>
+        <Pressable style={styles.miniInfo} onPress={() => setExpanded(true)}>
+          <Text style={styles.miniReciterText} numberOfLines={1}>{reciterLabel}</Text>
+          <Feather name="chevron-up" size={16} color="#6B7280" />
+        </Pressable>
+      </View>
+    );
+  }
+
+  // ── Expanded full player ── (only meaningful when audio loaded)
+
+  // If expanded but no audio loaded, show reciter picker only
+  if (!state.visible) {
+    return (
+      <>
+        <View style={styles.container}>
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => setExpanded(false)}>
+              <Feather name="x" size={16} color="#6B7280" />
+            </Pressable>
+            <Pressable style={styles.reciterButton} onPress={() => setReciterOpen(true)}>
+              <Text style={styles.reciterText}>{reciterLabel}</Text>
+              <Feather name="chevron-down" size={14} color="#6B7280" />
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={() => setExpanded(false)}>
+              <Feather name="chevron-down" size={16} color="#6B7280" />
+            </Pressable>
+          </View>
+          <Text style={styles.noAudioHint}>اختر القارئ ثم اختر آية للاستماع</Text>
+          {visibleAyahInfo ? (
+            <View style={styles.noAudioPlayRow}>
+              <Pressable
+                style={styles.playButton}
+                onPress={() => {
+                  const meta = SURAH_META.find((s) => s.number === visibleAyahInfo.surah);
+                  void playAyah({
+                    surah: visibleAyahInfo.surah,
+                    ayah: visibleAyahInfo.ayah,
+                    surahName: visibleAyahInfo.surahName,
+                    reciterKey: state.reciterKey,
+                    ayahCount: meta?.ayahCount,
+                  });
+                }}
+              >
+                <Feather name="play" size={22} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+
+        <ReciterPickerModal
+          visible={reciterOpen}
+          onClose={() => setReciterOpen(false)}
+          selectedReciterKey={state.reciterKey}
+          onSelectReciter={(key) => {
+            if (!state.surah || !state.ayah) return;
+            void playAyah({
+              surah: state.surah,
+              ayah: state.ayah,
+              surahName: state.surahName,
+              reciterKey: key,
+              ayahCount: currentAyahCount,
+            });
+          }}
+          currentSurahNumber={state.surah ?? 0}
+          currentAyahNumber={state.ayah ?? 0}
+          currentSurahAyahCount={currentAyahCount}
+        />
+      </>
+    );
+  }
+
+  const isLoading = state.isLoading;
 
   return (
     <>
       <View style={styles.container}>
         <View style={styles.headerRow}>
-          <Pressable style={styles.iconButton} onPress={() => stopAndHide()}>
+          <Pressable style={styles.iconButton} onPress={() => { stopAndHide(); setExpanded(false); }}>
             <Feather name="x" size={16} color="#6B7280" />
           </Pressable>
           <Pressable style={styles.reciterButton} onPress={() => setReciterOpen(true)}>
             <Text style={styles.reciterText}>{reciterLabel}</Text>
             <Feather name="chevron-down" size={14} color="#6B7280" />
           </Pressable>
-          <View style={styles.headerSpacer} />
+          <Pressable style={styles.iconButton} onPress={() => setExpanded(false)}>
+            <Feather name="chevron-down" size={16} color="#6B7280" />
+          </Pressable>
         </View>
 
-        <Text style={styles.ayahText}>
-          {state.surahName ?? ""}: {state.ayah ?? ""}
-        </Text>
+        {isLoading ? (
+          <View style={styles.downloadSection}>
+            <Text style={styles.loadingText}>{"\u064A\u062C\u0631\u064A \u0627\u0644\u062A\u062D\u0645\u064A\u0644..."}</Text>
+            <View style={styles.downloadBarBg}>
+              <View style={[styles.downloadBarFill, { flex: Math.max(0.01, state.downloadProgress ?? 0) }]} />
+              <View style={{ flex: Math.max(0.01, 1 - (state.downloadProgress ?? 0)) }} />
+            </View>
+            <Text style={styles.downloadPercent}>{Math.round((state.downloadProgress ?? 0) * 100)}%</Text>
+          </View>
+        ) : (
+          <Text style={styles.ayahText}>
+            {state.surahName ?? ""}: {state.ayah ?? ""}
+          </Text>
+        )}
 
         <View style={styles.progressRow}>
           <Text style={styles.timeText}>{formatTime(state.positionMillis || 0)}</Text>
@@ -130,6 +248,88 @@ export default function QuranMiniPlayer() {
 }
 
 const styles = StyleSheet.create({
+  // ── Minimized bar ──
+  miniBar: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: "#F7F2E9",
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#E6E0D6",
+    zIndex: 200,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  miniPlayButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#2F6E52",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  miniReciterText: {
+    fontFamily: "CairoBold",
+    fontSize: 14,
+    color: "#1F2937",
+  },
+  noAudioHint: {
+    marginTop: 10,
+    fontFamily: "Cairo",
+    fontSize: 13,
+    color: "#9CA3AF",
+    textAlign: "center",
+    writingDirection: "rtl",
+  },
+  noAudioPlayRow: {
+    marginTop: 10,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 6,
+    fontFamily: "Cairo",
+    fontSize: 13,
+    color: "#2F6E52",
+    textAlign: "center",
+    writingDirection: "rtl",
+  },
+  downloadSection: {
+    alignItems: "center",
+    marginTop: 4,
+  },
+  downloadBarBg: {
+    width: "80%",
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E6E0D6",
+    marginTop: 6,
+    overflow: "hidden",
+    flexDirection: "row",
+  },
+  downloadBarFill: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#2F6E52",
+  },
+  downloadPercent: {
+    fontFamily: "Cairo",
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 2,
+  },
+  // ── Expanded player ──
   container: {
     position: "absolute",
     left: 12,
@@ -165,7 +365,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1F2937",
   },
-  headerSpacer: { width: 28 },
   ayahText: {
     marginTop: 6,
     fontFamily: "Cairo",

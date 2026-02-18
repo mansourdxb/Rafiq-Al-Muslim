@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx react-native:*)",
+      "Bash(ls:*)",
+      "Bash(test:*)",
+      "Bash(pkill:*)",
+      "Bash(npx expo install expo-splash-screen)",
+      "Bash(npx expo start:*)",
+      "Bash(npx expo prebuild:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(node -e:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

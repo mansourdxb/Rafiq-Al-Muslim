@@ -1,5 +1,5 @@
-import { Audio as ExpoAudio } from "expo-av";
-import * as FileSystem from "expo-file-system";
+import { Audio as ExpoAudio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SURAH_META } from "@/constants/quran/surahMeta";
@@ -62,13 +62,12 @@ const RECITER_MAP: Record<ReciterKey, { key: ReciterKey; label: string; folder: 
   },
   {} as Record<ReciterKey, { key: ReciterKey; label: string; folder: string }>
 );
-const DEFAULT_RECITER_KEY: ReciterKey = (RECITERS.find((r) => r.folder === "Alafmahmoud_ali_al_banna_32kbpsasy_128kbps")?.key ?? RECITERS[0].key);
+const DEFAULT_RECITER_KEY: ReciterKey = (RECITERS.find((r) => r.folder === "Abdul_Basit_Murattal_192kbps")?.key ?? RECITERS[0].key);
 const DEFAULT_RECITER_FOLDER = RECITER_MAP[DEFAULT_RECITER_KEY]?.folder ?? RECITERS[0].folder;
 const LEGACY_RECITER_KEYS: Record<string, ReciterKey> = {
-  Husary: DEFAULT_RECITER_KEY,
-  abdulsamad: (RECITERS.find((r) => r.folder === "AbdulSamad_6Abdul_Basit_Murattal_192kbps4kbps_QuranExplorer.Com")?.key ?? DEFAULT_RECITER_KEY),
   Husary: (RECITERS.find((r) => r.folder === "Husary_128kbps")?.key ?? DEFAULT_RECITER_KEY),
-  abdulbasit64: (RECITERS.find((r) => r.folder === "Abdul_Basit_Murattal_64kbps")?.key ?? DEFAULT_RECITER_KEY),
+  abdulsamad: (RECITERS.find((r) => r.folder === "Abdul_Basit_Murattal_192kbps")?.key ?? DEFAULT_RECITER_KEY),
+  abdulbasit64: (RECITERS.find((r) => r.folder === "Abdul_Basit_Murattal_192kbps")?.key ?? DEFAULT_RECITER_KEY),
 };
 
 const AR_LABELS: Record<string, string> = {
@@ -355,7 +354,7 @@ export async function getCachedAyahUri(opts: {
   if (Platform.OS === "web" || !FileSystem.cacheDirectory) {
     return url;
   }
-  const folder = RECITER_MAP[reciter]?.folder ?? RECITER_MAP.Husary_128kbps.folder;
+  const folder = RECITER_MAP[reciter]?.folder ?? DEFAULT_RECITER_FOLDER;
   const dir = getReciterDir(folder);
   const file = `${dir}${pad3(surah)}${pad3(ayah)}.mp3`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
@@ -379,6 +378,7 @@ export type PlayerState = {
   durationMillis: number;
   rate: number;
   repeatOne: boolean;
+  downloadProgress: number; // 0..1
 };
 
 export type QuranPlaybackState = {
@@ -403,6 +403,7 @@ const DEFAULT_STATE: PlayerState = {
   durationMillis: 0,
   rate: 1,
   repeatOne: false,
+  downloadProgress: 0,
 };
 
 const SUBSCRIBERS = new Set<(s: PlayerState) => void>();
@@ -454,10 +455,17 @@ export function subscribeQuranPlayback(cb: (s: QuranPlaybackState) => void): () 
 }
 
 const RECITER_STORAGE_KEY = "quran.reciterKey";
+const RECITER_MIGRATED_KEY = "quran.reciterMigrated_v1";
 let reciterLoaded = false;
 const loadReciterKey = async (): Promise<ReciterKey> => {
   if (reciterLoaded) return playerState.reciterKey;
   try {
+    // One-time migration: clear stale hardcoded Abu Bakr from old popup code
+    const migrated = await AsyncStorage.getItem(RECITER_MIGRATED_KEY);
+    if (!migrated) {
+      await AsyncStorage.removeItem(RECITER_STORAGE_KEY);
+      await AsyncStorage.setItem(RECITER_MIGRATED_KEY, "1");
+    }
     const raw = await AsyncStorage.getItem(RECITER_STORAGE_KEY);
     if (raw) {
       if (raw in RECITER_MAP) {
@@ -498,6 +506,148 @@ let currentAyahCount: number | null = null;
 let webStatusTimer: ReturnType<typeof setInterval> | null = null;
 let stopAtTarget: { surah: number; ayah: number } | null = null;
 
+// ── Batch download: cache ayahs BEFORE playing ──
+const BATCH_SIZE = 50;
+const PREFETCH_PARALLEL = 5;
+let prefetchAbort: AbortController | null = null;
+let batchEndAyah: { surah: number; ayah: number } | null = null;
+
+/** In-memory set of ayahs we know are cached on disk */
+const knownCached = new Set<string>();
+const cacheKeyFor = (surah: number, ayah: number, reciter: ReciterKey) => `${reciter}:${surah}:${ayah}`;
+
+/** Build the local file path for a cached ayah */
+const getLocalAyahPath = (surah: number, ayah: number, reciterKey: ReciterKey): string => {
+  const folder = RECITER_MAP[reciterKey]?.folder ?? DEFAULT_RECITER_FOLDER;
+  const dir = getReciterDir(folder);
+  return `${dir}${pad3(surah)}${pad3(ayah)}.mp3`;
+};
+
+/** Build the list of next N ayahs starting from (surah, ayah) inclusive */
+const getAyahSequence = (surah: number, ayah: number, count: number): { surah: number; ayah: number }[] => {
+  const list: { surah: number; ayah: number }[] = [];
+  let s = surah;
+  let a = ayah;
+  while (list.length < count) {
+    const meta = SURAH_MAP.get(s);
+    if (!meta) break;
+    const total = meta.ayahCount ?? 0;
+    if (a > total) {
+      s += 1;
+      a = 1;
+      if (s > 114) break;
+      continue;
+    }
+    list.push({ surah: s, ayah: a });
+    a += 1;
+  }
+  return list;
+};
+
+/** Download a single ayah to local cache and mark it in memory */
+const downloadAndMark = async (surah: number, ayah: number, reciterKey: ReciterKey): Promise<boolean> => {
+  const key = cacheKeyFor(surah, ayah, reciterKey);
+  if (knownCached.has(key)) return true; // already cached, skip
+  const localPath = getLocalAyahPath(surah, ayah, reciterKey);
+  try {
+    // Check if already on disk
+    const info = await FileSystem.getInfoAsync(localPath);
+    if (info.exists) {
+      knownCached.add(key);
+      return true;
+    }
+    // Download from network
+    const url = buildEveryAyahUrl(surah, ayah, reciterKey);
+    const folder = RECITER_MAP[reciterKey]?.folder ?? DEFAULT_RECITER_FOLDER;
+    await FileSystem.makeDirectoryAsync(getReciterDir(folder), { intermediates: true });
+    await FileSystem.downloadAsync(url, localPath);
+    knownCached.add(key);
+    return true;
+  } catch (err) {
+    console.warn("[QuranAudio] download failed", surah, ayah, err);
+    return false;
+  }
+};
+
+/** Download a list of ayahs in parallel batches */
+const downloadBatch = async (
+  ayahs: { surah: number; ayah: number }[],
+  reciterKey: ReciterKey,
+  signal?: AbortSignal,
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> => {
+  let downloaded = 0;
+  const total = ayahs.length;
+  for (let i = 0; i < ayahs.length; i += PREFETCH_PARALLEL) {
+    if (signal?.aborted) break;
+    const batch = ayahs.slice(i, i + PREFETCH_PARALLEL);
+    const results = await Promise.all(
+      batch.map((item) => downloadAndMark(item.surah, item.ayah, reciterKey))
+    );
+    downloaded += results.filter(Boolean).length;
+    if (onProgress) onProgress(downloaded, total);
+  }
+  return downloaded;
+};
+
+/** Start background prefetch of NEXT batch — fire and forget */
+const prefetchNextBatch = (surah: number, ayah: number, reciterKey: ReciterKey) => {
+  if (prefetchAbort) {
+    prefetchAbort.abort();
+  }
+  const controller = new AbortController();
+  prefetchAbort = controller;
+
+  const upcoming = getAyahSequence(surah, ayah, BATCH_SIZE);
+  if (upcoming.length === 0) return;
+
+  console.log(`[QuranAudio] background prefetch: ${upcoming.length} ayahs from ${surah}:${ayah}`);
+  (async () => {
+    const count = await downloadBatch(upcoming, reciterKey, controller.signal);
+    if (!controller.signal.aborted) {
+      console.log(`[QuranAudio] background prefetch done: ${count}/${upcoming.length} cached`);
+    }
+  })();
+};
+
+/** Play from LOCAL file directly — no network calls */
+const startNativeFromLocal = async (surah: number, ayah: number, reciterKey: ReciterKey) => {
+  await ensureAudioMode();
+  // Stop current sound only (don't call stopInternal which cancels prefetch)
+  if (sound) {
+    try {
+      await sound.stopAsync();
+      await sound.unloadAsync();
+    } catch { /* ignore */ }
+    sound = null;
+    currentKey = null;
+  }
+  const localPath = getLocalAyahPath(surah, ayah, reciterKey);
+  const newSound = new ExpoAudio.Sound();
+  await newSound.loadAsync({ uri: localPath }, { shouldPlay: true, rate: playerState.rate || 1 });
+  await newSound.playAsync();
+  newSound.setOnPlaybackStatusUpdate((status) => {
+    if (!status.isLoaded) return;
+    emitPlaybackState({
+      isPlaying: status.isPlaying,
+      isPaused: !status.isPlaying,
+      positionMillis: status.positionMillis ?? 0,
+      durationMillis: status.durationMillis ?? 0,
+    });
+    emitState({
+      isPlaying: status.isPlaying,
+      positionMillis: status.positionMillis ?? 0,
+      durationMillis: status.durationMillis ?? 0,
+    });
+    if (status.didJustFinish) {
+      emitState({ isPlaying: false });
+      void handleEnded();
+    }
+  });
+  sound = newSound;
+  currentKey = makeKey(surah, ayah, reciterKey);
+};
+
 const compareAyahRef = (a: { surah: number; ayah: number }, b: { surah: number; ayah: number }) => {
   if (a.surah !== b.surah) return a.surah - b.surah;
   return a.ayah - b.ayah;
@@ -537,8 +687,8 @@ const ensureAudioMode = async () => {
     allowsRecordingIOS: false,
     playsInSilentModeIOS: true,
     staysActiveInBackground: false,
-    interruptionModeIOS: ExpoAudio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-    interruptionModeAndroid: ExpoAudio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
     shouldDuckAndroid: true,
     playThroughEarpieceAndroid: false,
   });
@@ -654,6 +804,12 @@ const startNativePlayback = async (surah: number, ayah: number, reciterKey: Reci
 
 const stopInternal = async (hide: boolean) => {
   stopAtTarget = null;
+  batchEndAyah = null;
+  // Cancel any in-progress prefetch
+  if (prefetchAbort) {
+    prefetchAbort.abort();
+    prefetchAbort = null;
+  }
   if (Platform.OS === "web") {
     if (webAudio) {
       webAudio.pause();
@@ -710,7 +866,6 @@ export async function playAyah(opts: {
   currentKey = key;
   emitState({
     visible: true,
-    isLoading: true,
     surah,
     ayah,
     surahName: resolveSurahName(surah, surahName),
@@ -725,12 +880,54 @@ export async function playAyah(opts: {
     positionMillis: 0,
     durationMillis: 0,
   });
-  if (Platform.OS === "web") {
-    await startWebPlayback(surah, ayah, nextReciter);
+
+  // ── Buffer-first: ensure ayahs are cached before playing ──
+  if (Platform.OS !== "web") {
+    const isCached = knownCached.has(cacheKeyFor(surah, ayah, nextReciter));
+    if (!isCached) {
+      // Not in memory cache — download a batch of BATCH_SIZE ayahs, then play
+      emitState({ isLoading: true, downloadProgress: 0 });
+      console.log(`[QuranAudio] buffering ${BATCH_SIZE} ayahs from ${surah}:${ayah}...`);
+      const batch = getAyahSequence(surah, ayah, BATCH_SIZE);
+      const count = await downloadBatch(batch, nextReciter, undefined, (done, total) => {
+        emitState({ downloadProgress: done / total });
+      });
+      // Check we weren't stopped while downloading
+      if (currentKey !== key) return;
+      console.log(`[QuranAudio] buffering done (${count}/${batch.length}), starting playback`);
+      // Track the end of this batch so we know when to prefetch more
+      if (batch.length > 0) {
+        batchEndAyah = batch[batch.length - 1];
+      }
+    } else {
+      console.log(`[QuranAudio] playing from cache ${surah}:${ayah}`);
+    }
+
+    // Play from LOCAL file path directly — no network involved
+    await startNativeFromLocal(surah, ayah, nextReciter);
+    emitState({ isLoading: false, isPlaying: true });
+
+    // Prefetch next batch only when we're within 10 ayahs of the batch end
+    if (batchEndAyah) {
+      const distToEnd = (batchEndAyah.surah - surah) * 300 + (batchEndAyah.ayah - ayah);
+      if (distToEnd <= 10) {
+        const nextStart = getAyahSequence(batchEndAyah.surah, batchEndAyah.ayah, 2);
+        if (nextStart.length > 1) {
+          const s = nextStart[1]; // ayah AFTER the batch end
+          prefetchNextBatch(s.surah, s.ayah, nextReciter);
+          const newBatch = getAyahSequence(s.surah, s.ayah, BATCH_SIZE);
+          if (newBatch.length > 0) {
+            batchEndAyah = newBatch[newBatch.length - 1];
+          }
+        }
+      }
+    }
     return;
   }
-  await startNativePlayback(surah, ayah, nextReciter);
-  emitState({ isLoading: false, isPlaying: true });
+
+  // Web: stream directly (no local cache)
+  emitState({ isLoading: true });
+  await startWebPlayback(surah, ayah, nextReciter);
 }
 
 export async function togglePlayPause(): Promise<void> {

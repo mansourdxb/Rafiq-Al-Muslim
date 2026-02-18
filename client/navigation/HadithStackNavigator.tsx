@@ -21,6 +21,7 @@ import NasaiChapterScreen from "@/screens/hadith/NasaiChapterScreen";
 import MalikBooksScreen from "@/screens/hadith/MalikBooksScreen";
 import MalikChapterScreen from "@/screens/hadith/MalikChapterScreen";
 import FavoritesScreen from "@/screens/hadith/FavoritesScreen";
+import HadithSearchScreen from "@/screens/hadith/HadithSearchScreen";
 
 export type HadithStackParamList = {
   HadithHome: undefined;
@@ -43,6 +44,7 @@ export type HadithStackParamList = {
   MalikBooks: undefined;
   MalikChapter: { chapterId: number; highlightId?: number | string };
   Favorites: undefined;
+  HadithSearch: undefined;
 };
 
 const Stack = createNativeStackNavigator<HadithStackParamList>();
@@ -70,7 +72,7 @@ export default function HadithStackNavigator() {
       <Stack.Screen name="MalikBooks" component={MalikBooksScreen} />
       <Stack.Screen name="MalikChapter" component={MalikChapterScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="HadithSearch" component={HadithSearchScreen} />
     </Stack.Navigator>
   );
 }
-

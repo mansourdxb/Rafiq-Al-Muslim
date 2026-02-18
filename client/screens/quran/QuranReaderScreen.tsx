@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { SafeAreaView, View, Text, StyleSheet, Pressable, Platform } from "react-native";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { SafeAreaView, View, Text, TextInput, FlatList, StyleSheet, Pressable, Platform } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -78,6 +79,15 @@ function findPageStart(pageNo: number) {
 export default function QuranReaderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<Params, "QuranReader">>();
+  const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    const parent = navigation.getParent();
+    parent?.setOptions({ tabBarStyle: { display: "none" } });
+    return () => {
+      parent?.setOptions({ tabBarStyle: undefined });
+    };
+  }, [navigation]);
   const rawParams = (route.params as any)?.params ?? route.params;
   const hasRawParams = !!(rawParams && Object.keys(rawParams).length > 0);
   const [currentSurahNumber, setCurrentSurahNumber] = useState(1);
@@ -86,6 +96,58 @@ export default function QuranReaderScreen() {
   const [jumpId, setJumpId] = useState<number | undefined>(undefined);
   const [jumpToPage, setJumpToPage] = useState<number | undefined>(undefined);
   const [indexVisible, setIndexVisible] = useState(false);
+  const [headerVisible, setHeaderVisible] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const searchInputRef = React.useRef<any>(null);
+
+  const stripTashkeel = useCallback((text: string) => {
+    return text.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u08D3-\u08E1\u08E3-\u08FF\uFE70-\uFE7F]/g, "");
+  }, []);
+
+  const searchResults = useMemo(() => {
+    const q = stripTashkeel(searchText.trim());
+    if (!q) return [];
+    // Check if query is a page number
+    const pageNum = parseInt(q, 10);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= 604) {
+      const pageStart = findPageStart(pageNum);
+      if (pageStart) {
+        const surah = quranFiles.find((f) => f.number === pageStart.sura);
+        const surahName = surah?.data?.surah ?? `سورة ${pageStart.sura}`;
+        return [{ key: `page-${pageNum}`, sura: pageStart.sura, aya: pageStart.aya, surahName, pageNo: pageNum, text: `صفحة ${pageNum}` }];
+      }
+    }
+    const results: { key: string; sura: number; aya: number; surahName: string; pageNo: number; text: string }[] = [];
+    for (const entry of quranFiles) {
+      const surahName = entry.data?.surah ?? "";
+      const ayahs = entry.data?.ayahs;
+      if (!ayahs) continue;
+      for (const ayah of ayahs) {
+        if (ayah.text && stripTashkeel(ayah.text).includes(q)) {
+          results.push({
+            key: `${entry.number}:${ayah.ayah_number}`,
+            sura: entry.number,
+            aya: ayah.ayah_number,
+            surahName,
+            pageNo: getMushafPage(entry.number, ayah.ayah_number),
+            text: ayah.text,
+          });
+        }
+      }
+    }
+    return results;
+  }, [searchText, stripTashkeel]);
+
+  const handleSearchResultPress = useCallback((sura: number, aya: number) => {
+    const page = getMushafPage(sura, aya);
+    const navToken = Date.now();
+    navigation.setParams({ sura, aya, page, source: "search", navToken } as any);
+    setSearchVisible(false);
+    setSearchText("");
+    setHeaderVisible(false);
+  }, [navigation]);
+
   const [currentJuz, setCurrentJuz] = useState<number | null>(null);
   const [highlightAyah, setHighlightAyah] = useState<{ sura: number; aya: number } | null>(null);
   const [trimBeforeSura, setTrimBeforeSura] = useState<number | undefined>(undefined);
@@ -231,7 +293,7 @@ export default function QuranReaderScreen() {
         setJumpToPage(page);
         setJumpId(navToken || Date.now());
       }
-      const shouldHighlight = source === "search" || source === "resume" || (aya && aya !== 1);
+      const shouldHighlight = source === "search" || source === "resume" || source === "rub3" || (aya && aya !== 1);
       setHighlightAyah(shouldHighlight ? { sura, aya } : null);
       setTrimBeforeSura(source === "manual" && aya === 1 ? sura : undefined);
       setJumpLockMs(source === "juz" ? 3000 : 1200);
@@ -443,39 +505,110 @@ export default function QuranReaderScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <View style={styles.toolbar}>
-        <Pressable
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-              return;
-            }
-            (navigation as any).navigate("Library");
-          }}
-          style={({ pressed }) => [styles.toolbarButton, pressed ? { opacity: 0.7 } : null]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"} size={22} color="#E8F2EC" />
-        </Pressable>
-        <Text style={styles.toolbarTitle}>{surahName}</Text>
-        <View style={styles.toolbarActions}>
-          <Pressable
-            onPress={() => (navigation as any).navigate("QuranSearch")}
-            style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="search" size={22} color="#E8F2EC" />
-          </Pressable>
-          <Pressable
-            onPress={() => setIndexVisible(true)}
-            style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="menu" size={22} color="#E8F2EC" />
-          </Pressable>
-        </View>
+      {headerVisible ? (
+      <View style={[styles.toolbar, { paddingTop: insets.top }]}>
+        {searchVisible ? (
+          <View style={styles.searchBarRow}>
+            <Pressable
+              onPress={() => setSearchVisible(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.searchCancel}>إلغاء</Text>
+            </Pressable>
+            {searchText.length > 0 ? (
+              <Pressable
+                onPress={() => setSearchText("")}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close-circle" size={20} color="#E8F2EC" />
+              </Pressable>
+            ) : null}
+            <View style={styles.searchInputWrap}>
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchInput}
+                placeholder="اكتب كلمة أو رقم صفحة"
+                placeholderTextColor="#999"
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus
+                returnKeyType="search"
+              />
+              <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.toolbarActions}>
+            <Pressable
+              onPress={() => {
+                const parent = (navigation as any).getParent();
+                const hasPrayerTab = parent?.getState?.()?.routeNames?.includes("PrayerTab");
+                if (hasPrayerTab) {
+                  parent.navigate("PrayerTab");
+                } else if (navigation.canGoBack()) {
+                  navigation.goBack();
+                }
+              }}
+              style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null, { marginRight: "auto" }]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={22} color="#E8F2EC" />
+            </Pressable>
+            <Pressable
+              onPress={() => setSearchVisible(true)}
+              style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="search" size={22} color="#E8F2EC" />
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                const state = (navigation as any).getState?.();
+                if (state?.routeNames?.includes("QuranSurahList")) {
+                  (navigation as any).navigate("QuranSurahList");
+                } else if (navigation.canGoBack()) {
+                  navigation.goBack();
+                }
+              }}
+              style={({ pressed }) => [styles.iconButton, pressed ? { opacity: 0.7 } : null]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="menu" size={22} color="#E8F2EC" />
+            </Pressable>
+          </View>
+        )}
       </View>
-      {renderReady ? (
+      ) : null}
+      {searchVisible && searchText.trim().length > 0 ? (
+        <View style={[styles.searchResultsOverlay, { paddingTop: insets.top + 44 }]}>
+          <Text style={styles.searchResultsHeader}>
+            الآيات ({searchResults.length})
+          </Text>
+          <FlatList
+            data={searchResults}
+            keyExtractor={(item) => item.key}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => handleSearchResultPress(item.sura, item.aya)}
+                style={({ pressed }) => [styles.searchResultCard, pressed ? { opacity: 0.8 } : null]}
+              >
+                <View style={styles.searchResultMeta}>
+                  <Text style={styles.searchResultPage}>{item.pageNo}</Text>
+                  <Text style={styles.searchResultSurah}>{item.surahName}: {item.aya}</Text>
+                </View>
+                <Text style={styles.searchResultText}>
+                  {item.text}
+                </Text>
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.searchNoResults}>لا توجد نتائج</Text>
+            }
+          />
+        </View>
+      ) : null}
+      {renderReady && !searchVisible ? (
         <QuranSurahDetailsScreen
           initialPageNo={initialPageNo}
           highlightAyah={highlightAyah ?? undefined}
@@ -485,6 +618,7 @@ export default function QuranReaderScreen() {
           trimBeforeSura={trimBeforeSura}
           disableAutoScroll={disableAutoScroll || !!trimBeforeSura}
           onPageChange={handlePageChange}
+          onToggleHeader={() => setHeaderVisible((v) => !v)}
         onVisiblePageChange={(pageNo, sura, name) => {
           if (DEBUG_QURAN_NAV) {
             console.log("[QuranReader][debug] onVisiblePageChange", { pageNo, sura, name });
@@ -508,9 +642,9 @@ export default function QuranReaderScreen() {
         }}
           openOptionsToken={optionsToken}
         />
-      ) : (
+      ) : !searchVisible ? (
         <View style={{ flex: 1 }} />
-      )}
+      ) : null}
 
       {indexVisible && Platform.OS === "web" ? (
         <View style={styles.webOverlay}>
@@ -556,11 +690,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFE8DD",
   },
   toolbar: {
-    height: 64,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     paddingHorizontal: 16,
+    paddingBottom: 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     backgroundColor: "#2F5B4F",
   },
   toolbarButton: {
@@ -577,6 +716,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   toolbarActions: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -597,6 +737,93 @@ const styles = StyleSheet.create({
     fontFamily: "CairoBold",
     fontSize: 18,
     color: "#E8F2EC",
+  },
+  searchBarRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  searchCancel: {
+    fontFamily: "Cairo",
+    fontSize: 15,
+    color: "#E8F2EC",
+  },
+  searchInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 40,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: "Cairo",
+    fontSize: 15,
+    color: "#333",
+    textAlign: "right",
+    writingDirection: "rtl",
+    paddingVertical: 0,
+  },
+  searchIcon: {
+    marginLeft: 6,
+  },
+  searchResultsOverlay: {
+    flex: 1,
+    backgroundColor: "#EFE8DD",
+  },
+  searchResultsHeader: {
+    fontFamily: "CairoBold",
+    fontSize: 17,
+    color: "#333",
+    textAlign: "center",
+    paddingVertical: 10,
+  },
+  searchResultCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchResultMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  searchResultPage: {
+    fontFamily: "Cairo",
+    fontSize: 14,
+    color: "#888",
+  },
+  searchResultSurah: {
+    fontFamily: "CairoBold",
+    fontSize: 14,
+    color: "#333",
+    textAlign: "right",
+  },
+  searchResultText: {
+    fontFamily: "KFGQPCUthmanicScript",
+    fontSize: 22,
+    color: "#2F5B4F",
+    textAlign: "right",
+    lineHeight: 38,
+    writingDirection: "rtl",
+  },
+  searchNoResults: {
+    fontFamily: "Cairo",
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 40,
   },
   webOverlay: {
     ...StyleSheet.absoluteFillObject,

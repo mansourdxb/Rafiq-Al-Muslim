@@ -1,8 +1,9 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -11,6 +12,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import Svg, {
+  Circle as SvgCircle,
+  Line,
+  Path,
+  Text as SvgText,
+  G,
+} from "react-native-svg";
 
 import CityPickerModal from "@/screens/qibla/components/CityPickerModal";
 import type { City } from "@/screens/qibla/services/preferences";
@@ -18,19 +26,245 @@ import { getSelectedCity, setSelectedCity } from "@/screens/qibla/services/prefe
 import { getCityFromGPS } from "@/screens/qibla/services/cityService";
 import { useDeviceHeading } from "@/src/hooks/useDeviceHeading";
 
-const COLORS = {
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  CONSTANTS
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+const KAABA_LAT = 21.4225;
+const KAABA_LON = 39.8262;
+
+const C = {
   primary: "#3D5A47",
   accent: "#C19B53",
-  backgroundLight: "#F3F5F4",
+  green: "#2E7D32",
+  bg: "#F5F6F5",
+  card: "#FFFFFF",
+  muted: "#8C8C8C",
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  SMOOTHING — timer-based polling, NOT reactive to every sensor update
+ *
+ *  The key insight: reacting to every sensor update (60/sec) causes jitter
+ *  even with filtering, because each React state change interrupts the
+ *  current animation. Instead, we:
+ *
+ *    1. Accumulate raw readings into a sin/cos low-pass filter (runs on
+ *       every sensor event via a ref, NO re-render).
+ *    2. A 500ms interval reads the filtered value and emits it — this is
+ *       the ONLY thing that triggers re-renders and new animations.
+ *    3. Dead zone: skip if change < 3°.
+ *    4. Animations run for 800ms — they fully complete before the next
+ *       update arrives (500ms interval + dead zone = very few updates).
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+function angleDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+/**
+ * Accumulates raw heading into a low-pass filter (via ref, no re-render).
+ * A 500ms timer polls the filtered value and emits it as state.
+ */
+function useStableHeading(rawDeg: number | null): number {
+  const ALPHA = 0.008;          // extremely heavy — ~125 readings to settle
+  const DEAD_ZONE = 3;          // ignore changes smaller than 3°
+  const POLL_MS = 500;          // only check every 500ms
+
+  // Filter state (refs — no re-renders)
+  const sinRef = useRef(0);
+  const cosRef = useRef(1);
+  const filteredRef = useRef(0);
+  const initRef = useRef(false);
+  const lastRawRef = useRef<number | null>(null);
+
+  // Output state (triggers re-render + animation)
+  const outputRef = useRef(0);
+  const [stable, setStable] = useState(0);
+
+  // Step 1: Feed every raw reading into the low-pass filter (NO re-render)
+  lastRawRef.current = rawDeg;
+  if (rawDeg != null) {
+    const rad = (rawDeg * Math.PI) / 180;
+    if (!initRef.current) {
+      sinRef.current = Math.sin(rad);
+      cosRef.current = Math.cos(rad);
+      filteredRef.current = rawDeg;
+      outputRef.current = rawDeg;
+      initRef.current = true;
+    } else {
+      sinRef.current += ALPHA * (Math.sin(rad) - sinRef.current);
+      cosRef.current += ALPHA * (Math.cos(rad) - cosRef.current);
+      let a = (Math.atan2(sinRef.current, cosRef.current) * 180) / Math.PI;
+      filteredRef.current = (a + 360) % 360;
+    }
+  }
+
+  // Step 2: Timer polls filtered value every 500ms
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!initRef.current) return;
+      const filtered = filteredRef.current;
+      const delta = Math.abs(angleDelta(outputRef.current, filtered));
+      if (delta < DEAD_ZONE) return; // nothing meaningful changed
+      outputRef.current = filtered;
+      setStable(filtered);
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  return stable;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  SVG COMPONENTS
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+/** Kaaba icon (simple cube) */
+function KaabaIcon({ size = 40 }: { size?: number }) {
+  const s = size;
+  return (
+    <Svg width={s} height={s} viewBox="0 0 40 40">
+      {/* Main cube face */}
+      <Path d="M8 12L20 6L32 12V32H8V12Z" fill="#6B6B6B" />
+      {/* Top face */}
+      <Path d="M8 12L20 6L32 12L20 18Z" fill="#888" />
+      {/* Side face */}
+      <Path d="M20 18L32 12V32L20 38Z" fill="#555" />
+      {/* Front face */}
+      <Path d="M8 12L20 18V38L8 32Z" fill="#6B6B6B" />
+      {/* Door */}
+      <Path d="M16 32V25H22V32" fill="none" stroke="#DDD" strokeWidth={0.8} />
+    </Svg>
+  );
+}
+
+/**
+ * Compass ring SVG — drawn once, rotated as a whole by the Animated wrapper.
+ * Includes: outer ring, tick marks, N/S/E/W labels, and the Qibla triangle.
+ */
+function CompassDial({
+  size,
+  qiblaBearing,
+}: {
+  size: number;
+  qiblaBearing: number | null;
+}) {
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = size / 2 - 6;
+  const tickOuter = outerR - 1;
+  const tickInnerMajor = tickOuter - 16;
+  const tickInnerMinor = tickOuter - 8;
+  const labelR = outerR - 32;
+
+  // Tick marks every 6°
+  const ticks: React.ReactElement[] = [];
+  for (let deg = 0; deg < 360; deg += 6) {
+    const isMajor = deg % 30 === 0;
+    const rad = ((deg - 90) * Math.PI) / 180;
+    const r1 = tickOuter;
+    const r2 = isMajor ? tickInnerMajor : tickInnerMinor;
+    ticks.push(
+      <Line
+        key={deg}
+        x1={cx + r1 * Math.cos(rad)}
+        y1={cy + r1 * Math.sin(rad)}
+        x2={cx + r2 * Math.cos(rad)}
+        y2={cy + r2 * Math.sin(rad)}
+        stroke={isMajor ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.15)"}
+        strokeWidth={isMajor ? 2.5 : 1}
+        strokeLinecap="round"
+      />
+    );
+  }
+
+  // Cardinal & intercardinal labels
+  const labels = [
+    { t: "N", deg: 0, bold: true, col: C.accent },
+    { t: "NE", deg: 45, bold: false, col: "rgba(0,0,0,0.3)" },
+    { t: "E", deg: 90, bold: true, col: "rgba(0,0,0,0.55)" },
+    { t: "SE", deg: 135, bold: false, col: "rgba(0,0,0,0.3)" },
+    { t: "S", deg: 180, bold: true, col: "rgba(0,0,0,0.55)" },
+    { t: "SW", deg: 225, bold: false, col: "rgba(0,0,0,0.3)" },
+    { t: "W", deg: 270, bold: true, col: "rgba(0,0,0,0.55)" },
+    { t: "NW", deg: 315, bold: false, col: "rgba(0,0,0,0.3)" },
+  ];
+
+  // Qibla triangle on the ring
+  const qiblaElements: React.ReactElement[] = [];
+  if (qiblaBearing != null) {
+    const qRad = ((qiblaBearing - 90) * Math.PI) / 180;
+    const triR = outerR + 4; // just outside the ring
+    const triCx = cx + triR * Math.cos(qRad);
+    const triCy = cy + triR * Math.sin(qRad);
+    // Triangle pointing inward toward center
+    const triSize = 10;
+    const inRad = qRad + Math.PI; // inward direction
+    const perpRad = inRad + Math.PI / 2;
+    const tipX = triCx + triSize * Math.cos(inRad);
+    const tipY = triCy + triSize * Math.sin(inRad);
+    const baseX1 = triCx + (triSize * 0.6) * Math.cos(perpRad);
+    const baseY1 = triCy + (triSize * 0.6) * Math.sin(perpRad);
+    const baseX2 = triCx - (triSize * 0.6) * Math.cos(perpRad);
+    const baseY2 = triCy - (triSize * 0.6) * Math.sin(perpRad);
+    qiblaElements.push(
+      <Path
+        key="qibla-tri"
+        d={`M${tipX} ${tipY} L${baseX1} ${baseY1} L${baseX2} ${baseY2} Z`}
+        fill="#333"
+      />
+    );
+  }
+
+  return (
+    <Svg width={size} height={size}>
+      {/* Outer ring */}
+      <SvgCircle
+        cx={cx}
+        cy={cy}
+        r={outerR}
+        fill="none"
+        stroke="rgba(0,0,0,0.08)"
+        strokeWidth={1}
+      />
+      {/* Ticks */}
+      {ticks}
+      {/* Labels */}
+      {labels.map((l) => {
+        const rad = ((l.deg - 90) * Math.PI) / 180;
+        return (
+          <SvgText
+            key={l.t}
+            x={cx + labelR * Math.cos(rad)}
+            y={cy + labelR * Math.sin(rad) + 1}
+            fill={l.col}
+            fontSize={l.bold ? 14 : 10}
+            fontWeight={l.bold ? "700" : "400"}
+            textAnchor="middle"
+            alignmentBaseline="central"
+          >
+            {l.t}
+          </SvgText>
+        );
+      })}
+      {/* Qibla triangle marker */}
+      {qiblaElements}
+      {/* Center dot */}
+      <SvgCircle cx={cx} cy={cy} r={6} fill={C.accent} />
+    </Svg>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  MAIN COMPONENT
+ * ═══════════════════════════════════════════════════════════════════════════*/
 
 export default function KaabaDirection() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-
-  const maxW = 430;
-  const contentWidth = Math.min(width, maxW);
+  const contentWidth = Math.min(width, 430);
   const headerPadTop = useMemo(() => insets.top + 8, [insets.top]);
 
   const [selectedCity, setSelectedCityState] = useState<City | null>(null);
@@ -38,20 +272,56 @@ export default function KaabaDirection() {
   const [loadingCity, setLoadingCity] = useState(false);
   const [cityLookupFailed, setCityLookupFailed] = useState(false);
   const [autoOpenedPickerOnWeb, setAutoOpenedPickerOnWeb] = useState(false);
-  const { headingDeg, accuracy, source } = useDeviceHeading();
   const hasLoadedRef = useRef(false);
   const cityVersionRef = useRef(0);
 
+  const { headingDeg, accuracy, source } = useDeviceHeading();
+
+  /* ── Stable heading (heavy smoothing + dead zone + throttle) ──────── */
+  const stableHeading = useStableHeading(headingDeg);
+
+  /* ── Animated compass rotation ────────────────────────────────────── */
+  const dialAnim = useRef(new Animated.Value(0)).current;
+  const contAngle = useRef(0);
+
+  useEffect(() => {
+    // Compass ring rotates by -heading so N points to real north
+    const target = -stableHeading;
+    const delta = angleDelta(-contAngle.current % 360, target);
+    contAngle.current += delta;
+
+    Animated.timing(dialAnim, {
+      toValue: contAngle.current,
+      duration: 800,          // slow, smooth — completes before next poll
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [stableHeading]);
+
+  const dialRotation = dialAnim.interpolate({
+    inputRange: [-36000, 36000],
+    outputRange: ["-36000deg", "36000deg"],
+  });
+
+  /* ── Qibla bearing ────────────────────────────────────────────────── */
+  const qiblaBearing = selectedCity
+    ? computeQiblaBearing(selectedCity.lat, selectedCity.lon)
+    : null;
+
+  // Is the qibla triangle near the top (within ±8°)?
+  const isOnQibla =
+    qiblaBearing != null && headingDeg != null
+      ? Math.abs(angleDelta(stableHeading, qiblaBearing)) < 8
+      : false;
+
+  /* ── City loading ─────────────────────────────────────────────────── */
   const loadCity = useCallback(async () => {
     setLoadingCity(true);
     setCityLookupFailed(false);
     const v = cityVersionRef.current;
-
     const savedCity = await getSelectedCity();
-    if (v !== cityVersionRef.current) {
-      setLoadingCity(false);
-      return;
-    }
+    if (v !== cityVersionRef.current) { setLoadingCity(false); return; }
+
     let cityToUse: City | null = null;
     if (savedCity) {
       if (savedCity.source === "manual" && savedCity.name?.trim()) {
@@ -64,10 +334,7 @@ export default function KaabaDirection() {
     if (!cityToUse && !selectedCity) {
       try {
         const gpsCity = await getCityFromGPS();
-        if (v !== cityVersionRef.current) {
-          setLoadingCity(false);
-          return;
-        }
+        if (v !== cityVersionRef.current) { setLoadingCity(false); return; }
         if (!isUnknownCityName(gpsCity.name)) {
           cityToUse = gpsCity;
           await setSelectedCity(gpsCity);
@@ -79,10 +346,7 @@ export default function KaabaDirection() {
           }
         }
       } catch {
-        if (v !== cityVersionRef.current) {
-          setLoadingCity(false);
-          return;
-        }
+        if (v !== cityVersionRef.current) { setLoadingCity(false); return; }
         setCityLookupFailed(true);
         if (Platform.OS === "web" && !autoOpenedPickerOnWeb) {
           setIsCityPickerOpen(true);
@@ -91,10 +355,7 @@ export default function KaabaDirection() {
       }
     }
 
-    if (v !== cityVersionRef.current) {
-      setLoadingCity(false);
-      return;
-    }
+    if (v !== cityVersionRef.current) { setLoadingCity(false); return; }
     setSelectedCityState(cityToUse);
     setLoadingCity(false);
   }, [autoOpenedPickerOnWeb, selectedCity]);
@@ -113,132 +374,107 @@ export default function KaabaDirection() {
     await setSelectedCity(city);
   };
 
+  /* ── Display values ──────────────────────────────────────────────── */
   const cityTitle = !selectedCity || isUnknownCityName(selectedCity.name)
     ? "--"
     : selectedCity.name;
+  const cityNameOnly = selectedCity?.name?.split(",")[0]?.trim() ?? "--";
 
-  const qiblaBearing = selectedCity
-    ? computeQiblaBearing(selectedCity.lat, selectedCity.lon)
-    : null;
-  const qiblaDegreeText =
-    qiblaBearing === null ? "--°" : `${Math.round(qiblaBearing)}°`;
-  const needleDeg =
-    qiblaBearing !== null
-      ? (qiblaBearing - (headingDeg ?? 0) + 360) % 360
-      : 0;
-
-  const bearingCardinal = qiblaBearing === null ? "--" : toCardinal(qiblaBearing);
+  const headingText =
+    headingDeg != null ? `${Math.round(stableHeading)}` : "--";
+  const qiblaText =
+    qiblaBearing != null ? `${Math.round(qiblaBearing)}` : "--";
   const distanceKm =
-    selectedCity ? haversineKm(selectedCity.lat, selectedCity.lon, 21.4225, 39.8262) : null;
+    selectedCity
+      ? haversineKm(selectedCity.lat, selectedCity.lon, KAABA_LAT, KAABA_LON)
+      : null;
 
-  const compassSize = Math.min(contentWidth - 40, 300);
-  const ringInset = 12;
-  const innerInset = 24;
-
-  const bgColor = COLORS.backgroundLight;
-  const cardColor = "#FFFFFF";
+  const compassSize = Math.min(contentWidth - 48, 320);
 
   return (
-    <View style={[styles.root, { backgroundColor: bgColor }]}>
-      <View style={[styles.blob, styles.blobLeft, { backgroundColor: "rgba(61,90,71,0.08)" }]} />
-      <View style={[styles.blob, styles.blobRight, { backgroundColor: "rgba(193,155,83,0.08)" }]} />
+    <View style={styles.root}>
+      {/* ─── Header ─── */}
+      <View style={[styles.header, { paddingTop: headerPadTop }]}>
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => {
+              if (navigation.canGoBack?.()) navigation.goBack();
+              else navigation.navigate("PrayerTimes");
+            }}
+            hitSlop={8}
+            style={styles.headerBtn}
+          >
+            <Ionicons name="chevron-back" size={18} color={C.primary} />
+          </Pressable>
+          <Text style={styles.headerTitle}>اتجاه القبلة</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </View>
 
-      <ScrollView
-        style={{ width: contentWidth }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.header, { paddingTop: headerPadTop }]}> 
-          <View style={styles.headerRow}>
-            <Pressable
-              onPress={() => {
-                if (navigation.canGoBack?.()) {
-                  navigation.goBack();
-                } else {
-                  navigation.navigate("PrayerTimes");
-                }
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.headerBtn}
-            >
-              <Ionicons name="chevron-back" size={18} color={COLORS.primary} />
-            </Pressable>
-            <Text style={styles.headerTitle}>اتجاه القبلة</Text>
-            <View style={styles.headerSpacer} />
-          </View>
+      <View style={styles.body}>
+        {/* ─── Fixed Kaaba at top ─── */}
+        <View style={styles.kaabaWrap}>
+          <KaabaIcon size={44} />
         </View>
 
-        <View style={styles.content}>
-          <View style={[styles.compassWrap, { width: compassSize, height: compassSize }]}> 
-            <View style={[styles.ringOuter, { borderColor: "rgba(61,90,71,0.2)" }]} />
-            <View style={[styles.ringInner, { borderColor: "rgba(61,90,71,0.12)" }]} />
+        {/* ─── Compass ─── */}
+        <View style={[styles.compassOuter, { width: compassSize, height: compassSize }]}>
+          {/* Rotating dial */}
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              { transform: [{ rotate: dialRotation }] },
+            ]}
+          >
+            <CompassDial size={compassSize} qiblaBearing={qiblaBearing} />
+          </Animated.View>
+        </View>
 
-            <Text style={[styles.cardinal, styles.cardinalN]}>N</Text>
-            <Text style={[styles.cardinal, styles.cardinalS]}>S</Text>
-            <Text style={[styles.cardinal, styles.cardinalE]}>E</Text>
-            <Text style={[styles.cardinal, styles.cardinalW]}>W</Text>
+        {/* ─── Heading degrees ─── */}
+        <Text style={styles.headingDeg}>{headingText}°</Text>
 
-            <View style={[styles.centerDisc, { backgroundColor: cardColor }]} />
+        {/* ─── Info text ─── */}
+        <Text style={styles.infoLine}>
+          اتجاه للقبلة التقريبي في موقعك
+        </Text>
+        <Text style={styles.infoCity}>
+          {loadingCity ? "..." : cityNameOnly} {qiblaText}°
+        </Text>
 
-            <View style={[styles.needleWrap, { transform: [{ rotate: `${needleDeg}deg` }] }]}> 
-              <View style={styles.kaabaMarker}>
-                <View style={styles.kaabaDot} />
-                <Text style={styles.kaabaText}>KAABA</Text>
-              </View>
-              <View style={styles.needleStemTop} />
-              <View style={styles.needleStemBottom} />
-              <View style={[styles.needleCenter, { borderColor: bgColor }]} />
-            </View>
+        {/* ─── On-Qibla badge ─── */}
+        {isOnQibla && (
+          <View style={styles.onQiblaBadge}>
+            <Ionicons name="checkmark-circle" size={16} color={C.green} />
+            <Text style={styles.onQiblaText}>أنت تواجه القبلة</Text>
           </View>
+        )}
 
-          {headingDeg === null && Platform.OS === "web" ? (
-            <Text style={styles.webHint}>Compass sensor not available on web. Use phone for live compass.</Text>
-          ) : null}
-
-          <View style={[styles.infoCard, { backgroundColor: cardColor }]}> 
-            <View style={styles.infoTopRow}>
-              <View>
-                <Text style={styles.infoLabel}>المدينة الحالية</Text>
-                <Text style={styles.infoCity}>{loadingCity ? "..." : cityTitle}</Text>
-              </View>
-              <Pressable
-                onPress={loadCity}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.refreshBtn}
-              >
-                <Ionicons name="locate" size={18} color={COLORS.primary} />
-              </Pressable>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.infoGrid}>
-              <View style={styles.infoCol}>
-                <Text style={styles.infoSmall}>الزاوية</Text>
-                <Text style={styles.infoValue}>
-                  {qiblaDegreeText} <Text style={styles.infoSub}>{bearingCardinal}</Text>
-                </Text>
-              </View>
-              <View style={styles.infoCol}>
-                <Text style={styles.infoSmall}>المسافة</Text>
-                <Text style={styles.infoValue}>
-                  {distanceKm === null ? "--" : distanceKm.toFixed(1)} <Text style={styles.infoSub}>كم</Text>
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.instruction}>
-            يرجى وضع الهاتف بشكل مسطح وبعيداً عن الأجسام المغناطيسية للحصول على أدق النتائج.
+        {/* ─── Distance ─── */}
+        {distanceKm != null && (
+          <Text style={styles.distance}>
+            المسافة: {distanceKm.toFixed(1)} كم
           </Text>
+        )}
 
-          {__DEV__ ? (
-            <Text style={styles.debugText}>
-              {`Heading: ${headingDeg == null ? "--" : Math.round(headingDeg)}° (${source}) acc: ${accuracy ?? "--"}`}
-            </Text>
-          ) : null}
-        </View>
-      </ScrollView>
+        {headingDeg === null && Platform.OS === "web" ? (
+          <Text style={styles.hint}>
+            Compass sensor not available on web.
+          </Text>
+        ) : null}
+
+        <Text style={styles.instruction}>
+          يرجى وضع الهاتف بشكل مسطح وبعيداً عن الأجسام المغناطيسية
+        </Text>
+
+        {/* City change button */}
+        <Pressable
+          onPress={() => setIsCityPickerOpen(true)}
+          style={styles.changeCityBtn}
+        >
+          <Ionicons name="locate" size={16} color={C.primary} />
+          <Text style={styles.changeCityText}>تغيير المدينة</Text>
+        </Pressable>
+      </View>
 
       <CityPickerModal
         visible={isCityPickerOpen}
@@ -249,19 +485,19 @@ export default function KaabaDirection() {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  GEO MATH
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
 function computeQiblaBearing(lat: number, lon: number): number {
-  const kaabaLat = 21.4225;
-  const kaabaLon = 39.8262;
   const phi1 = toRad(lat);
-  const phi2 = toRad(kaabaLat);
-  const deltaLon = toRad(kaabaLon - lon);
-  const y = Math.sin(deltaLon) * Math.cos(phi2);
+  const phi2 = toRad(KAABA_LAT);
+  const dLon = toRad(KAABA_LON - lon);
+  const y = Math.sin(dLon) * Math.cos(phi2);
   const x =
     Math.cos(phi1) * Math.sin(phi2) -
-    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLon);
-  let bearing = toDeg(Math.atan2(y, x));
-  bearing = (bearing + 360) % 360;
-  return bearing;
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -269,58 +505,33 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function toCardinal(deg: number) {
-  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"];
-  const idx = Math.round(((deg % 360) / 45));
-  return dirs[idx] ?? "N";
-}
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180;
-}
-
-function toDeg(rad: number): number {
-  return (rad * 180) / Math.PI;
-}
+function toRad(d: number) { return (d * Math.PI) / 180; }
+function toDeg(r: number) { return (r * 180) / Math.PI; }
 
 function isUnknownCityName(name?: string | null): boolean {
   if (!name) return true;
-  const trimmed = name.trim().toLowerCase();
-  if (trimmed === "" || trimmed === "unknown") return true;
-  return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(trimmed);
+  const t = name.trim().toLowerCase();
+  if (t === "" || t === "unknown") return true;
+  return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(t);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  STYLES
+ * ═══════════════════════════════════════════════════════════════════════════*/
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-  },
-  blob: {
-    position: "absolute",
-    borderRadius: 999,
-    opacity: 1,
-  },
-  blobLeft: {
-    width: 240,
-    height: 200,
-    top: -80,
-    left: -80,
-  },
-  blobRight: {
-    width: 240,
-    height: 200,
-    bottom: -80,
-    right: -80,
+    backgroundColor: C.bg,
   },
   header: {
     width: "100%",
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   headerRow: {
     flexDirection: "row",
@@ -331,7 +542,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "CairoBold",
     fontSize: 18,
-    color: COLORS.primary,
+    color: C.primary,
   },
   headerBtn: {
     width: 36,
@@ -341,192 +552,107 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.6)",
     borderWidth: 1,
-    borderColor: "rgba(61,90,71,0.2)",
+    borderColor: "rgba(61,90,71,0.15)",
   },
-  headerSpacer: {
-    width: 36,
-  },
-  content: {
+  headerSpacer: { width: 36 },
+
+  body: {
+    flex: 1,
     alignItems: "center",
-    paddingHorizontal: 18,
-    paddingTop: 8,
+    paddingHorizontal: 24,
   },
-  compassWrap: {
+
+  /* Kaaba fixed at top */
+  kaabaWrap: {
+    marginTop: 16,
+    marginBottom: 16,
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
   },
-  ringOuter: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 999,
-    borderWidth: 2,
-  },
-  ringInner: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 999,
-    borderWidth: 1,
-    transform: [{ scale: 0.86 }],
-  },
-  centerDisc: {
-    width: "70%",
-    height: "70%",
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  cardinal: {
-    position: "absolute",
-    fontFamily: "CairoBold",
-    fontSize: 12,
-    color: COLORS.primary,
-  },
-  cardinalN: {
-    top: 6,
-    color: COLORS.accent,
-  },
-  cardinalS: {
-    bottom: 6,
-  },
-  cardinalE: {
-    right: 6,
-  },
-  cardinalW: {
-    left: 6,
-  },
-  needleWrap: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
+
+  /* Compass */
+  compassOuter: {
     alignItems: "center",
     justifyContent: "center",
   },
-  needleStemTop: {
-    width: 4,
-    height: "32%",
-    backgroundColor: "#C13C3C",
-    borderRadius: 2,
-    marginBottom: 6,
-  },
-  needleStemBottom: {
-    width: 4,
-    height: "22%",
-    backgroundColor: "rgba(61,90,71,0.25)",
-    borderRadius: 2,
-  },
-  needleCenter: {
-    position: "absolute",
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: COLORS.accent,
-    borderWidth: 2,
-  },
-  kaabaMarker: {
-    position: "absolute",
-    top: 12,
-    alignItems: "center",
-  },
-  kaabaDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.accent,
-    marginBottom: 4,
-  },
-  kaabaText: {
+
+  /* Heading degrees (big text below compass) */
+  headingDeg: {
     fontFamily: "CairoBold",
-    fontSize: 10,
-    color: COLORS.accent,
-    letterSpacing: 1,
+    fontSize: 48,
+    color: "#222",
+    marginTop: 24,
+    letterSpacing: -1,
   },
-  infoCard: {
-    width: "100%",
-    borderRadius: 24,
-    padding: 16,
-    marginTop: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
-  infoTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  infoLabel: {
+
+  /* Info line */
+  infoLine: {
     fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#7C7C7C",
+    fontSize: 13,
+    color: C.muted,
+    marginTop: 8,
+    textAlign: "center",
   },
   infoCity: {
     fontFamily: "CairoBold",
-    fontSize: 16,
-    color: COLORS.primary,
+    fontSize: 15,
+    color: "#444",
+    marginTop: 2,
+    textAlign: "center",
   },
-  refreshBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(61,90,71,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "rgba(61,90,71,0.1)",
-    marginVertical: 12,
-  },
-  infoGrid: {
+
+  /* On-qibla badge */
+  onQiblaBadge: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "rgba(46,125,50,0.1)",
   },
-  infoCol: {
-    flex: 1,
-    alignItems: "flex-start",
-  },
-  infoSmall: {
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#7C7C7C",
-  },
-  infoValue: {
+  onQiblaText: {
     fontFamily: "CairoBold",
-    fontSize: 18,
-    color: COLORS.primary,
+    fontSize: 14,
+    color: C.green,
   },
-  infoSub: {
+
+  distance: {
+    fontFamily: "Cairo",
+    fontSize: 13,
+    color: C.muted,
+    marginTop: 10,
+  },
+
+  hint: {
     fontFamily: "Cairo",
     fontSize: 12,
-    color: "#9AA2A9",
+    color: C.muted,
+    marginTop: 10,
+    textAlign: "center",
   },
   instruction: {
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#AAA",
     marginTop: 16,
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#8C8C8C",
     textAlign: "center",
-    paddingHorizontal: 24,
+    lineHeight: 20,
   },
-  webHint: {
-    marginTop: 10,
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#8C8C8C",
-    textAlign: "center",
+
+  changeCityBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(61,90,71,0.08)",
   },
-  debugText: {
-    marginTop: 6,
-    fontFamily: "Cairo",
-    fontSize: 12,
-    color: "#7B7F86",
+  changeCityText: {
+    fontFamily: "CairoBold",
+    fontSize: 13,
+    color: C.primary,
   },
 });

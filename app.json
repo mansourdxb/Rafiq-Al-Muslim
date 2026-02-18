@@ -2,15 +2,15 @@
   "expo": {
     "splash": {
       "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#0891b2"
     },
     "name": "رفيق المسلم",
-    "slug": "tasbih",
+    "slug": "rafiq-al-muslim",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "tasbih",
+    "scheme": "rafiq-al-muslim",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -23,7 +23,12 @@
         "NSLocationWhenInUseUsageDescription": "We use your location to show Qibla direction and prayer times for your city.",
         "NSLocationAlwaysUsageDescription": "We use your location to show Qibla direction and prayer times for your city.",
         "CFBundleDisplayName": "رفيق المسلم",
-        "NSUserNotificationsUsageDescription": "We use notifications to remind you of prayer times."
+        "NSUserNotificationsUsageDescription": "We use notifications to remind you of prayer times.",
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps"
+        ],
+        "NSPhotoLibraryUsageDescription": "نحتاج إلى إذن الوصول للمعرض لحفظ صور الآيات.",
+        "NSPhotoLibraryAddUsageDescription": "نحتاج إلى إذن الحفظ لحفظ صور الآيات في المعرض."
       }
     },
     "android": {
@@ -37,7 +42,9 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -57,8 +64,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
+          "resizeMode": "cover",
           "backgroundColor": "#0891b2",
           "dark": {
             "image": "./assets/images/splash.png",
@@ -76,6 +82,13 @@
           "entitlementsProfile": "production",
           "forceCxx20": true,
           "enableOpenCL": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "نحتاج إلى إذن الوصول للمعرض لحفظ صور الآيات.",
+          "savePhotosPermission": "نحتاج إلى إذن الحفظ لحفظ صور الآيات في المعرض."
         }
       ]
     ],

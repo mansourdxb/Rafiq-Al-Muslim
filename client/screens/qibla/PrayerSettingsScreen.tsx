@@ -322,7 +322,7 @@ export default function PrayerSettingsScreen() {
                 const sounds = await getAthanSounds();
                 const soundId = sounds.perPrayerSound.fajr ?? "makkah";
                 await playPreview(soundId);
-                await scheduleTestNotification();
+                await scheduleTestNotification({ cityName: city?.name });
                 Alert.alert("تم", "سيظهر إشعار خلال 5 ثوانٍ");
               } catch (e) {
                 console.log("TEST NOTIF ERROR:", e);

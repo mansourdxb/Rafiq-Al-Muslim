@@ -1,25 +1,24 @@
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useMemo, useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   useWindowDimensions,
-  Platform,
   Alert,
   ToastAndroid,
   Share,
   Pressable,
+  Platform,
+  ActionSheetIOS,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 
-import { useTheme } from "@/context/ThemeContext";
-import { typography } from "@/theme/typography";
+import HadithImageCard, { shareHadithImage, saveHadithImage } from "@/ui/hadith/HadithImageCard";
 import chapters from "@/data/the_9_books/malik/chapters";
 import type { LibraryStackParamList } from "@/navigation/LibraryStackNavigator";
 import {
@@ -32,44 +31,33 @@ import {
   type FavoriteItemsMap,
 } from "@/utils/hadithFavorites";
 
-type RouteProps = {
-  key: string;
-  name: "MalikChapter";
-  params: LibraryStackParamList["MalikChapter"];
-};
+const HEADER_BG = "#1B4332";
+const PAGE_BG = "#F3EEE4";
+const CARD_BG = "#FFFFFF";
+const PRIMARY = "#1C1714";
+const SECONDARY = "#968C80";
+const GREEN = "#2D7A4E";
+const GOLD = "#B38B2D";
 
+type RouteProps = { key: string; name: "MalikChapter"; params: LibraryStackParamList["MalikChapter"] };
 type ChapterData = {
-  metadata?: {
-    arabic?: { title?: string; author?: string; introduction?: string };
-  };
-  chapter?: {
-    arabic?: string;
-  };
-  hadiths?: {
-    id?: number;
-    idInBook?: number;
-    arabic?: string;
-  }[];
+  metadata?: { arabic?: { title?: string; author?: string; introduction?: string } };
+  chapter?: { arabic?: string };
+  hadiths?: { id?: number; idInBook?: number; arabic?: string }[];
 };
 
-function normalizeArabic(text: string) {
-  return text.replace(/["']/g, "").trim();
-}
+function normalizeArabic(text: string) { return text.replace(/["']/g, "").trim(); }
+function showToast(msg: string) { Platform.OS === "android" ? ToastAndroid.show(msg, ToastAndroid.SHORT) : Alert.alert("", msg); }
 
-function showToast(message: string) {
-  if (Platform.OS === "android") {
-    ToastAndroid.show(message, ToastAndroid.SHORT);
-  } else {
-    Alert.alert("", message);
-  }
-}
+const bookId = "malik";
 
 export default function MalikChapterScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { width } = useWindowDimensions();
-  const { colors, isDarkMode } = useTheme();
+  const navigation = useNavigation();
   const route = useRoute<RouteProps>();
+  const contentWidth = Math.min(width, 430);
 
   const [favorites, setFavorites] = useState<FavoritesMap>({});
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItemsMap>({});
@@ -79,304 +67,210 @@ export default function MalikChapterScreen() {
     loadFavoriteItems().then(setFavoriteItems).catch(() => setFavoriteItems({}));
   }, []);
 
-  const maxW = 430;
-  const contentWidth = Math.min(width, maxW);
-
   const chapterId = route.params?.chapterId;
   const highlightId = route.params?.highlightId;
   const chapter = (chapters as any)[chapterId] as ChapterData | undefined;
-
   const metadataTitle = chapter?.metadata?.arabic?.title || "";
   const metadataAuthor = chapter?.metadata?.arabic?.author || "";
-  const metadataIntro = chapter?.metadata?.arabic?.introduction || "";
-  const chapterTitle = chapter?.chapter?.arabic || metadataIntro || "";
-
-  const headerGradientColors = colors.headerGradient as [string, string, ...string[]];
-  const pageBackground = colors.background;
-  const sheetBackground = isDarkMode ? "#0D0F12" : "#F3F5F8";
-  const cardOuterBackground = "#FFFFFF";
-  const labelColor = "#1E8B5A";
-  const valueColor = "#B38B2D";
-  const actionBg = "rgba(0,0,0,0.06)";
-  const iconColor = "#111418";
-
-  const bookId = "malik";
-
+  const chapterTitle = chapter?.chapter?.arabic || chapter?.metadata?.arabic?.introduction || "";
   const data = useMemo(() => chapter?.hadiths || [], [chapter]);
 
-  const onToggleFavorite = async (
-    favId: string,
-    payload: {
-      bookTitle: string;
-      chapterTitle: string;
-      arabicText: string;
-      idInBook: number | string | undefined;
+  const flatListRef = useRef<FlatList>(null);
+  const hasScrolled = useRef(false);
+
+  const highlightIndex = useMemo(() => {
+    if (highlightId == null) return -1;
+    return data.findIndex((h) => String(h.idInBook ?? h.id) === String(highlightId));
+  }, [data, highlightId]);
+
+  // Render all items when navigating from search so scrollToIndex works
+  const needsScroll = highlightIndex > 0;
+
+  const handleContentSizeChange = useCallback(() => {
+    if (needsScroll && !hasScrolled.current && flatListRef.current) {
+      hasScrolled.current = true;
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: highlightIndex,
+          animated: false,
+          viewPosition: 0,
+        });
+      }, 50);
     }
-  ) => {
-    const next = { ...favorites };
-    const nextItems = { ...favoriteItems };
+  }, [needsScroll, highlightIndex]);
+
+  const onToggleFavorite = async (favId: string, payload: { bookTitle: string; chapterTitle: string; arabicText: string; idInBook: number | string | undefined }) => {
+    const next = { ...favorites }; const nextItems = { ...favoriteItems };
     if (next[favId]) {
-      delete next[favId];
-      delete nextItems[favId];
-      setFavorites(next);
-      setFavoriteItems(nextItems);
-      await saveFavorites(next);
-      await saveFavoriteItems(nextItems);
-      showToast("تمت الإزالة");
+      delete next[favId]; delete nextItems[favId];
+      setFavorites(next); setFavoriteItems(nextItems);
+      await saveFavorites(next); await saveFavoriteItems(nextItems);
+      showToast("\u062a\u0645\u062a \u0627\u0644\u0625\u0632\u0627\u0644\u0629");
     } else {
       next[favId] = true;
-      nextItems[favId] = {
-        bookId,
-        chapterId,
-        idInBook: payload.idInBook,
-        bookTitle: payload.bookTitle,
-        chapterTitle: payload.chapterTitle,
-        arabicText: payload.arabicText,
-        savedAt: Date.now(),
-      };
-      setFavorites(next);
-      setFavoriteItems(nextItems);
-      await saveFavorites(next);
-      await saveFavoriteItems(nextItems);
-      showToast("تم الحفظ");
+      nextItems[favId] = { bookId, chapterId, idInBook: payload.idInBook, bookTitle: payload.bookTitle, chapterTitle: payload.chapterTitle, arabicText: payload.arabicText, savedAt: Date.now() };
+      setFavorites(next); setFavoriteItems(nextItems);
+      await saveFavorites(next); await saveFavoriteItems(nextItems);
+      showToast("\u062a\u0645 \u0627\u0644\u062d\u0641\u0638");
     }
   };
 
-  const onCopy = async (text: string) => {
-    await Clipboard.setStringAsync(text);
-    showToast("تم النسخ");
-  };
+  const onCopy = async (text: string) => { await Clipboard.setStringAsync(text); showToast("\u062a\u0645 \u0627\u0644\u0646\u0633\u062e"); };
+  const onShareText = async (text: string) => { await Share.share({ message: text }); };
 
-  const onShare = async (text: string) => {
-    await Share.share({ message: text });
-  };
+  const buildShareText = (hadithId: number | string, cleaned: string) =>
+    `${cleaned}\n\n\u0627\u0644\u0645\u0635\u062f\u0631: ${metadataTitle}\n\u0627\u0644\u0645\u0624\u0644\u0641: ${metadataAuthor}\n\u0627\u0644\u0643\u062a\u0627\u0628: ${chapterTitle}\n\u0631\u0642\u0645 \u0627\u0644\u062d\u062f\u064a\u062b: ${hadithId}\n\n\u0628\u0648\u0627\u0633\u0637\u0629 \u062a\u0637\u0628\u064a\u0642 \u0631\u0641\u064a\u0642 \u0627\u0644\u0645\u0633\u0644\u0645\nhttps://rafiqapp.me`;
+
+  // ── Image share ──
+  const hadithImageRef = useRef<View>(null);
+  const [imageData, setImageData] = useState({ hadithText: "", hadithNumber: "" as string | number, source: "", author: "", chapter: "" });
+
+  const showShareMenu = useCallback((hadithId: number | string, cleaned: string, shareText: string) => {
+    const options = ["\u0645\u0634\u0627\u0631\u0643\u0629 \u0643\u0646\u0635", "\u0645\u0634\u0627\u0631\u0643\u0629 \u0643\u0635\u0648\u0631\u0629", "\u062d\u0641\u0638 \u0627\u0644\u0635\u0648\u0631\u0629", "\u0625\u0644\u063a\u0627\u0621"];
+    // مشاركة كنص، مشاركة كصورة، حفظ الصورة، إلغاء
+
+    const handleAction = (index: number) => {
+      if (index === 0) {
+        onShareText(shareText);
+      } else if (index === 1) {
+        setImageData({ hadithText: cleaned, hadithNumber: hadithId, source: metadataTitle, author: metadataAuthor, chapter: chapterTitle });
+        setTimeout(() => shareHadithImage(hadithImageRef), 100);
+      } else if (index === 2) {
+        setImageData({ hadithText: cleaned, hadithNumber: hadithId, source: metadataTitle, author: metadataAuthor, chapter: chapterTitle });
+        setTimeout(() => saveHadithImage(hadithImageRef), 100);
+      }
+    };
+
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: 3, title: "\u0645\u0634\u0627\u0631\u0643\u0629 \u0627\u0644\u062d\u062f\u064a\u062b" },
+        handleAction
+      );
+    } else {
+      Alert.alert("\u0645\u0634\u0627\u0631\u0643\u0629 \u0627\u0644\u062d\u062f\u064a\u062b", "", [
+        { text: "\u0645\u0634\u0627\u0631\u0643\u0629 \u0643\u0646\u0635", onPress: () => handleAction(0) },
+        { text: "\u0645\u0634\u0627\u0631\u0643\u0629 \u0643\u0635\u0648\u0631\u0629", onPress: () => handleAction(1) },
+        { text: "\u062d\u0641\u0638 \u0627\u0644\u0635\u0648\u0631\u0629", onPress: () => handleAction(2) },
+        { text: "\u0625\u0644\u063a\u0627\u0621", style: "cancel" },
+      ]);
+    }
+  }, [metadataTitle, metadataAuthor, chapterTitle]);
 
   return (
-    <View style={[styles.root, { backgroundColor: pageBackground }]}>
-      <LinearGradient
-        colors={headerGradientColors}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-      >
-        <View style={[styles.headerInner, { width: contentWidth }]}>
-          <Text style={styles.headerTitle} numberOfLines={2}>
-            {chapterTitle}
-          </Text>
+    <View style={styles.root}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
+          </Pressable>
+          <Text style={styles.headerTitle} numberOfLines={2}>{chapterTitle}</Text>
+          <View style={{ width: 36 }} />
         </View>
-      </LinearGradient>
+      </View>
 
       <FlatList
+        ref={flatListRef}
         data={data}
-        keyExtractor={(item, index) => `${item.idInBook ?? item.id ?? index}`}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: tabBarHeight + 24, backgroundColor: sheetBackground },
-        ]}
+        keyExtractor={(item, i) => `${item.idInBook ?? item.id ?? i}`}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 24, paddingHorizontal: 14, paddingTop: 14 }}
+        style={{ width: contentWidth, alignSelf: "center" }}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={needsScroll ? data.length : 10}
+        maxToRenderPerBatch={needsScroll ? data.length : 10}
+        windowSize={needsScroll ? 21 : 5}
+        onContentSizeChange={handleContentSizeChange}
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+          }, 100);
+        }}
         renderItem={({ item, index }) => {
           const hadithId = item.idInBook ?? item.id ?? index;
           const favId = getFavoriteId(bookId, chapterId, hadithId);
           const isFav = !!favorites[favId];
-          const cleanedText = normalizeArabic(item.arabic || "");
-          const shareText = `حديث رقم ${hadithId}
-${cleanedText}`;
+          const cleaned = normalizeArabic(item.arabic || "");
+          const shareText = buildShareText(hadithId, cleaned);
 
           return (
-            <View style={styles.cardOuter}>
-              <View
-                style={[
-                  styles.cardInner,
-                  { backgroundColor: cardOuterBackground },
-                  hadithId === highlightId ? styles.highlightCard : null,
-                ]}
-              >
-                <View style={styles.cardHeaderRow}>
-                  <Pressable
-                    onPress={() =>
-                      onToggleFavorite(favId, {
-                        bookTitle: metadataTitle,
-                        chapterTitle,
-                        arabicText: cleanedText,
-                        idInBook: hadithId,
-                      })
-                    }
-                    style={styles.bookmarkButton}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  >
-                    <Ionicons
-                      name={isFav ? "bookmark" : "bookmark-outline"}
-                      size={18}
-                      color={iconColor}
-                    />
-                  </Pressable>
-                  <Text style={styles.hadithNumber}>
-                    {`رقم ${hadithId}`}
-                  </Text>
-                </View>
-                <Text style={styles.hadithText}>{cleanedText}</Text>
+            <View style={[styles.card, highlightIndex === index && styles.cardHighlight]}>
+              {/* Top row: number (right) + bookmark (left) */}
+              <View style={styles.cardTop}>
+                <Pressable onPress={() => onToggleFavorite(favId, { bookTitle: metadataTitle, chapterTitle, arabicText: cleaned, idInBook: hadithId })} hitSlop={10} style={styles.actionBtn}>
+                  <Ionicons name={isFav ? "bookmark" : "bookmark-outline"} size={20} color={isFav ? GREEN : SECONDARY} />
+                </Pressable>
+                <Text style={styles.numLabel}>{"\u0631\u0642\u0645 "}{hadithId}</Text>
+              </View>
 
-                <View style={styles.metaBox}>
-                  <Text style={styles.metaLine}>
-                    <Text style={[styles.metaLabel, { color: labelColor }]}>
-                      {"المصدر: "}
-                    </Text>
-                    <Text style={[styles.metaValue, { color: valueColor }]}>
-                      {metadataTitle}
-                    </Text>
-                  </Text>
-                  <Text style={styles.metaLine}>
-                    <Text style={[styles.metaLabel, { color: labelColor }]}>
-                      {"المؤلف: "}
-                    </Text>
-                    <Text style={[styles.metaValue, { color: valueColor }]}>
-                      {metadataAuthor}
-                    </Text>
-                  </Text>
-                  <Text style={styles.metaLine}>
-                    <Text style={[styles.metaLabel, { color: labelColor }]}>
-                      {"الكتاب: "}
-                    </Text>
-                    <Text style={[styles.metaValue, { color: valueColor }]}>
-                      {chapterTitle}
-                    </Text>
-                  </Text>
-                  <Text style={styles.metaLine}>
-                    <Text style={[styles.metaLabel, { color: labelColor }]}>
-                      {"رقم الحديث: "}
-                    </Text>
-                    <Text style={[styles.metaValue, { color: valueColor }]}>
-                      {String(hadithId)}
-                    </Text>
-                  </Text>
-                </View>
+              {/* Hadith text */}
+              <Text style={styles.hadithText}>{cleaned}</Text>
 
-                <View style={styles.actionRow}>
-                  <Pressable
-                    onPress={() => onCopy(shareText)}
-                    style={[styles.actionButton, { backgroundColor: actionBg }]}
-                  >
-                    <Ionicons name="copy-outline" size={16} color={iconColor} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => onShare(shareText)}
-                    style={[styles.actionButton, { backgroundColor: actionBg }]}
-                  >
-                    <Ionicons name="share-social-outline" size={16} color={iconColor} />
-                  </Pressable>
-                </View>
+              {/* Meta */}
+              <View style={styles.metaBox}>
+                <Text style={styles.metaLine}>
+                  <Text style={styles.metaLabel}>{"\u0627\u0644\u0645\u0635\u062f\u0631: "}</Text>
+                  <Text style={styles.metaValue}>{metadataTitle}</Text>
+                </Text>
+                <Text style={styles.metaLine}>
+                  <Text style={styles.metaLabel}>{"\u0627\u0644\u0645\u0624\u0644\u0641: "}</Text>
+                  <Text style={styles.metaValue}>{metadataAuthor}</Text>
+                </Text>
+                <Text style={styles.metaLine}>
+                  <Text style={styles.metaLabel}>{"\u0627\u0644\u0643\u062a\u0627\u0628: "}</Text>
+                  <Text style={styles.metaValue}>{chapterTitle}</Text>
+                </Text>
+                <Text style={styles.metaLine}>
+                  <Text style={styles.metaLabel}>{"\u0631\u0642\u0645 \u0627\u0644\u062d\u062f\u064a\u062b: "}</Text>
+                  <Text style={styles.metaValue}>{String(hadithId)}</Text>
+                </Text>
+              </View>
+
+              {/* Share/Copy at bottom */}
+              <View style={styles.cardActions}>
+                <Pressable onPress={() => showShareMenu(hadithId, cleaned, shareText)} hitSlop={10} style={styles.actionBtn}>
+                  <Ionicons name="share-social-outline" size={16} color={SECONDARY} />
+                </Pressable>
+                <Pressable onPress={() => onCopy(shareText)} hitSlop={10} style={styles.actionBtn}>
+                  <Ionicons name="copy-outline" size={16} color={SECONDARY} />
+                </Pressable>
               </View>
             </View>
           );
         }}
-        style={{ width: contentWidth }}
-        showsVerticalScrollIndicator={false}
+      />
+
+      {/* Hidden card for image capture */}
+      <HadithImageCard
+        ref={hadithImageRef}
+        hadithText={imageData.hadithText}
+        hadithNumber={imageData.hadithNumber}
+        source={imageData.source}
+        author={imageData.author}
+        chapter={imageData.chapter}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    alignItems: "center",
-  },
-  header: {
-    width: "100%",
-    paddingBottom: 16,
-    alignItems: "center",
-  },
-  headerInner: {
-    paddingHorizontal: 14,
-    alignItems: "center",
-  },
-  headerTitle: {
-    ...typography.screenTitle,
-    color: "#FFFFFF",
-    fontSize: 26,
-    fontWeight: "900",
-    textAlign: "center",
-    marginBottom: 8,
-    writingDirection: "rtl",
-    fontFamily: "CairoBold",
-  },
-  listContent: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingTop: 16,
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  cardOuter: {
-    borderRadius: 22,
-    padding: 8,
-    ...(Platform.OS === "web"
-      ? ({ boxShadow: "0 10px 24px rgba(0,0,0,0.10)" } as any)
-      : null),
-  },
-  cardInner: {
-    borderRadius: 16,
-    padding: 14,
-  },
-  cardHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    marginBottom: 8,
-  },
-  bookmarkButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.06)",
-  },
-  hadithNumber: {
-    ...typography.numberText,
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#111418",
-    writingDirection: "rtl",
-    textAlign: "right",
-  },
-  hadithText: {
-    ...typography.hadithBody,
-    fontSize: 18,
-    lineHeight: 30,
-    color: "#111418",
-    writingDirection: "rtl",
-    textAlign: "right",
-  },
-  metaBox: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.08)",
-  },
-  metaLine: {
-    marginBottom: 4,
-    textAlign: "right",
-    writingDirection: "rtl",
-  },
-  metaLabel: {
-    ...typography.metaLabel,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  metaValue: {
-    ...typography.metaValue,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  actionRow: {
-    marginTop: 10,
-    flexDirection: "row-reverse",
-    gap: 8,
-  },
-  actionButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  root: { flex: 1, backgroundColor: PAGE_BG },
+  header: { backgroundColor: HEADER_BG, paddingBottom: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontFamily: "CairoBold", fontSize: 18, color: "#FFF", textAlign: "center", flex: 1, writingDirection: "rtl", lineHeight: 28 },
+
+  card: { backgroundColor: CARD_BG, borderRadius: 16, padding: 16, marginBottom: 12 },
+  cardHighlight: { borderWidth: 2, borderColor: GREEN },
+
+  cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  numLabel: { fontFamily: "CairoBold", fontSize: 15, color: PRIMARY, textAlign: "right" },
+  cardActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 10 },
+  actionBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#F5F1E8", alignItems: "center", justifyContent: "center" },
+
+  hadithText: { fontFamily: "Cairo", fontSize: 17, lineHeight: 32, color: PRIMARY, textAlign: "right", writingDirection: "rtl" },
+
+  metaBox: { marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E5E0D6", gap: 4 },
+  metaLine: { textAlign: "right", writingDirection: "rtl", fontSize: 13 },
+  metaLabel: { fontFamily: "CairoBold", fontSize: 13, color: GREEN },
+  metaValue: { fontFamily: "Cairo", fontSize: 13, color: GOLD },
 });

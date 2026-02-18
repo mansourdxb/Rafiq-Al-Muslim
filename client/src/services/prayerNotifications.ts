@@ -17,11 +17,14 @@ const PRAYER_AR: Record<PrayerKey, string> = {
 
 export async function initPrayerNotifications(): Promise<boolean> {
   if (Platform.OS === "web") return false;
+
+  // Set handler to show notifications even when app is in foreground
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
-      shouldSetBadge: false,
+      shouldSetBadge: true,
     }),
   });
 
@@ -67,7 +70,7 @@ export async function schedulePrayerNotifications(params: {
   tz?: string | null;
 }): Promise<void> {
   if (Platform.OS === "web") return;
-  const { prayerTimes, cityName } = params;
+  const { prayerTimes, cityName, tz } = params;
   await cancelAllPrayerNotifications();
 
   const now = new Date();
@@ -82,22 +85,33 @@ export async function schedulePrayerNotifications(params: {
   ];
 
   for (const [key, time] of entries) {
-    const fireDate = new Date(time.getTime());
-    if (fireDate.getTime() <= now.getTime() + 5000) {
+    // Use the exact time from prayer times calculation
+    let fireDate = new Date(time);
+
+    // If prayer time has passed today, schedule for tomorrow
+    if (fireDate.getTime() <= now.getTime()) {
       fireDate.setDate(fireDate.getDate() + 1);
     }
 
+    // Extract hour and minute for daily repeat
+    const hour = fireDate.getHours();
+    const minute = fireDate.getMinutes();
+
+    // Schedule with daily repeat at specific time
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: `حان الآن وقت ${PRAYER_AR[key]}`,
         body: cityName ? `الموقع: ${cityName}` : "حان وقت الصلاة",
         sound: "default",
-        data: { type: "prayer", prayer: key },
+        priority: Platform.OS === "android" ? "high" : undefined,
+        data: { type: "prayer", prayer: key, city: cityName },
       },
-      trigger:
-        Platform.OS === "android"
-          ? ({ date: fireDate, channelId: "prayer" } as any)
-          : (fireDate as any),
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+        channelId: Platform.OS === "android" ? "prayer" : undefined,
+      } as any,
     });
     ids.push(id);
   }
@@ -114,9 +128,10 @@ export async function scheduleTestNotification(): Promise<void> {
       sound: "default",
       data: { type: "test" },
     },
-    trigger:
-      Platform.OS === "android"
-        ? ({ seconds: 5, channelId: "prayer" } as any)
-        : ({ seconds: 5 } as any),
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 5,
+      channelId: Platform.OS === "android" ? "prayer" : undefined,
+    } as any,
   });
 }

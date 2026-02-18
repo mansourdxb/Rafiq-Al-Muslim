@@ -29,6 +29,11 @@ export default function StitchTabBar({ state, descriptors, navigation }: BottomT
   const insets = useSafeAreaInsets();
   const routes = state.routes;
 
+  const focusedRoute = routes[state.index];
+  const focusedOptions = focusedRoute ? descriptors[focusedRoute.key]?.options : undefined;
+  const tabBarStyle = focusedOptions?.tabBarStyle as any;
+  if (tabBarStyle?.display === "none") return null;
+
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(10, insets.bottom) }]}>
       {routes.map((route, index) => {
@@ -74,8 +79,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     backgroundColor: BAR_BG,
-    height: 78,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingHorizontal: 16,
   },
   item: {

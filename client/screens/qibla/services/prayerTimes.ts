@@ -81,36 +81,20 @@ function toPrayerName(
   }
 }
 
-type DateParts = {
-  year: number;
-  month: number; // 1-12
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-};
-
-function makeLocalDate(parts: DateParts) {
-  return new Date(
-    parts.year,
-    parts.month - 1,
-    parts.day,
-    parts.hour,
-    parts.minute,
-    parts.second
-  );
-}
-
-function getTimeZoneOffsetMinutes(timeZone: string, date: Date) {
+/**
+ * Extract year / month / day as seen in a given timezone.
+ * Handles the midnight edge case: e.g. 1 AM Feb 18 in Dubai is still
+ * 11 PM Feb 17 in New York — we need the city's date, not the device's.
+ */
+function getDateComponentsInTZ(
+  date: Date,
+  timeZone: string
+): { year: number; month: number; day: number } {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
-    hour12: false,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
   });
   const parts = Object.fromEntries(
     dtf
@@ -118,17 +102,28 @@ function getTimeZoneOffsetMinutes(timeZone: string, date: Date) {
       .filter((p) => p.type !== "literal")
       .map((p) => [p.type, p.value])
   );
-  const asUTC = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second)
-  );
-  return (asUTC - date.getTime()) / 60000;
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+  };
 }
 
+/**
+ * Compute prayer times for any city from any device timezone.
+ *
+ * HOW IT WORKS
+ * ────────────
+ * The `adhan` library internally uses Date.UTC() to build output dates.
+ * This means the returned Date objects are already correct UTC instants.
+ * NO timezone shifting should be applied to them.
+ *
+ * The only thing we must handle is the INPUT date: adhan reads year/month/day
+ * via getFullYear()/getMonth()/getDate() which return DEVICE-local values.
+ * We must ensure those values correspond to the city's calendar date.
+ *
+ * Then just format with formatTimeInTZ(date, cityTZ) for display.
+ */
 export function computePrayerTimes({
   city,
   settings,
@@ -147,55 +142,63 @@ export function computePrayerTimes({
   const now = new Date();
   const base = date ?? now;
 
-  const deviceOffset = -now.getTimezoneOffset();
-  const targetOffset = timeZone
-    ? getTimeZoneOffsetMinutes(timeZone, now)
-    : deviceOffset;
-  const deltaMs = (targetOffset - deviceOffset) * 60 * 1000;
+  // ── 1. Get the correct calendar date in the CITY timezone ───────────
+  // When it's 1 AM Feb 18 in Dubai, it may still be Feb 17 in Cairo.
+  // adhan reads year/month/day via getFullYear() etc. (device-local),
+  // so we must create a Date whose device-local components match the
+  // city's actual calendar date.
+  let year: number, month: number, day: number;
+  if (timeZone) {
+    const c = getDateComponentsInTZ(base, timeZone);
+    year = c.year;
+    month = c.month;
+    day = c.day;
+  } else {
+    year = base.getFullYear();
+    month = base.getMonth() + 1;
+    day = base.getDate();
+  }
 
-  const nowCity = timeZone ? new Date(now.getTime() + deltaMs) : now;
-  const baseCity = timeZone ? new Date(base.getTime() + deltaMs) : base;
-  const baseParts: DateParts = {
-    year: baseCity.getFullYear(),
-    month: baseCity.getMonth() + 1,
-    day: baseCity.getDate(),
-    hour: 0,
-    minute: 0,
-    second: 0,
-  };
-  const baseDate = makeLocalDate(baseParts);
+  // ── 2. Create a Date for adhan with the correct y/m/d ──────────────
+  // adhan only reads year/month/day from this Date (via getFullYear etc).
+  // The time-of-day doesn't matter — adhan computes from midnight.
+  const baseDate = new Date(year, month - 1, day, 0, 0, 0);
 
+  // ── 3. Compute prayer times ────────────────────────────────────────
+  // adhan returns Date objects with correct UTC values (uses Date.UTC
+  // internally). NO timezone correction needed on the output.
   const todayTimes = new PrayerTimes(coordinates, baseDate, params);
 
-  const applyShift = (d: Date) => (timeZone ? new Date(d.getTime() + deltaMs) : d);
-
-  const shifted = {
-    fajr: applyShift(todayTimes.fajr),
-    sunrise: applyShift(todayTimes.sunrise),
-    dhuhr: applyShift(todayTimes.dhuhr),
-    asr: applyShift(todayTimes.asr),
-    maghrib: applyShift(todayTimes.maghrib),
-    isha: applyShift(todayTimes.isha),
-  };
-
+  // ── 4. Determine next prayer ───────────────────────────────────────
   const sequence: Array<[PrayerName, Date]> = [
-    ["Fajr", shifted.fajr],
-    ["Sunrise", shifted.sunrise],
-    ["Dhuhr", shifted.dhuhr],
-    ["Asr", shifted.asr],
-    ["Maghrib", shifted.maghrib],
-    ["Isha", shifted.isha],
+    ["Fajr", todayTimes.fajr],
+    ["Sunrise", todayTimes.sunrise],
+    ["Dhuhr", todayTimes.dhuhr],
+    ["Asr", todayTimes.asr],
+    ["Maghrib", todayTimes.maghrib],
+    ["Isha", todayTimes.isha],
   ];
 
-  const isSameDayCity =
-    baseCity.getFullYear() === nowCity.getFullYear() &&
-    baseCity.getMonth() === nowCity.getMonth() &&
-    baseCity.getDate() === nowCity.getDate();
+  // Is the requested date "today" in the city's timezone?
+  let isSameDayCity: boolean;
+  if (timeZone) {
+    const nowInCity = getDateComponentsInTZ(now, timeZone);
+    isSameDayCity =
+      year === nowInCity.year &&
+      month === nowInCity.month &&
+      day === nowInCity.day;
+  } else {
+    isSameDayCity =
+      base.getFullYear() === now.getFullYear() &&
+      base.getMonth() === now.getMonth() &&
+      base.getDate() === now.getDate();
+  }
 
-  const compareNow = now;
+  // Today → compare against real "now" to find next upcoming prayer.
+  // Other day → show all prayers as upcoming.
   const compareTime = isSameDayCity
-    ? compareNow
-    : new Date(shifted.fajr.getTime() - 1);
+    ? now
+    : new Date(todayTimes.fajr.getTime() - 1);
 
   let nextPrayerName: PrayerName | null = null;
   let nextPrayerTime: Date | null = null;
@@ -207,50 +210,25 @@ export function computePrayerTimes({
     }
   }
 
+  // All today's prayers passed → tomorrow's Fajr.
   if (!nextPrayerName || !nextPrayerTime) {
-    const tomorrowParts: DateParts = {
-      year: baseParts.year,
-      month: baseParts.month,
-      day: baseParts.day + 1,
-      hour: 0,
-      minute: 0,
-      second: 0,
-    };
-    const tomorrowDate = makeLocalDate(tomorrowParts);
+    const tomorrowDate = new Date(year, month - 1, day + 1, 0, 0, 0);
     const tomorrowTimes = new PrayerTimes(coordinates, tomorrowDate, params);
     nextPrayerName = "Fajr";
-    nextPrayerTime = applyShift(tomorrowTimes.fajr);
+    nextPrayerTime = tomorrowTimes.fajr;
   }
 
-  const result: PrayerTimesResult = {
-    fajr: shifted.fajr,
-    sunrise: shifted.sunrise,
-    dhuhr: shifted.dhuhr,
-    asr: shifted.asr,
-    maghrib: shifted.maghrib,
-    isha: shifted.isha,
+  return {
+    fajr: todayTimes.fajr,
+    sunrise: todayTimes.sunrise,
+    dhuhr: todayTimes.dhuhr,
+    asr: todayTimes.asr,
+    maghrib: todayTimes.maghrib,
+    isha: todayTimes.isha,
     nextPrayerName,
     nextPrayerTime,
-    timeToNextMs: Math.max(0, nextPrayerTime.getTime() - compareNow.getTime()),
+    timeToNextMs: Math.max(0, nextPrayerTime.getTime() - now.getTime()),
   };
-
-  console.log("[TIME DEBUG]", {
-    nowLocal: new Date().toString(),
-    nowISO: new Date().toISOString(),
-    tzOffsetMin: new Date().getTimezoneOffset(),
-  });
-  console.log("[PRAYER DEBUG]", {
-    city: city?.lat + "," + city?.lon,
-    fajrLocal: result.fajr.toString(),
-    fajrISO: result.fajr.toISOString(),
-  });
-  console.log("[CHECK]", {
-    cityTZ: timeZone,
-    fajr_toString: result.fajr.toString(),
-    fajr_iso: result.fajr.toISOString(),
-  });
-
-  return result;
 }
 
 export function formatTime(date: Date, locale?: string): string {
@@ -274,3 +252,76 @@ export function formatTimeInTZ(date: Date, timeZone: string, locale?: string): s
   return formatter.format(date);
 }
 
+/**
+ * Recommend the standard calculation method for a city based on its
+ * country name and/or coordinates.
+ *
+ * Regional standards:
+ *  - Saudi Arabia / Gulf → Umm Al-Qura
+ *  - Egypt / North Africa → Egyptian General Authority
+ *  - Pakistan / Bangladesh / Afghanistan → University of Karachi
+ *  - North America → ISNA
+ *  - Rest of world → Muslim World League (MWL)
+ */
+export function getRecommendedMethod(
+  country?: string,
+  lat?: number,
+  lon?: number
+): "MWL" | "UmmAlQura" | "Egypt" | "Karachi" | "ISNA" {
+  const c = (country ?? "").toLowerCase().trim();
+
+  // ── Saudi Arabia & Gulf States → Umm Al-Qura ──
+  const gulfCountries = [
+    "saudi arabia", "السعودية", "المملكة العربية السعودية",
+    "qatar", "قطر",
+    "bahrain", "البحرين",
+    "kuwait", "الكويت",
+    "uae", "united arab emirates", "الإمارات", "الامارات",
+    "oman", "عمان", "سلطنة عمان",
+    "yemen", "اليمن",
+  ];
+  if (gulfCountries.some((g) => c.includes(g))) return "UmmAlQura";
+
+  // ── Egypt & North/East Africa → Egyptian ──
+  const egyptCountries = [
+    "egypt", "مصر",
+    "libya", "ليبيا",
+    "sudan", "السودان",
+    "south sudan", "جنوب السودان",
+    "somalia", "الصومال",
+    "eritrea", "إريتريا",
+    "djibouti", "جيبوتي",
+  ];
+  if (egyptCountries.some((g) => c.includes(g))) return "Egypt";
+
+  // ── South Asia → Karachi ──
+  const karachiCountries = [
+    "pakistan", "باكستان",
+    "bangladesh", "بنغلاديش", "بنجلاديش",
+    "afghanistan", "أفغانستان",
+    "india", "الهند",
+  ];
+  if (karachiCountries.some((g) => c.includes(g))) return "Karachi";
+
+  // ── North America → ISNA ──
+  const isnaCountries = [
+    "united states", "usa", "us",
+    "أمريكا", "الولايات المتحدة",
+    "canada", "كندا",
+  ];
+  if (isnaCountries.some((g) => c.includes(g))) return "ISNA";
+
+  // ── Fallback by coordinates if country name didn't match ──
+  if (lat != null && lon != null) {
+    // Gulf region (lat 12-32, lon 34-60)
+    if (lat >= 12 && lat <= 32 && lon >= 34 && lon <= 60) return "UmmAlQura";
+    // Egypt/NE Africa (lat 4-32, lon 20-42)
+    if (lat >= 4 && lat <= 32 && lon >= 20 && lon < 34) return "Egypt";
+    // South Asia (lat 5-37, lon 60-93)
+    if (lat >= 5 && lat <= 37 && lon >= 60 && lon <= 93) return "Karachi";
+    // North America (lat 15-72, lon -170 to -50)
+    if (lat >= 15 && lat <= 72 && lon >= -170 && lon <= -50) return "ISNA";
+  }
+
+  return "MWL";
+}

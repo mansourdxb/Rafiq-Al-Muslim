@@ -63,14 +63,10 @@ export async function playPreview(soundId: AthanSoundId): Promise<void> {
     await next.loadAsync(asset, { shouldPlay: true });
     await next.playAsync();
     currentSound = next;
-  } catch {
+  } catch (err) {
     await next.unloadAsync().catch(() => undefined);
     currentSound = null;
-    const filename = FILE_MAP[soundId];
-    Alert.alert(
-      "Missing Athan audio",
-      `Please add client/assets/athan/${filename} and rebuild the app.`
-    );
+    console.warn("[ATHAN] playPreview failed:", soundId, err);
   }
 }
 

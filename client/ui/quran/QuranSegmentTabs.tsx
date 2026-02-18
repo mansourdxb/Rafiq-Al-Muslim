@@ -2,13 +2,12 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { quranTheme } from "./theme";
 
-type TabKey = "surah" | "juz" | "favorites";
+type TabKey = "surah" | "juz" | "quarters";
 type Tab = { key: TabKey; label: string };
 
 const TABS: Tab[] = [
   { key: "surah", label: "\u0627\u0644\u0633\u0648\u0631" },
   { key: "juz", label: "\u0627\u0644\u0623\u062c\u0632\u0627\u0621" },
-  { key: "favorites", label: "\u0627\u0644\u0623\u0631\u0628\u0627\u0639" },
 ];
 
 type Props = {
@@ -38,7 +37,7 @@ export default function QuranSegmentTabs({ value, onChange }: Props) {
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row-reverse",
-    backgroundColor: quranTheme.colors.bgDark,
+    backgroundColor: "#E8E5DD",
     borderRadius: quranTheme.radius.pill,
     padding: 4,
     gap: 4,
@@ -50,15 +49,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tabActive: {
-    backgroundColor: quranTheme.colors.white,
+    backgroundColor: "#FFFFFF",
   },
   text: {
     fontFamily: "Cairo",
     fontSize: 14,
-    color: "#D8E6DD",
+    color: "#7A7A7A",
   },
   textActive: {
     fontFamily: "CairoBold",
-    color: quranTheme.colors.text,
+    color: "#1A1A1A",
   },
 });

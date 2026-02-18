@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Modal,
   Pressable,
   StyleSheet,
@@ -9,7 +10,9 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import type { City } from "@/screens/qibla/services/preferences";
 import { getCityFromGPS, searchCityByName } from "@/screens/qibla/services/cityService";
 
@@ -29,7 +32,16 @@ export default function CityPickerModal({
   const [loadingGPS, setLoadingGPS] = useState(false);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const showSearchResults = query.trim().length >= 2;
+
+  useEffect(() => {
+    if (!visible) {
+      setQuery("");
+      setResults([]);
+      setError(null);
+    }
+  }, [visible]);
 
   useEffect(() => {
     const term = query.trim();
@@ -84,184 +96,384 @@ export default function CityPickerModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.page}>
-        <View style={[styles.sheet, { width: contentWidth }]}>
-          <View style={styles.headerRow}>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.closeIcon}>
-              <Feather name="x" size={26} color="#111111" />
+      <View style={[styles.page, { paddingTop: insets.top }]}>
+        {/* ─── Header ─── */}
+        <LinearGradient
+          colors={["#5A8F6A", "#79A688", "#8EB89C"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={[styles.headerInner, { width: contentWidth }]}>
+            <Pressable onPress={onClose} hitSlop={12} style={styles.closeBtn}>
+              <Feather name="x" size={22} color="#FFFFFF" />
             </Pressable>
+            <Text style={styles.headerTitle}>اختر المدينة</Text>
+            <View style={styles.closeBtnSpacer} />
           </View>
+        </LinearGradient>
 
-          <View style={styles.inputWrap}>
+        <View style={[styles.body, { width: contentWidth }]}>
+          {/* ─── Search Bar ─── */}
+          <View style={styles.searchBar}>
+            <Feather name="search" size={18} color="#8C8C8C" style={styles.searchIcon} />
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="أدخل اسم المدينة"
-              placeholderTextColor="#B7B7B7"
-              style={styles.input}
+              placeholder="ابحث عن مدينة..."
+              placeholderTextColor="#B5B5B5"
+              style={styles.searchInput}
               textAlign="right"
               returnKeyType="search"
-              onSubmitEditing={() => {}}
+              autoCorrect={false}
             />
-            <View style={styles.inputUnderline} />
+            {query.length > 0 && (
+              <Pressable onPress={() => setQuery("")} hitSlop={8} style={styles.clearBtn}>
+                <Feather name="x-circle" size={16} color="#B5B5B5" />
+              </Pressable>
+            )}
           </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {/* ─── GPS Card ─── */}
+          <Pressable
+            style={({ pressed }) => [styles.gpsCard, pressed && styles.gpsCardPressed]}
+            onPress={handleUseCurrentLocation}
+            disabled={loadingGPS}
+          >
+            <View style={styles.gpsIconWrap}>
+              {loadingGPS ? (
+                <ActivityIndicator size="small" color={C.green} />
+              ) : (
+                <Ionicons name="navigate" size={20} color={C.green} />
+              )}
+            </View>
+            <View style={styles.gpsTextWrap}>
+              <Text style={styles.gpsTitle}>استخدام الموقع الحالي</Text>
+              <Text style={styles.gpsSubtitle}>تحديد المدينة تلقائياً عبر GPS</Text>
+            </View>
+            <Feather name="chevron-left" size={18} color="#C8C8C8" />
+          </Pressable>
 
-          {showSearchResults ? (
-            <>
-              <Text style={styles.sectionTitle}>نتائج البحث</Text>
-              <View style={styles.resultsWrap}>
-                {loadingSearch ? (
-                  <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#6B6E72" />
-                  </View>
-                ) : results.length === 0 ? (
-                  <Text style={styles.emptyText}>لا توجد نتائج</Text>
-                ) : (
-                  results.map((item) => (
-                    <Pressable
-                      key={`${item.name}-${item.lat}-${item.lon}`}
-                      style={styles.resultRow}
-                      onPress={() => handleSelectCity(item)}
-                    >
-                      <Text style={styles.resultTitle}>{item.name}</Text>
-                      <Text style={styles.resultMeta}>
-                        Latitude: {item.lat.toFixed(4)}, Longitude: {item.lon.toFixed(4)}
-                      </Text>
-                    </Pressable>
-                  ))
-                )}
-              </View>
-            </>
+          {/* ─── Error ─── */}
+          {error ? (
+            <View style={styles.errorRow}>
+              <Feather name="alert-circle" size={15} color="#C0392B" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
           ) : null}
 
-          <View style={styles.gpsRow}>
-            <Pressable
-              style={({ pressed }) => [styles.gpsButton, pressed ? styles.pressed : null]}
-              onPress={handleUseCurrentLocation}
-              disabled={loadingGPS}
-            >
-              {loadingGPS ? (
-                <ActivityIndicator color="#111111" />
+          {/* ─── Search Results ─── */}
+          {showSearchResults ? (
+            <View style={styles.resultsSection}>
+              <Text style={styles.sectionLabel}>نتائج البحث</Text>
+
+              {loadingSearch ? (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator color={C.green} />
+                  <Text style={styles.loadingText}>جارٍ البحث...</Text>
+                </View>
+              ) : results.length === 0 ? (
+                <View style={styles.emptyWrap}>
+                  <Feather name="map-pin" size={32} color="#D4D4D4" />
+                  <Text style={styles.emptyTitle}>لا توجد نتائج</Text>
+                  <Text style={styles.emptySubtitle}>جرّب اسم مدينة مختلف</Text>
+                </View>
               ) : (
-                <Text style={styles.gpsText}>استخدام الموقع الحالي</Text>
+                <FlatList
+                  data={results}
+                  keyExtractor={(item) => `${item.name}-${item.lat}-${item.lon}`}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  style={styles.resultsList}
+                  renderItem={({ item }) => {
+                    const cityName = item.name?.split(",")[0]?.trim() ?? item.name;
+                    const region = item.name?.includes(",")
+                      ? item.name.substring(item.name.indexOf(",") + 1).trim()
+                      : null;
+                    return (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.resultCard,
+                          pressed && styles.resultCardPressed,
+                        ]}
+                        onPress={() => handleSelectCity(item)}
+                      >
+                        <View style={styles.resultIconWrap}>
+                          <Ionicons name="location" size={18} color={C.green} />
+                        </View>
+                        <View style={styles.resultTextWrap}>
+                          <Text style={styles.resultName}>{cityName}</Text>
+                          {region ? (
+                            <Text style={styles.resultRegion}>{region}</Text>
+                          ) : null}
+                        </View>
+                        <Feather name="chevron-left" size={16} color="#D4D4D4" />
+                      </Pressable>
+                    );
+                  }}
+                />
               )}
-            </Pressable>
-          </View>
+            </View>
+          ) : null}
+
+          {/* ─── Hint (empty state) ─── */}
+          {!showSearchResults && !error && (
+            <View style={styles.hintWrap}>
+              <View style={styles.hintIconCircle}>
+                <Ionicons name="earth" size={38} color={C.green} />
+              </View>
+              <Text style={styles.hintTitle}>ابحث عن مدينتك</Text>
+              <Text style={styles.hintSubtitle}>
+                اكتب اسم المدينة لتحديد مواقيت الصلاة بدقة
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
   );
 }
 
+const C = {
+  bg: "#FDFCF7",
+  card: "#FFFFFF",
+  green: "#5A8F6A",
+  greenLight: "#EBF3ED",
+  text: "#2E2F2E",
+  textMuted: "#8C8C8C",
+  border: "rgba(0,0,0,0.05)",
+};
+
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    backgroundColor: C.bg,
+  },
+  /* ─── Header ─── */
+  header: {
+    paddingTop: 14,
+    paddingBottom: 14,
     alignItems: "center",
   },
-  sheet: {
-    width: "100%",
-    maxWidth: 430,
+  headerInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
   },
-  headerRow: {
-    width: "100%",
-    alignItems: "flex-end",
-    marginBottom: 20,
+  headerTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 18,
+    color: "#FFFFFF",
   },
-  closeIcon: {
+  closeBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
-  inputWrap: {
-    marginBottom: 18,
+  closeBtnSpacer: {
+    width: 36,
   },
-  input: {
-    minHeight: 40,
-    paddingHorizontal: 6,
+  /* ─── Body ─── */
+  body: {
+    flex: 1,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  /* ─── Search Bar ─── */
+  searchBar: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    height: 50,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  searchIcon: {
+    marginLeft: 10,
+  },
+  searchInput: {
+    flex: 1,
     fontFamily: "Cairo",
-    fontSize: 20,
-    color: "#111111",
+    fontSize: 16,
+    color: C.text,
+    paddingVertical: 0,
   },
-  inputUnderline: {
-    height: 1,
-    backgroundColor: "#6B6E72",
-    marginTop: 6,
+  clearBtn: {
+    marginRight: 6,
+    padding: 4,
+  },
+  /* ─── GPS Card ─── */
+  gpsCard: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 14,
+    marginTop: 12,
+    gap: 12,
+  },
+  gpsCardPressed: {
+    backgroundColor: C.greenLight,
+  },
+  gpsIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: C.greenLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gpsTextWrap: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  gpsTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 14,
+    color: C.text,
+  },
+  gpsSubtitle: {
+    fontFamily: "Cairo",
+    fontSize: 11,
+    color: C.textMuted,
+    marginTop: -2,
+  },
+  /* ─── Error ─── */
+  errorRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 4,
   },
   errorText: {
     fontFamily: "Cairo",
-    fontSize: 14,
-    color: "#B3261E",
-    textAlign: "right",
-    marginBottom: 6,
-  },
-  sectionTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 16,
-    color: "#5E5E5E",
-    textAlign: "right",
-    marginBottom: 10,
-  },
-  resultsWrap: {
-    maxHeight: 300,
-    marginBottom: 18,
-  },
-  resultRow: {
-    paddingVertical: 10,
-    alignItems: "flex-end",
-  },
-  resultTitle: {
-    fontFamily: "CairoBold",
-    fontSize: 18,
-    color: "#111111",
-    textAlign: "right",
-  },
-  resultMeta: {
-    marginTop: 4,
-    fontFamily: "Cairo",
     fontSize: 13,
-    color: "#6B6E72",
-    textAlign: "right",
+    color: "#C0392B",
   },
-  resultMain: {
+  /* ─── Results ─── */
+  resultsSection: {
+    flex: 1,
+    marginTop: 18,
+  },
+  sectionLabel: {
+    fontFamily: "CairoBold",
+    fontSize: 13,
+    color: C.textMuted,
+    textAlign: "right",
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  resultsList: {
+    flex: 1,
+  },
+  resultCard: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: C.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 6,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  resultCardPressed: {
+    backgroundColor: C.greenLight,
+  },
+  resultIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: C.greenLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultTextWrap: {
     flex: 1,
     alignItems: "flex-end",
-    paddingHorizontal: 12,
   },
-  removeIcon: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingRow: {
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  gpsRow: {
-    marginTop: 8,
-    alignItems: "center",
-  },
-  gpsButton: {
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: "#F2F2F2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gpsText: {
+  resultName: {
     fontFamily: "CairoBold",
-    fontSize: 14,
-    color: "#111111",
+    fontSize: 15,
+    color: C.text,
+    textAlign: "right",
   },
-  pressed: {
-    opacity: 0.88,
+  resultRegion: {
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: C.textMuted,
+    textAlign: "right",
+    marginTop: -2,
+  },
+  /* ─── Loading ─── */
+  loadingWrap: {
+    alignItems: "center",
+    paddingVertical: 30,
+    gap: 8,
+  },
+  loadingText: {
+    fontFamily: "Cairo",
+    fontSize: 13,
+    color: C.textMuted,
+  },
+  /* ─── Empty ─── */
+  emptyWrap: {
+    alignItems: "center",
+    paddingVertical: 30,
+    gap: 6,
+  },
+  emptyTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 15,
+    color: C.textMuted,
+    marginTop: 4,
+  },
+  emptySubtitle: {
+    fontFamily: "Cairo",
+    fontSize: 12,
+    color: "#B5B5B5",
+  },
+  /* ─── Hint (empty state) ─── */
+  hintWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 60,
+    gap: 6,
+  },
+  hintIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.greenLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  hintTitle: {
+    fontFamily: "CairoBold",
+    fontSize: 17,
+    color: C.text,
+  },
+  hintSubtitle: {
+    fontFamily: "Cairo",
+    fontSize: 13,
+    color: C.textMuted,
+    textAlign: "center",
+    maxWidth: 240,
   },
 });
-

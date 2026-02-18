@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { BackHandler, Platform, StyleSheet, View } from "react-native";
+import { BackHandler, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { createNavigationContainerRef, NavigationContainer } from "@react-navigation/native";
 import * as Notifications from "expo-notifications";
 import tzLookup from "tz-lookup";
@@ -21,7 +21,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { getPrayerSettings, getSelectedCity } from "@/screens/qibla/services/preferences";
-import { initPrayerNotifications, schedulePrayerNotifications } from "@/src/services/prayerNotifications";
+import { scheduleTodayPrayerNotifications } from "@/screens/qibla/services/prayerNotifications";
 import { playPreview, stopPreview } from "@/screens/qibla/services/athanAudio";
 import {
   computePrayerTimes,
@@ -37,6 +37,7 @@ export default function App() {
   const [bannerText, setBannerText] = useState<string | null>(null);
   const navigationRef = createNavigationContainerRef();
   const lastAthanRef = useRef<string | null>(null);
+  const lastAthanPlayedAt = useRef<number>(0);
   const athanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const athanResyncRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -56,7 +57,9 @@ export default function App() {
   CairoBold: Cairo_700Bold,
 
   KFGQPCUthmanicScript: require("./assets/fonts/uthmanic_hafs_v20.ttf"),
-  KFGQPCUthmanicScriptOTF: require("./assets/fonts/KFGQPC Uthmanic Script HAFS Regular.otf"),
+  // Keep this key but point to the no-space filename to avoid malformed asset URL encoding on Metro/iOS.
+  KFGQPCUthmanicScriptOTF: require("./assets/fonts/uthmanic_hafs_v20.ttf"),
+  ScheherazadeNewBold: require("./assets/fonts/ScheherazadeNew-Bold.ttf"),
 });
 
 
@@ -89,25 +92,7 @@ export default function App() {
         getPrayerSettings(),
       ]);
       if (!city || !settings?.notificationsEnabled) return;
-      const ok = await initPrayerNotifications();
-      if (!ok) return;
-      const tz = city.tz ?? tzLookup(city.lat, city.lon);
-      const computed = computePrayerTimes({
-        city: { lat: city.lat, lon: city.lon, tz },
-        settings,
-        timeZone: tz,
-      });
-      await schedulePrayerNotifications({
-        prayerTimes: {
-          fajr: computed.fajr,
-          dhuhr: computed.dhuhr,
-          asr: computed.asr,
-          maghrib: computed.maghrib,
-          isha: computed.isha,
-        },
-        cityName: city.name,
-        tz,
-      });
+      await scheduleTodayPrayerNotifications({ city, settings });
     })();
   }, [ready]);
 
@@ -150,6 +135,7 @@ export default function App() {
           if (!active) return;
           if (lastAthanRef.current === signature) return;
           lastAthanRef.current = signature;
+          lastAthanPlayedAt.current = Date.now();
           const label = PRAYER_AR[times.nextPrayerName] ?? "الصلاة";
           setBannerText(`${label} - ${formatTimeInTZ(nextTime, tz, "ar")}`);
           void playPreview("makkah");
@@ -190,7 +176,12 @@ export default function App() {
     const sub = Notifications.addNotificationReceivedListener((notification) => {
       const body = notification.request.content.body ?? "وقت الصلاة";
       setBannerText(body);
-      void playPreview("makkah");
+      // Only play athan if the foreground timer didn't already play it within 3 min
+      const now = Date.now();
+      if (now - lastAthanPlayedAt.current > 3 * 60 * 1000) {
+        lastAthanPlayedAt.current = now;
+        void playPreview("makkah");
+      }
     });
     return () => {
       sub.remove();
@@ -298,4 +289,3 @@ const styles = StyleSheet.create({
     color: "#2D6185",
   },
 });
-

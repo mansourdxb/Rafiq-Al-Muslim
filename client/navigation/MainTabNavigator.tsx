@@ -21,7 +21,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export default function MainTabNavigator() {
   return (
     <Tab.Navigator
-      initialRouteName="QuranTab"
+      initialRouteName="PrayerTab"
       backBehavior="none"
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <StitchTabBar {...props} />}

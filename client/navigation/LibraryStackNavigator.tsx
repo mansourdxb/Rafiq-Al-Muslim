@@ -21,6 +21,7 @@ import NasaiChapterScreen from "@/screens/hadith/NasaiChapterScreen";
 import MalikBooksScreen from "@/screens/hadith/MalikBooksScreen";
 import MalikChapterScreen from "@/screens/hadith/MalikChapterScreen";
 import FavoritesScreen from "@/screens/hadith/FavoritesScreen";
+import HadithSearchScreen from "@/screens/hadith/HadithSearchScreen";
 import QuranSurahListScreen from "@/screens/quran/QuranSurahListScreen";
 import QuranSurahDetailsScreen from "@/screens/quran/QuranSurahDetailsScreen";
 import QuranSearchScreen from "@/screens/quran/QuranSearchScreen";
@@ -49,6 +50,7 @@ export type LibraryStackParamList = {
   MalikBooks: undefined;
   MalikChapter: { chapterId: number; highlightId?: number | string };
   Favorites: undefined;
+  HadithSearch: undefined;
   QuranSurahList: undefined;
   QuranSurahDetails: { number: number; fileName: string };
   QuranSearch: undefined;
@@ -82,10 +84,10 @@ export default function LibraryStackNavigator() {
       <Stack.Screen name="MalikBooks" component={MalikBooksScreen} />
       <Stack.Screen name="MalikChapter" component={MalikChapterScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="HadithSearch" component={HadithSearchScreen} />
       <Stack.Screen name="QuranSurahList" component={QuranSurahListScreen} />
       <Stack.Screen name="QuranSurahDetails" component={QuranSurahDetailsScreen} />
       <Stack.Screen name="QuranSearch" component={QuranSearchScreen} />
     </Stack.Navigator>
   );
 }
-
