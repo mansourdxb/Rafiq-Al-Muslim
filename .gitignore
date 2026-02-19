@@ -43,3 +43,5 @@ app-example
 /android
 
 client/data/hadith_combined/
+
+.expo/
