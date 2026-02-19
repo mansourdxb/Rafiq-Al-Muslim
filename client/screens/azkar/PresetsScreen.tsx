@@ -157,6 +157,9 @@ export default function PresetsScreen() {
             <Feather name="plus" size={24} color="white" />
           </Pressable>
           <Text style={styles.headerTitle} pointerEvents="none">الأذكار</Text>
+          <Pressable style={styles.headerBtn} onPress={() => navigation.goBack()} hitSlop={12}>
+            <Feather name="chevron-left" size={24} color="white" />
+          </Pressable>
         </View>
       </View>
 

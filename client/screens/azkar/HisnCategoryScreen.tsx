@@ -9,6 +9,7 @@ import {
   ScrollView,
   Share,
   Animated,
+  Vibration,
 } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +18,8 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { Audio } from "expo-av";
+import * as Haptics from "expo-haptics";
+import { getAthkarAudioUri, isAudioCached, type DownloadProgress } from "@/utils/athkarAudioCache";
 
 import adhkarData from "@/assets/data/adhkar.json";
 
@@ -63,9 +66,12 @@ export default function HisnCategoryScreen() {
   const total = items.length;
 
   const [index, setIndex] = useState(0);
-  const [repeatCount, setRepeatCount] = useState(0);
+  const [countsMap, setCountsMap] = useState<Record<number, number>>({});
   const [fontSize, setFontSize] = useState(18);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadPct, setDownloadPct] = useState(0);
+  const [audioCached, setAudioCached] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -74,10 +80,19 @@ export default function HisnCategoryScreen() {
   const currentNumber = index + 1;
   const progress = total > 0 ? currentNumber / total : 0;
   const maxRepeat = current?.count || 1;
+  const repeatCount = countsMap[index] ?? 0;
   const isCompleted = repeatCount >= maxRepeat;
 
-  // Get audio URL for current dhikr
-  const audioUrl = current?.audio || category?.audio || "";
+  // Get audio filename for current dhikr
+  const audioFile = current?.audio || current?.filename || category?.audio || category?.filename || "";
+
+  // Check if cached when index changes
+  useEffect(() => {
+    setAudioCached(false);
+    if (audioFile) {
+      isAudioCached(audioFile).then(setAudioCached).catch(() => {});
+    }
+  }, [audioFile]);
 
   // Cleanup sound on unmount
   useEffect(() => {
@@ -89,7 +104,7 @@ export default function HisnCategoryScreen() {
   // Stop audio when index changes
   useEffect(() => {
     stopAudio();
-    setRepeatCount(0);
+    setDownloadPct(0);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [index]);
 
@@ -110,19 +125,35 @@ export default function HisnCategoryScreen() {
       return;
     }
 
-    if (!audioUrl) {
-      showToast("\u0644\u0627 \u064a\u0648\u062c\u062f \u0645\u0644\u0641 \u0635\u0648\u062a\u064a"); // لا يوجد ملف صوتي
+    if (!audioFile) {
+      showToast("\u0644\u0627 \u064a\u0648\u062c\u062f \u0645\u0644\u0641 \u0635\u0648\u062a\u064a");
       return;
     }
 
     try {
+      // Download if not cached (shows progress)
+      setIsDownloading(true);
+      setDownloadPct(0);
+
+      const uri = await getAthkarAudioUri(audioFile, (p) => {
+        setDownloadPct(p.percent);
+      });
+
+      setIsDownloading(false);
+      setAudioCached(true);
+
+      if (!uri) {
+        showToast("\u062a\u0639\u0630\u0651\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0635\u0648\u062a");
+        return;
+      }
+
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
       });
 
       const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl },
+        { uri },
         { shouldPlay: true }
       );
       soundRef.current = sound;
@@ -136,10 +167,11 @@ export default function HisnCategoryScreen() {
       });
     } catch (err) {
       console.error("Audio playback error:", err);
-      showToast("\u062a\u0639\u0630\u0651\u0631 \u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u0635\u0648\u062a"); // تعذّر تشغيل الصوت
+      showToast("\u062a\u0639\u0630\u0651\u0631 \u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u0635\u0648\u062a");
       setIsPlaying(false);
+      setIsDownloading(false);
     }
-  }, [isPlaying, audioUrl, stopAudio]);
+  }, [isPlaying, audioFile, stopAudio]);
 
   // Save progress
   useEffect(() => {
@@ -161,19 +193,38 @@ export default function HisnCategoryScreen() {
 
   const onCount = useCallback(() => {
     if (isCompleted) {
-      // Auto advance to next
+      // Already completed — tap again to advance manually
       if (index < total - 1) {
         setIndex((prev) => prev + 1);
       }
       return;
     }
-    setRepeatCount((prev) => prev + 1);
-    // Pulse animation
+
+    // Haptic feedback on each tap
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+
+    const newCount = repeatCount + 1;
+    setCountsMap((prev) => ({ ...prev, [index]: newCount }));
+
+    // Pulse animation on each tap
     Animated.sequence([
       Animated.timing(pulseAnim, { toValue: 1.05, duration: 80, useNativeDriver: true }),
       Animated.timing(pulseAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start();
-  }, [isCompleted, index, total, pulseAnim]);
+
+    // Auto-advance when count reached
+    if (newCount >= maxRepeat) {
+      // Double vibration to signal completion
+      Vibration.vibrate([0, 100, 50, 100]);
+
+      // Auto-advance after brief delay so user sees the checkmark
+      if (index < total - 1) {
+        setTimeout(() => {
+          setIndex((prev) => prev + 1);
+        }, 600);
+      }
+    }
+  }, [isCompleted, repeatCount, maxRepeat, index, total, pulseAnim]);
 
   const goPrev = () => { if (index > 0) setIndex((prev) => prev - 1); };
   const goNext = () => { if (index < total - 1) setIndex((prev) => prev + 1); };
@@ -194,20 +245,13 @@ export default function HisnCategoryScreen() {
     setFontSize((prev) => Math.max(16, Math.min(40, prev + delta)));
   };
 
-  // Progress ring
+  // Navigation repeat ring
   const ringSize = 100;
   const ringStroke = 6;
   const ringR = (ringSize - ringStroke) / 2;
   const ringC = 2 * Math.PI * ringR;
-  const ringDash = progress * ringC;
-
-  // Repeat ring
-  const repSize = 80;
-  const repStroke = 5;
-  const repR = (repSize - repStroke) / 2;
-  const repC = 2 * Math.PI * repR;
   const repProgress = maxRepeat > 0 ? Math.min(1, repeatCount / maxRepeat) : 0;
-  const repDash = repProgress * repC;
+  const ringDash = repProgress * ringC;
 
   if (!category || total === 0) {
     return (
@@ -265,9 +309,16 @@ export default function HisnCategoryScreen() {
             <Pressable onPress={onCopy} hitSlop={10} style={s.toolBtn}>
               <Ionicons name="copy-outline" size={18} color={SECONDARY} />
             </Pressable>
-            <Pressable onPress={toggleAudio} hitSlop={10} style={s.playBtn}>
-              <Ionicons name={isPlaying ? "pause" : "play"} size={16} color="#FFF" />
+            <Pressable onPress={toggleAudio} hitSlop={10} style={[s.playBtn, isDownloading && s.playBtnDownloading]}>
+              {isDownloading ? (
+                <Text style={s.downloadPct}>{downloadPct}%</Text>
+              ) : (
+                <Ionicons name={isPlaying ? "pause" : "play"} size={16} color="#FFF" />
+              )}
             </Pressable>
+            {!audioCached && audioFile ? (
+              <Ionicons name="cloud-download-outline" size={14} color={SECONDARY} style={{ marginLeft: -2 }} />
+            ) : null}
             <View style={s.toolSpacer} />
             <Pressable onPress={() => adjustFont(-2)} hitSlop={10} style={s.toolBtn}>
               <Text style={s.toolText}>أ-</Text>
@@ -277,10 +328,12 @@ export default function HisnCategoryScreen() {
             </Pressable>
           </View>
 
-          {/* Dhikr text */}
-          <Text style={[s.dhikrText, { fontSize, lineHeight: fontSize * 1.9 }]}>
-            {current?.text ?? ""}
-          </Text>
+          {/* Dhikr text - tap to count */}
+          <Pressable onPress={onCount}>
+            <Text style={[s.dhikrText, { fontSize, lineHeight: fontSize * 1.9 }]}>
+              {current?.text ?? ""}
+            </Text>
+          </Pressable>
 
           {/* Source */}
           {(current?.filename || current?.audio || category?.filename) && (
@@ -293,37 +346,7 @@ export default function HisnCategoryScreen() {
           )}
         </Animated.View>
 
-        {/* Counter Section */}
-        <View style={s.counterSection}>
-          <Pressable onPress={onCount} style={s.counterBtn}>
-            <Svg width={repSize} height={repSize}>
-              <Circle cx={repSize / 2} cy={repSize / 2} r={repR} stroke="#E5E0D6" strokeWidth={repStroke} fill="none" />
-              <Circle cx={repSize / 2} cy={repSize / 2} r={repR}
-                stroke={isCompleted ? GREEN : GOLD}
-                strokeWidth={repStroke} fill="none" strokeLinecap="round"
-                strokeDasharray={`${repDash} ${repC - repDash}`}
-                rotation={-90} originX={repSize / 2} originY={repSize / 2}
-              />
-            </Svg>
-            <View style={s.counterInner}>
-              {isCompleted ? (
-                <Ionicons name="checkmark-circle" size={32} color={GREEN} />
-              ) : (
-                <>
-                  <Text style={s.counterNum}>{repeatCount}</Text>
-                  <Text style={s.counterMax}>من {maxRepeat}</Text>
-                </>
-              )}
-            </View>
-          </Pressable>
-          <Text style={s.counterHint}>
-            {isCompleted
-              ? (index < total - 1 ? "اضغط للتالي" : "تم إنهاء الأذكار ✓")
-              : "اضغط للعد"}
-          </Text>
-        </View>
-
-        {/* Navigation */}
+        {/* Navigation with repeat counter ring */}
         <View style={s.navRow}>
           <Pressable
             style={[s.navBtn, s.navPrev, index <= 0 && s.navDisabled]}
@@ -334,21 +357,28 @@ export default function HisnCategoryScreen() {
             <Text style={[s.navPrevText, index <= 0 && s.navDisabledText]}>السابق</Text>
           </Pressable>
 
-          {/* Mini ring */}
-          <View style={s.navRing}>
+          {/* Repeat counter ring - tap to count */}
+          <Pressable onPress={onCount} style={s.navRing}>
             <Svg width={ringSize} height={ringSize}>
               <Circle cx={ringSize / 2} cy={ringSize / 2} r={ringR} stroke="#E5E0D6" strokeWidth={ringStroke} fill="none" />
               <Circle cx={ringSize / 2} cy={ringSize / 2} r={ringR}
-                stroke={GOLD} strokeWidth={ringStroke} fill="none" strokeLinecap="round"
+                stroke={isCompleted ? GREEN : GOLD}
+                strokeWidth={ringStroke} fill="none" strokeLinecap="round"
                 strokeDasharray={`${ringDash} ${ringC - ringDash}`}
                 rotation={-90} originX={ringSize / 2} originY={ringSize / 2}
               />
             </Svg>
             <View style={s.navRingInner}>
-              <Text style={s.navRingNum}>{currentNumber}</Text>
-              <Text style={s.navRingSub}>من {total}</Text>
+              {isCompleted ? (
+                <Ionicons name="checkmark-circle" size={36} color={GREEN} />
+              ) : (
+                <>
+                  <Text style={s.navRingNum}>{repeatCount}</Text>
+                  <Text style={s.navRingSub}>من {maxRepeat}</Text>
+                </>
+              )}
             </View>
-          </View>
+          </Pressable>
 
           <Pressable
             style={[s.navBtn, s.navNext, index >= total - 1 && s.navDisabled]}
@@ -359,6 +389,14 @@ export default function HisnCategoryScreen() {
             <Ionicons name="arrow-back" size={18} color={index >= total - 1 ? "#FFF" : "#FFF"} />
           </Pressable>
         </View>
+
+        {/* Position indicator */}
+        <Text style={s.positionText}>{currentNumber} من {total}</Text>
+
+        {/* Tap anywhere hint + spacer */}
+        <Pressable onPress={onCount} style={s.tapSpacer}>
+          <Text style={s.hintText}>المس في أي مكان للعد</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -413,6 +451,12 @@ const s = StyleSheet.create({
     backgroundColor: GOLD,
     alignItems: "center", justifyContent: "center",
   },
+  playBtnDownloading: {
+    backgroundColor: SECONDARY,
+  },
+  downloadPct: {
+    fontFamily: "CairoBold", fontSize: 9, color: "#FFF",
+  },
   toolSpacer: { flex: 1 },
   toolText: { fontFamily: "CairoBold", fontSize: 13, color: SECONDARY },
   toolTextLg: { fontFamily: "CairoBold", fontSize: 15, color: PRIMARY },
@@ -433,27 +477,25 @@ const s = StyleSheet.create({
     textAlign: "center", marginTop: 8,
   },
 
-  /* Counter */
-  counterSection: { alignItems: "center", marginTop: 20, gap: 10 },
-  counterBtn: {
-    width: 80, height: 80,
-    alignItems: "center", justifyContent: "center",
-  },
-  counterInner: {
-    position: "absolute",
-    alignItems: "center", justifyContent: "center",
-  },
-  counterNum: { fontFamily: "CairoBold", fontSize: 24, color: PRIMARY },
-  counterMax: { fontFamily: "Cairo", fontSize: 11, color: SECONDARY, marginTop: -4 },
-  counterHint: { fontFamily: "Cairo", fontSize: 13, color: SECONDARY },
-
   /* Navigation */
   navRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 20,
+    marginTop: 16,
     gap: 10,
+  },
+  positionText: {
+    fontFamily: "Cairo", fontSize: 12, color: SECONDARY,
+    textAlign: "center", marginTop: 8,
+  },
+  tapSpacer: {
+    flex: 1, minHeight: 120,
+    alignItems: "center", justifyContent: "center",
+    paddingTop: 20,
+  },
+  hintText: {
+    fontFamily: "Cairo", fontSize: 13, color: SECONDARY,
   },
   navBtn: {
     flex: 1,

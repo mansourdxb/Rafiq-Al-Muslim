@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,122 +7,258 @@ import {
   Pressable,
   Platform,
   StatusBar,
-  useWindowDimensions,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { typography } from "@/theme/typography";
+import { useApp } from "@/context/AppContext";
+import adhkarData from "@/assets/data/adhkar.json";
 
-const BAR_DATA = [
-  { label: "سبحان الله", value: 180 },
-  { label: "الحمد لله", value: 250 },
-  { label: "لا إله إلا الله", value: 200 },
-  { label: "الله أكبر", value: 100 },
-  { label: "أستغفر الله", value: 70 },
-];
+/* ─── Colors ─── */
+const HEADER_BG = "#1B4332";
+const PAGE_BG = "#F3EEE4";
+const CARD_BG = "#FFFFFF";
+const PRIMARY = "#1C1714";
+const SECONDARY = "#968C80";
+const GREEN = "#2D7A4E";
+const GOLD = "#D4AF37";
+const GOLD_BG = "#F6F0E1";
 
-const ACHIEVEMENTS = [
-  { title: "ختمة شهرية", icon: "award" },
-  { title: "1000 استغفار", icon: "star" },
-  { title: "حفظ 10 سور", icon: "trophy" },
-];
+const AR_TITLE: Record<string, string> = {
+  "Allahu Akbar": "تكبير",
+  SubhanAllah: "تسبيح",
+  Alhamdulillah: "تحميد",
+  "La ilaha illa Allah": "تهليل",
+  Astaghfirullah: "استغفار",
+};
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { width } = useWindowDimensions();
-
   const topInset = Math.max(
     insets.top,
     Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0
   );
 
-  const maxW = 430;
-  const contentWidth = Math.min(width, maxW);
+  const { presets } = useApp();
+  const [athkarCompleted, setAthkarCompleted] = useState(0);
 
-  const maxValue = useMemo(
-    () => Math.max(...BAR_DATA.map((item) => item.value)),
-    []
+  const totalCategories = (adhkarData as any[]).length;
+
+  // Load athkar progress
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("athkar:categoryProgress")
+        .then((val) => {
+          if (val) {
+            const map = JSON.parse(val);
+            setAthkarCompleted(Object.values(map).filter(Boolean).length);
+          }
+        })
+        .catch(() => {});
+    }, [])
   );
 
-  // ↓ slightly smaller than before
-  const HEADER_MIN_HEIGHT = 130;
+  // Calculate tasbeeh stats
+  const tasbeehStats = useMemo(() => {
+    if (!presets || presets.length === 0) return { items: [], totalCount: 0, totalTarget: 0 };
+
+    const items = presets.map((p: any) => ({
+      name: p.arabicName || AR_TITLE[p.name] || p.name || "ذكر",
+      count: p.count || 0,
+      target: p.target || 33,
+    }));
+
+    const totalCount = items.reduce((sum: number, i: any) => sum + i.count, 0);
+    const totalTarget = items.reduce((sum: number, i: any) => sum + i.target, 0);
+
+    return { items, totalCount, totalTarget };
+  }, [presets]);
+
+  const maxBarValue = useMemo(() => {
+    if (tasbeehStats.items.length === 0) return 1;
+    return Math.max(...tasbeehStats.items.map((i: any) => i.count), 1);
+  }, [tasbeehStats]);
+
+  // Summary cards data
+  const summaryCards = [
+    {
+      icon: "finger-print-outline" as const,
+      label: "إجمالي التسبيح",
+      value: tasbeehStats.totalCount,
+      color: GREEN,
+      bg: "#E8F5E9",
+    },
+    {
+      icon: "book-outline" as const,
+      label: "أبواب حصن المسلم",
+      value: `${athkarCompleted} / ${totalCategories}`,
+      color: GOLD,
+      bg: GOLD_BG,
+    },
+    {
+      icon: "list-outline" as const,
+      label: "عدد الأذكار",
+      value: tasbeehStats.items.length,
+      color: "#4B8CFF",
+      bg: "#E3F2FD",
+    },
+    {
+      icon: "checkmark-done-outline" as const,
+      label: "أذكار مكتملة",
+      value: tasbeehStats.items.filter((i: any) => i.count >= i.target).length,
+      color: GREEN,
+      bg: "#E8F5E9",
+    },
+  ];
 
   return (
-    <View style={styles.root}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: topInset + 8,
-            minHeight: topInset + HEADER_MIN_HEIGHT,
-          },
-        ]}
-      >
-        <View style={[styles.headerRow, { width: contentWidth }]}>
-          <Pressable
-            style={styles.headerIcon}
-            onPress={() => navigation.goBack()}
-            hitSlop={10}
-          >
-            <Feather name="chevron-left" size={22} color="#FFFFFF" />
+    <View style={s.root}>
+      {/* Header */}
+      <View style={[s.header, { paddingTop: topInset + 8 }]}>
+        <View style={s.headerRow}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={s.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
           </Pressable>
-
-          <Text style={styles.headerTitle}>إحصائيات العبادات</Text>
-
-          {/* Spacer to keep the title perfectly centered */}
-          <View style={styles.headerIconSpacer} />
+          <Text style={s.headerTitle}>الإحصائيات</Text>
+          <View style={{ width: 36 }} />
         </View>
       </View>
 
       <ScrollView
-        style={{ width: contentWidth }}
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: insets.bottom + 24 },
-        ]}
+        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 90 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>إحصائيات الأذكار اليومية</Text>
-          <Text style={styles.cardSubtitle}>عدد الأذكار</Text>
+        {/* Summary Grid */}
+        <View style={s.summaryGrid}>
+          {summaryCards.map((card) => (
+            <View key={card.label} style={s.summaryCard}>
+              <View style={[s.summaryIcon, { backgroundColor: card.bg }]}>
+                <Ionicons name={card.icon} size={22} color={card.color} />
+              </View>
+              <Text style={s.summaryValue}>{card.value}</Text>
+              <Text style={s.summaryLabel}>{card.label}</Text>
+            </View>
+          ))}
+        </View>
 
-          <View style={styles.chartRow}>
-            {BAR_DATA.map((item) => {
-              const heightPct = maxValue ? item.value / maxValue : 0;
-              return (
-                <View key={item.label} style={styles.barColumn}>
-                  <Text style={styles.barValue}>{item.value}</Text>
-                  <View style={styles.barTrack}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { height: `${Math.max(0.12, heightPct) * 100}%` },
-                      ]}
-                    />
+        {/* Tasbeeh Chart */}
+        {tasbeehStats.items.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>إحصائيات المسبحة</Text>
+            <Text style={s.cardSub}>التقدم في الأذكار</Text>
+
+            <View style={s.chartArea}>
+              {tasbeehStats.items.map((item: any, idx: number) => {
+                const pct = maxBarValue > 0 ? item.count / maxBarValue : 0;
+                const completed = item.count >= item.target;
+                return (
+                  <View key={idx} style={s.barRow}>
+                    <Text style={s.barCount}>{item.count}</Text>
+                    <View style={s.barTrack}>
+                      <View
+                        style={[
+                          s.barFill,
+                          {
+                            width: `${Math.max(5, pct * 100)}%`,
+                            backgroundColor: completed ? GREEN : GOLD,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={s.barLabel} numberOfLines={1}>{item.name}</Text>
                   </View>
-                  <Text style={styles.barLabel} numberOfLines={2}>
-                    {item.label}
-                  </Text>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Hisn Al Muslim Progress */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>حصن المسلم</Text>
+          <Text style={s.cardSub}>تقدم القراءة</Text>
+
+          <View style={s.hisnProgressWrap}>
+            <View style={s.hisnBarOuter}>
+              <View
+                style={[
+                  s.hisnBarFill,
+                  { width: `${totalCategories > 0 ? (athkarCompleted / totalCategories) * 100 : 0}%` },
+                ]}
+              />
+            </View>
+            <View style={s.hisnStats}>
+              <View style={s.hisnStat}>
+                <Ionicons name="checkmark-circle" size={18} color={GREEN} />
+                <Text style={s.hisnStatNum}>{athkarCompleted}</Text>
+                <Text style={s.hisnStatLabel}>مكتمل</Text>
+              </View>
+              <View style={s.hisnStat}>
+                <Ionicons name="ellipse-outline" size={18} color={SECONDARY} />
+                <Text style={s.hisnStatNum}>{totalCategories - athkarCompleted}</Text>
+                <Text style={s.hisnStatLabel}>متبقي</Text>
+              </View>
+              <View style={s.hisnStat}>
+                <Ionicons name="library-outline" size={18} color={GOLD} />
+                <Text style={s.hisnStatNum}>{totalCategories}</Text>
+                <Text style={s.hisnStatLabel}>إجمالي</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>الإنجازات</Text>
-          <View style={styles.achievementsRow}>
-            {ACHIEVEMENTS.map((item) => (
-              <View key={item.title} style={styles.achievementTile}>
-                <View style={styles.achievementIconWrap}>
-                  <Feather name={item.icon as any} size={22} color="#D4AF37" />
+        {/* Achievements */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>الإنجازات</Text>
+
+          <View style={s.achieveGrid}>
+            {[
+              {
+                title: "أول تسبيح",
+                icon: "star-outline" as const,
+                done: tasbeehStats.totalCount > 0,
+              },
+              {
+                title: "١٠٠ ذكر",
+                icon: "ribbon-outline" as const,
+                done: tasbeehStats.totalCount >= 100,
+              },
+              {
+                title: "١٠٠٠ ذكر",
+                icon: "trophy-outline" as const,
+                done: tasbeehStats.totalCount >= 1000,
+              },
+              {
+                title: "٥ أبواب",
+                icon: "book-outline" as const,
+                done: athkarCompleted >= 5,
+              },
+              {
+                title: "١٠ أبواب",
+                icon: "medal-outline" as const,
+                done: athkarCompleted >= 10,
+              },
+              {
+                title: "ختم الحصن",
+                icon: "shield-checkmark-outline" as const,
+                done: athkarCompleted >= totalCategories,
+              },
+            ].map((a) => (
+              <View key={a.title} style={[s.achieveCard, a.done && s.achieveCardDone]}>
+                <View style={[s.achieveIcon, a.done ? s.achieveIconDone : s.achieveIconLocked]}>
+                  <Ionicons name={a.icon} size={22} color={a.done ? GREEN : SECONDARY} />
                 </View>
-                <Text style={styles.achievementTitle}>{item.title}</Text>
-                <View style={styles.achievementLine} />
-                <Text style={styles.achievementStatus}>مكتمل</Text>
+                <Text style={[s.achieveTitle, a.done && s.achieveTitleDone]}>{a.title}</Text>
+                {a.done ? (
+                  <View style={s.achieveBadge}>
+                    <Ionicons name="checkmark" size={12} color="#FFF" />
+                  </View>
+                ) : (
+                  <Ionicons name="lock-closed-outline" size={14} color="#C8B99A" style={{ marginTop: 4 }} />
+                )}
               </View>
             ))}
           </View>
@@ -132,155 +268,109 @@ export default function StatsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#F4F4F2",
-    alignItems: "center",
-  },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: PAGE_BG },
+
+  /* Header */
   header: {
-    width: "100%",
-    backgroundColor: "#0F4D3B",
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    paddingHorizontal: 18,
-    paddingBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    backgroundColor: HEADER_BG,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontFamily: "CairoBold", fontSize: 22, color: "#FFF", textAlign: "center", flex: 1 },
+
+  scroll: { paddingHorizontal: 14, paddingTop: 16 },
+
+  /* Summary Grid */
+  summaryGrid: {
+    flexDirection: "row-reverse", flexWrap: "wrap",
+    gap: 10, marginBottom: 16,
   },
-  headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+  summaryCard: {
+    width: "48%", flexGrow: 1,
+    backgroundColor: CARD_BG,
+    borderRadius: 18, padding: 16,
+    alignItems: "center", gap: 6,
   },
-  headerIconSpacer: {
-    width: 36,
-    height: 36,
+  summaryIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
   },
-  headerTitle: {
-    ...typography.screenTitle,
-    flex: 1,
-    fontSize: 22,
-    color: "#FFFFFF",
-    textAlign: "center",
-  },
-  scroll: {
-    paddingHorizontal: 18,
-    paddingTop: 0,
-  },
+  summaryValue: { fontFamily: "CairoBold", fontSize: 22, color: PRIMARY },
+  summaryLabel: { fontFamily: "Cairo", fontSize: 12, color: SECONDARY, textAlign: "center" },
+
+  /* Card */
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    backgroundColor: CARD_BG,
+    borderRadius: 20, padding: 18,
+    marginBottom: 14,
   },
-  cardTitle: {
-    ...typography.sectionTitle,
-    fontSize: 20,
-    color: "#1F2D25",
-    textAlign: "right",
+  cardTitle: { fontFamily: "CairoBold", fontSize: 18, color: PRIMARY, textAlign: "right" },
+  cardSub: { fontFamily: "Cairo", fontSize: 13, color: SECONDARY, textAlign: "right", marginTop: 2 },
+
+  /* Horizontal bar chart */
+  chartArea: { marginTop: 16, gap: 12 },
+  barRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center", gap: 10,
   },
-  cardSubtitle: {
-    ...typography.itemSubtitle,
-    fontSize: 14,
-    color: "#7C8A82",
-    textAlign: "right",
-    marginTop: 4,
-  },
-  chartRow: {
-    marginTop: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  barColumn: {
-    flex: 1,
-    alignItems: "center",
-  },
-  barValue: {
-    ...typography.numberText,
-    fontSize: 14,
-    color: "#1F2D25",
-    marginBottom: 8,
-  },
+  barLabel: { fontFamily: "Cairo", fontSize: 12, color: SECONDARY, width: 70, textAlign: "right" },
   barTrack: {
-    width: 34,
-    height: 140,
-    borderRadius: 12,
-    backgroundColor: "#E8F2ED",
-    justifyContent: "flex-end",
+    flex: 1, height: 22, borderRadius: 11,
+    backgroundColor: "#F0EBE0",
     overflow: "hidden",
   },
-  barFill: {
-    width: "100%",
-    backgroundColor: "#18B47B",
-    borderRadius: 12,
+  barFill: { height: 22, borderRadius: 11 },
+  barCount: { fontFamily: "CairoBold", fontSize: 13, color: PRIMARY, width: 40, textAlign: "center" },
+
+  /* Hisn progress */
+  hisnProgressWrap: { marginTop: 16, gap: 14 },
+  hisnBarOuter: {
+    height: 12, borderRadius: 6,
+    backgroundColor: "#E8E3D9",
+    overflow: "hidden",
   },
-  barLabel: {
-    ...typography.itemSubtitle,
-    fontSize: 12,
-    color: "#7C8A82",
-    textAlign: "center",
-    marginTop: 8,
-    paddingHorizontal: 2,
+  hisnBarFill: { height: 12, borderRadius: 6, backgroundColor: GREEN },
+  hisnStats: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-around",
   },
-  achievementsRow: {
-    marginTop: 16,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+  hisnStat: { alignItems: "center", gap: 4 },
+  hisnStatNum: { fontFamily: "CairoBold", fontSize: 18, color: PRIMARY },
+  hisnStatLabel: { fontFamily: "Cairo", fontSize: 11, color: SECONDARY },
+
+  /* Achievements */
+  achieveGrid: {
+    flexDirection: "row-reverse", flexWrap: "wrap",
+    gap: 10, marginTop: 14,
   },
-  achievementTile: {
-    width: "31%",
-    backgroundColor: "#F8F9F7",
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    marginBottom: 10,
+  achieveCard: {
+    width: "30%", flexGrow: 1,
+    backgroundColor: "#F8F5ED",
+    borderRadius: 16, padding: 12,
+    alignItems: "center", gap: 4,
+    borderWidth: 1.5, borderColor: "transparent",
   },
-  achievementIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFF6DD",
-    marginBottom: 8,
+  achieveCardDone: {
+    backgroundColor: "#EFF8F2",
+    borderColor: GREEN,
   },
-  achievementTitle: {
-    ...typography.itemTitle,
-    fontSize: 13,
-    color: "#1F2D25",
-    textAlign: "center",
+  achieveIcon: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
   },
-  achievementLine: {
-    width: "70%",
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: "#18B47B",
-    marginTop: 10,
-  },
-  achievementStatus: {
-    ...typography.itemSubtitle,
-    fontSize: 12,
-    color: "#18B47B",
-    marginTop: 6,
+  achieveIconDone: { backgroundColor: "#D9F0E3" },
+  achieveIconLocked: { backgroundColor: "#EDE8DD" },
+  achieveTitle: { fontFamily: "Cairo", fontSize: 11, color: SECONDARY, textAlign: "center" },
+  achieveTitleDone: { color: GREEN, fontFamily: "CairoBold" },
+  achieveBadge: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: GREEN,
+    alignItems: "center", justifyContent: "center",
+    marginTop: 2,
   },
 });

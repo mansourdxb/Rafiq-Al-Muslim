@@ -8,10 +8,8 @@ import {
   Pressable,
   Platform,
   StatusBar,
-  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -40,10 +38,7 @@ const PROGRESS_KEY = "athkar:categoryProgress";
 
 export default function HisnAlMuslimScreen() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
-  const { width } = useWindowDimensions();
   const navigation = useNavigation<any>();
-  const contentWidth = Math.min(width, 430);
   const topInset = Math.max(insets.top, Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0);
 
   const [search, setSearch] = useState("");
@@ -131,8 +126,7 @@ export default function HisnAlMuslimScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 24, paddingHorizontal: 14, paddingTop: 14 }}
-        style={{ width: contentWidth, alignSelf: "center" }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 90, paddingHorizontal: 14, paddingTop: 14 }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item, index }) => {
           const isCompleted = !!completedMap[item.id];

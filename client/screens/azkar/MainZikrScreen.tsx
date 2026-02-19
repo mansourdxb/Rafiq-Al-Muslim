@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import adhkarData from "@/assets/data/adhkar.json";
 
 /* ─── Colors ─── */
 const HEADER_BG = "#1B4332";
@@ -30,7 +32,7 @@ const GOLD_BG = "#F6F0E1";
 const MAIN_CATEGORIES = [
   { title: "أذكار الصباح", icon: "sunny-outline", bg: "#FFF3E0", color: "#F4A340" },
   { title: "أذكار المساء", icon: "moon-outline", bg: "#E8EAF6", color: "#5C6CFA" },
-  { title: "أذكار الصلاة", icon: "home-outline", bg: "#E8F5E9", color: "#26A46D" },
+  { title: "أذكار الصلاة", icon: "hands-pray", iconLib: "mci", bg: "#E8F5E9", color: "#26A46D" },
   { title: "أذكار النوم", icon: "cloud-outline", bg: "#E3F2FD", color: "#4B8CFF" },
 ];
 
@@ -39,7 +41,7 @@ const MORE_CATEGORIES = [
   { title: "أذكار الطعام", icon: "restaurant-outline", bg: "#FBE9E7", color: "#E64A19" },
   { title: "أذكار السفر", icon: "airplane-outline", bg: "#E0F7FA", color: "#0097A7" },
   { title: "أذكار دخول المنزل", icon: "home-outline", bg: "#F3E5F5", color: "#8E24AA" },
-  { title: "أذكار دخول المسجد", icon: "star-outline", bg: "#E8F5E9", color: "#388E3C" },
+  { title: "أذكار دخول المسجد", icon: "mosque", iconLib: "mci", bg: "#E8F5E9", color: "#388E3C" },
   { title: "أذكار الوضوء", icon: "water-outline", bg: "#E1F5FE", color: "#0288D1" },
   { title: "أدعية متنوعة", icon: "heart-outline", bg: "#FCE4EC", color: "#C62828" },
   { title: "أذكار المطر", icon: "rainy-outline", bg: "#E0F2F1", color: "#00897B" },
@@ -59,7 +61,7 @@ const REMINDER_OPTIONS: { key: ReminderKey; label: string; time: string; icon: s
   { key: "morning", label: "أذكار الصباح", time: "بعد صلاة الفجر", icon: "sunny-outline" },
   { key: "evening", label: "أذكار المساء", time: "بعد صلاة العصر", icon: "moon-outline" },
   { key: "sleep", label: "أذكار النوم", time: "10:30 مساءً", icon: "cloud-outline" },
-  { key: "prayer", label: "أذكار الصلاة", time: "بعد كل صلاة", icon: "home-outline" },
+  { key: "prayer", label: "أذكار الصلاة", time: "بعد كل صلاة", icon: "hands-pray", iconLib: "mci" },
 ];
 
 export default function MainZikrScreen() {
@@ -73,8 +75,26 @@ export default function MainZikrScreen() {
     morning: true, evening: true, sleep: false, prayer: false,
   });
 
-  /* ─── حصن المسلم progress ─── */
-  const progress = 0.5;
+  /* ─── حصن المسلم progress (real data) ─── */
+  const totalCategories = (adhkarData as any[]).length;
+  const [completedCount, setCompletedCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("athkar:categoryProgress")
+        .then((val) => {
+          if (val) {
+            const map = JSON.parse(val);
+            setCompletedCount(Object.values(map).filter(Boolean).length);
+          } else {
+            setCompletedCount(0);
+          }
+        })
+        .catch(() => {});
+    }, [])
+  );
+
+  const progress = totalCategories > 0 ? completedCount / totalCategories : 0;
   const ring = useMemo(() => {
     const size = 42;
     const stroke = 5;
@@ -184,11 +204,11 @@ export default function MainZikrScreen() {
                 strokeLinecap="round" strokeDasharray={`${ring.dash} ${ring.c - ring.dash}`}
                 rotation={-90} originX={ring.size / 2} originY={ring.size / 2} />
             </Svg>
-            <Text style={s.hisnPct}>50%</Text>
+            <Text style={s.hisnPct}>{Math.round(progress * 100)}%</Text>
           </View>
           <View style={s.hisnRight}>
             <Text style={s.hisnTitle}>حصن المسلم</Text>
-            <Text style={s.hisnSub}>تم إنجاز 12 من 33</Text>
+            <Text style={s.hisnSub}>تم إنجاز {completedCount} من {totalCategories}</Text>
           </View>
           <Ionicons name="chevron-back" size={20} color="#C8B99A" />
         </Pressable>
@@ -199,7 +219,9 @@ export default function MainZikrScreen() {
           {MAIN_CATEGORIES.map((cat) => (
             <Pressable key={cat.title} style={s.catCard} onPress={() => onCategoryPress(cat.title)}>
               <View style={[s.catIcon, { backgroundColor: cat.bg }]}>
-                <Ionicons name={cat.icon as any} size={22} color={cat.color} />
+                {(cat as any).iconLib === "mci"
+                  ? <MaterialCommunityIcons name={cat.icon as any} size={22} color={cat.color} />
+                  : <Ionicons name={cat.icon as any} size={22} color={cat.color} />}
               </View>
               <Text style={s.catTitle}>{cat.title}</Text>
             </Pressable>
@@ -217,7 +239,9 @@ export default function MainZikrScreen() {
             {MORE_CATEGORIES.map((cat) => (
               <Pressable key={cat.title} style={s.catCard} onPress={() => onCategoryPress(cat.title)}>
                 <View style={[s.catIcon, { backgroundColor: cat.bg }]}>
-                  <Ionicons name={cat.icon as any} size={22} color={cat.color} />
+                  {(cat as any).iconLib === "mci"
+                    ? <MaterialCommunityIcons name={cat.icon as any} size={22} color={cat.color} />
+                    : <Ionicons name={cat.icon as any} size={22} color={cat.color} />}
                 </View>
                 <Text style={s.catTitle}>{cat.title}</Text>
               </Pressable>
@@ -226,44 +250,25 @@ export default function MainZikrScreen() {
         )}
 
         {/* ── Tasbeeh Card ── */}
-        <View style={s.tasbeehCard}>
+        <Pressable style={s.tasbeehCard} onPress={openPresets}>
           <View style={s.tasbeehRow}>
             <View style={s.tasbeehInfo}>
               <Text style={s.tasbeehLabel}>المسبحة الإلكترونية</Text>
               <Text style={s.tasbeehDhikr}>سبحان الله وبحمده</Text>
             </View>
             <View style={s.tasbeehCounter}>
-              <Text style={s.tasbeehNumber}>128</Text>
-              <Text style={s.tasbeehCountLabel}>عدد</Text>
+              <MaterialCommunityIcons name="counter" size={36} color="#FFF" />
             </View>
           </View>
-          <View style={s.tasbeehProgress}>
-            <View style={s.tasbeehBar}>
-              <View style={[s.tasbeehBarFill, { width: "38%" }]} />
-            </View>
-            <Text style={s.tasbeehProgressText}>128 / 333</Text>
-          </View>
-          <Pressable style={s.tasbeehBtn} onPress={openPresets}>
+          <View style={s.tasbeehBtnRow}>
             <Text style={s.tasbeehBtnText}>متابعة التسبيح</Text>
             <Ionicons name="chevron-back" size={16} color={DARK_GREEN} />
-          </Pressable>
-        </View>
+          </View>
+        </Pressable>
 
         {/* ── Quick Actions ── */}
         <Text style={s.sectionTitle}>اختصارات</Text>
         <View style={s.quickGrid}>
-          <Pressable style={s.quickCard} onPress={openPresets}>
-            <View style={s.quickIcon}>
-              <Ionicons name="finger-print-outline" size={24} color={GOLD} />
-            </View>
-            <Text style={s.quickLabel}>المسبحة</Text>
-          </Pressable>
-          <Pressable style={s.quickCard} onPress={openHisnIndex}>
-            <View style={s.quickIcon}>
-              <Ionicons name="book-outline" size={24} color={GOLD} />
-            </View>
-            <Text style={s.quickLabel}>حصن المسلم</Text>
-          </Pressable>
           <Pressable style={s.quickCard} onPress={() => navigateAthkar("Calendar")}>
             <View style={s.quickIcon}>
               <Ionicons name="calendar-outline" size={24} color={GOLD} />
@@ -302,7 +307,9 @@ export default function MainZikrScreen() {
                   <Text style={s.reminderTime}>{opt.time}</Text>
                 </View>
                 <View style={s.reminderIcon}>
-                  <Ionicons name={opt.icon as any} size={20} color={GREEN} />
+                  {(opt as any).iconLib === "mci"
+                    ? <MaterialCommunityIcons name={opt.icon as any} size={20} color={GREEN} />
+                    : <Ionicons name={opt.icon as any} size={20} color={GREEN} />}
                 </View>
               </View>
             ))}
@@ -443,23 +450,7 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     borderWidth: 2, borderColor: "rgba(212,175,55,0.4)",
   },
-  tasbeehNumber: { fontFamily: "CairoBold", fontSize: 24, color: "#FFF", marginTop: 2 },
-  tasbeehCountLabel: { fontFamily: "Cairo", fontSize: 10, color: "#D6DED7", marginTop: -4 },
-  tasbeehProgress: {
-    flexDirection: "row-reverse", alignItems: "center",
-    gap: 10, marginTop: 16,
-  },
-  tasbeehBar: {
-    flex: 1, height: 6, borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  tasbeehBarFill: {
-    height: 6, borderRadius: 3, backgroundColor: GOLD,
-  },
-  tasbeehProgressText: {
-    fontFamily: "Cairo", fontSize: 11, color: "#D6DED7",
-  },
-  tasbeehBtn: {
+  tasbeehBtnRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 6, marginTop: 14,
     backgroundColor: GOLD, borderRadius: 14,
@@ -469,10 +460,11 @@ const s = StyleSheet.create({
 
   /* Quick Actions */
   quickGrid: {
-    flexDirection: "row-reverse", justifyContent: "space-between",
+    flexDirection: "row-reverse", justifyContent: "center",
+    gap: 16,
   },
   quickCard: {
-    width: "23%",
+    width: "40%",
     backgroundColor: CARD_BG,
     borderRadius: 16,
     paddingVertical: 14,

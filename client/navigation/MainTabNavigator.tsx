@@ -5,7 +5,7 @@ import PrayerStackNavigator from "@/navigation/PrayerStackNavigator";
 import PresetsStackNavigator from "@/navigation/PresetsStackNavigator";
 import QuranTabNavigator from "@/navigation/QuranTabNavigator";
 import HadithStackNavigator from "@/navigation/HadithStackNavigator";
-import MainZikrScreen from "@/screens/azkar/MainZikrScreen";
+import MoreStackNavigator from "@/navigation/MoreStackNavigator";
 import StitchTabBar from "@/components/navigation/StitchTabBar";
 
 export type MainTabParamList = {
@@ -30,7 +30,7 @@ export default function MainTabNavigator() {
       <Tab.Screen name="QuranTab" component={QuranTabNavigator} />
       <Tab.Screen name="HadithTab" component={HadithStackNavigator} />
       <Tab.Screen name="AthkarTab" component={PresetsStackNavigator} />
-      <Tab.Screen name="MoreTab" component={MainZikrScreen} />
+     <Tab.Screen name="MoreTab" component={MoreStackNavigator} />
     </Tab.Navigator>
   );
 }

@@ -1,0 +1,5 @@
+client/data/hadith_combined/
+client/constants/library/
+design/
+dist/
+.tmp/
