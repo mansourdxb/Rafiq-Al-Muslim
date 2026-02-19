@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   RECITER_OPTIONS,
   getPlayerState,
@@ -36,6 +37,7 @@ export default function QuranMiniPlayer({ controlsVisible = true, visibleAyahInf
   const [state, setState] = useState(getPlayerState());
   const [reciterOpen, setReciterOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     return subscribePlayer(setState);
@@ -54,18 +56,16 @@ export default function QuranMiniPlayer({ controlsVisible = true, visibleAyahInf
 
   if (!controlsVisible) return null;
 
-  // ── Minimized compact bar ── (always shows when controls visible)
+  // ── Minimized compact bar ──
   if (!expanded) {
     return (
-      <View style={styles.miniBar}>
+      <View style={[styles.miniBar, { bottom: 12 + insets.bottom }]}>
         <Pressable
           style={styles.miniPlayButton}
           onPress={() => {
-            // If audio is active (playing or paused), toggle play/pause
             if (state.visible && (state.isPlaying || state.surah != null)) {
               togglePlayPause();
             } else if (visibleAyahInfo) {
-              // No audio active — start fresh from visible page
               const meta = SURAH_META.find((s) => s.number === visibleAyahInfo.surah);
               void playAyah({
                 surah: visibleAyahInfo.surah,
@@ -88,13 +88,13 @@ export default function QuranMiniPlayer({ controlsVisible = true, visibleAyahInf
     );
   }
 
-  // ── Expanded full player ── (only meaningful when audio loaded)
+  // ── Expanded full player ──
 
   // If expanded but no audio loaded, show reciter picker only
   if (!state.visible) {
     return (
       <>
-        <View style={styles.container}>
+        <View style={[styles.container, { bottom: 12 + insets.bottom }]}>
           <View style={styles.headerRow}>
             <Pressable style={styles.iconButton} onPress={() => setExpanded(false)}>
               <Feather name="x" size={16} color="#6B7280" />
@@ -155,7 +155,7 @@ export default function QuranMiniPlayer({ controlsVisible = true, visibleAyahInf
 
   return (
     <>
-      <View style={styles.container}>
+      <View style={[styles.container, { bottom: 12 + insets.bottom }]}>
         <View style={styles.headerRow}>
           <Pressable style={styles.iconButton} onPress={() => { stopAndHide(); setExpanded(false); }}>
             <Feather name="x" size={16} color="#6B7280" />

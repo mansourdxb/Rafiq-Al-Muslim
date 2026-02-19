@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { quranTheme } from "./theme";
 
 type TafsirEntry = { type?: string; text?: string };
@@ -29,6 +30,7 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 export default function TafsirSheet({ visible, onClose, tafsirList }: Props) {
   const translateY = useRef(new Animated.Value(500)).current;
   const [active, setActive] = useState<TabKey>("مختصر");
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     Animated.timing(translateY, {
@@ -52,7 +54,7 @@ export default function TafsirSheet({ visible, onClose, tafsirList }: Props) {
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY }], paddingBottom: 18 + insets.bottom }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={onClose} hitSlop={8}>
             <Feather name="x" size={18} color="#7A7A7A" />
