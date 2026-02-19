@@ -9,7 +9,6 @@ import CalendarScreen from "@/screens/azkar/CalendarScreen";
 import StatsScreen from "@/screens/azkar/StatsScreen";
 import HisnAlMuslimScreen from "@/screens/azkar/HisnAlMuslimScreen";
 import HisnCategoryScreen from "@/screens/azkar/HisnCategoryScreen";
-import AiModelSetupScreen from "@/src/screens/ai/AiModelSetupScreen";
 
 export type PresetsStackParamList = {
   MainZikr: undefined;
@@ -20,7 +19,6 @@ export type PresetsStackParamList = {
   Stats: undefined;
   HisnAlMuslim: undefined;
   HisnCategory: { categoryId?: number; categoryTitle?: string };
-  AiModelSetup: undefined;
 };
 
 const Stack = createNativeStackNavigator<PresetsStackParamList>();
@@ -36,7 +34,6 @@ export default function PresetsStackNavigator() {
       <Stack.Screen name="Stats" component={StatsScreen} />
       <Stack.Screen name="HisnAlMuslim" component={HisnAlMuslimScreen} />
       <Stack.Screen name="HisnCategory" component={HisnCategoryScreen} />
-      <Stack.Screen name="AiModelSetup" component={AiModelSetupScreen} />
     </Stack.Navigator>
   );
 }

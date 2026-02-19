@@ -42,7 +42,15 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
       ],
       "edgeToEdgeEnabled": true
     },
@@ -85,8 +93,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "7a809db6-795e-44f0-8d25-8c1a16172261"
+        "projectId": "b316799e-dc8b-41f7-9547-32991e749145"
       }
-    }
+    },
+    "owner": "mansourdxb"
   }
 }
